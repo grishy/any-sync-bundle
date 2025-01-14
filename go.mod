@@ -1,6 +1,6 @@
 module any-sync-bundle
 
-go 1.23.0
+go 1.23.4
 
 require github.com/anyproto/any-sync-filenode v0.8.5 // Prod ts=1725031592
 
