@@ -1,4 +1,4 @@
-package bundlefilenode
+package filenodesqlite
 
 import (
 	"context"
