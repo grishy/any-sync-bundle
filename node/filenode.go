@@ -21,7 +21,6 @@ import (
 	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/net/peerservice"
 	"github.com/anyproto/any-sync/net/pool"
-	"github.com/anyproto/any-sync/net/rpc"
 	"github.com/anyproto/any-sync/net/rpc/server"
 	"github.com/anyproto/any-sync/net/secureservice"
 	"github.com/anyproto/any-sync/net/transport/quic"
@@ -30,62 +29,17 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 
 	"any-sync-bundle/services/filenodesqlite"
-	"any-sync-bundle/services/metricmock"
 )
 
-func NewFileNodeApp(log logger.CtxLogger) *app.App {
-	yamixCfg := yamux.Config{
-		ListenAddrs: []string{
-			"0.0.0.0:15000",
-		},
-		WriteTimeoutSec:    10,
-		DialTimeoutSec:     10,
-		KeepAlivePeriodSec: 0,
-	}
-
-	quicCfg := quic.Config{
-		ListenAddrs: []string{
-			"0.0.0.0:15010",
-		},
-		WriteTimeoutSec:    0,
-		DialTimeoutSec:     0,
-		MaxStreams:         0,
-		KeepAlivePeriodSec: 0,
-	}
-
-	metricCfg := metric.Config{}
-
-	drpcCfg := rpc.Config{
-		Stream: rpc.StreamConfig{
-			MaxMsgSizeMb: 256,
-		},
-	}
-
+func NewFileNodeApp(log logger.CtxLogger, cfg *config.Config) *app.App {
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	netStorePath := "./data/networkStore/filenode"
-	if err := os.MkdirAll(netStorePath, 0o775); err != nil {
-		log.Panic("can't create directory for filenode", zap.Error(err))
+	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
+		log.Panic("can't create directory network store", zap.Error(err))
 	}
 
-	cfgFileNode := &config.Config{
-		Account: confAcc,
-		Drpc:    drpcCfg,
-		Yamux:   yamixCfg,
-		Quic:    quicCfg,
-		Metric:  metricCfg,
-		Redis: redisprovider.Config{
-			IsCluster: false,
-			Url:       "",
-		},
-		Network:          confNetwork,
-		NetworkStorePath: netStorePath,
-		DefaultLimit:     1099511627776, // 1 TB
-	}
-
-	a := new(app.App)
-	a.
-		Register(cfgFileNode).
-		Register(metricmock.New()). // Changed
+	a := new(app.App).
+		Register(cfg).
+		Register(metric.New()).
 		Register(account.New()).
 		Register(nodeconfsource.New()).
 		Register(nodeconfstore.New()).

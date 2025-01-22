@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/anyproto/any-sync/app/debugstat"
-	anyConfig "github.com/anyproto/any-sync/commonspace/config"
 	"github.com/anyproto/any-sync/commonspace/credentialprovider"
 	"github.com/anyproto/any-sync/consensus/consensusclient"
 	"github.com/anyproto/any-sync/coordinator/coordinatorclient"
@@ -12,9 +11,7 @@ import (
 	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/net/peerservice"
 	"github.com/anyproto/any-sync/net/pool"
-	"github.com/anyproto/any-sync/net/rpc"
 	"github.com/anyproto/any-sync/net/rpc/debugserver"
-	"github.com/anyproto/any-sync/net/rpc/limiter"
 	"github.com/anyproto/any-sync/net/rpc/server"
 	"github.com/anyproto/any-sync/net/streampool"
 	"github.com/anyproto/any-sync/net/transport/quic"
@@ -46,86 +43,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewSyncApp(log logger.CtxLogger) *app.App {
-	yamixCfg := yamux.Config{
-		ListenAddrs: []string{
-			"0.0.0.0:15000",
-		},
-		WriteTimeoutSec:    10,
-		DialTimeoutSec:     10,
-		KeepAlivePeriodSec: 0,
-	}
-
-	quicCfg := quic.Config{
-		ListenAddrs: []string{
-			"0.0.0.0:15010",
-		},
-		WriteTimeoutSec:    0,
-		DialTimeoutSec:     0,
-		MaxStreams:         0,
-		KeepAlivePeriodSec: 0,
-	}
-
-	metricCfg := metric.Config{}
-
-	drpcCfg := rpc.Config{
-		Stream: rpc.StreamConfig{
-			MaxMsgSizeMb: 256,
-		},
-	}
-
+func NewSyncApp(log logger.CtxLogger, cfg *config.Config) *app.App {
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	netStorePath := "./data/networkStore/sync"
-	if err := os.MkdirAll(netStorePath, 0o775); err != nil {
-		log.Panic("can't create directory for sync", zap.Error(err))
+	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
+		log.Panic("can't create directory network store", zap.Error(err))
 	}
 
-	storagePath := "./data/sync-storage"
-	if err := os.MkdirAll(netStorePath, 0o775); err != nil {
-		log.Panic("can't create directory for sync", zap.Error(err))
-	}
-
-	cfg := &config.Config{
-		Drpc:    drpcCfg,
-		Account: confAcc,
-		APIServer: debugserver.Config{
-			ListenAddr: "0.0.0.0:18080",
-		},
-		Network:                  confNetwork,
-		NetworkStorePath:         netStorePath,
-		NetworkUpdateIntervalSec: 0,
-		Space: anyConfig.Config{
-			GCTTL:      60,
-			SyncPeriod: 600,
-		},
-		Storage: nodestorage.Config{
-			Path: storagePath,
-		},
-		Metric: metricCfg,
-		Log: logger.Config{
-			Production: false,
-		},
-		NodeSync: nodesync.Config{
-			SyncOnStart:       false,
-			PeriodicSyncHours: 0,
-			HotSync: hotsync.Config{
-				SimultaneousRequests: 0,
-			},
-		},
-		Yamux: yamixCfg,
-		Limiter: limiter.Config{
-			DefaultTokens: limiter.Tokens{
-				TokensPerSecond: 0,
-				MaxTokens:       0,
-			},
-			ResponseTokens: nil,
-		},
-		Quic: quicCfg,
-	}
-
-	a := new(app.App)
-
-	a.
+	a := new(app.App).
 		Register(cfg).
 		Register(account.New()).
 		Register(metric.New()).
