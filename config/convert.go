@@ -91,7 +91,6 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 	}
 
 	// Consensus
-
 	cfgCons := &consensusconfig.Config{
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{
@@ -127,7 +126,7 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 		},
 	}
 
-	//
+	// Filenode
 	cfgFileNode := &filenodeconfig.Config{
 		Account: bc.Accounts.File,
 		Drpc: rpc.Config{
@@ -150,6 +149,9 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 			DialTimeoutSec:  10,
 		},
 		Metric: metricCfg,
+		FileDevStore: filenodeconfig.FileDevStore{
+			Path: filepath.Join(bc.StoragePath, "file-storage"),
+		},
 		Redis: redisprovider.Config{
 			IsCluster: false,
 			Url:       bc.Nodes.File.RedisURL,

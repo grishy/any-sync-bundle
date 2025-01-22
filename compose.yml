@@ -43,3 +43,22 @@ services:
       retries: 3
     volumes:
       - ./data/redis:/data
+
+  # TODO: Auto create bucket `bucket`
+  minio:
+    image: docker.io/minio/minio:RELEASE.2025-01-20T14-49-07Z
+    command:
+      - "server"
+      - "/data"
+      - "--address"
+      - ":9000"
+      - "--console-address"
+      - ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./data/minio:/data
+    environment:
+      MINIO_ACCESS_KEY: "minio_access_key"
+      MINIO_SECRET_KEY: "minio_secret_key"
