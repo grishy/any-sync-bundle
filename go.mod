@@ -1,13 +1,17 @@
 module any-sync-bundle
 
-go 1.23.4
+go 1.23.5
 
-require github.com/anyproto/any-sync-filenode v0.8.5 // Prod ts=1725031592
+// Prod ts=1734517522
+require (
+	github.com/anyproto/any-sync-consensusnode v0.2.2
+	github.com/anyproto/any-sync-coordinator v0.4.4
+	github.com/anyproto/any-sync-filenode v0.8.5
+	github.com/anyproto/any-sync-node v0.4.13
+)
 
 require (
 	github.com/anyproto/any-sync v0.5.22
-	github.com/anyproto/any-sync-consensusnode v0.2.2
-	github.com/anyproto/any-sync-coordinator v0.4.4
 	github.com/ipfs/go-block-format v0.2.0
 	github.com/ipfs/go-cid v0.4.1
 	github.com/prometheus/client_golang v1.20.5
@@ -18,6 +22,7 @@ require (
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
+	github.com/akrylysov/pogreb v0.10.3-0.20240803013244-523613e335e9 // indirect
 	github.com/anyproto/go-chash v0.1.0 // indirect
 	github.com/anyproto/go-slip10 v1.0.0 // indirect
 	github.com/anyproto/go-slip21 v1.0.0 // indirect
