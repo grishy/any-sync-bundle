@@ -38,9 +38,9 @@ func main() {
 	// Common configs
 	apps := []*app.App{
 		bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator"), cfgNodes.Coordinator),
-		// bundleNode.NewConsensusApp(logger.NewNamed("consensus"), cfgNodes.Consensus),
-		// bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode),
-		// bundleNode.NewSyncApp(logger.NewNamed("sync"), cfgNodes.Sync),
+		bundleNode.NewConsensusApp(logger.NewNamed("consensus"), cfgNodes.Consensus),
+		bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode),
+		bundleNode.NewSyncApp(logger.NewNamed("sync"), cfgNodes.Sync),
 	}
 
 	// start apps
