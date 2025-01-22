@@ -66,10 +66,13 @@ func (s *SQLite) Name() (name string) {
 
 func (s *SQLite) Run(ctx context.Context) (err error) {
 	// TODO implement me
-	panic("implement me")
+	// panic("implement me")
+
+	return nil
 }
 
 func (s *SQLite) Close(ctx context.Context) (err error) {
 	// TODO implement me
-	panic("implement me")
+	// panic("implement me")
+	return nil
 }
