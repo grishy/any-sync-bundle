@@ -26,9 +26,10 @@ func main() {
 
 	// Common configs
 	apps := []*app.App{
-		// bundleNode.NewFileNodeApp(logger.NewNamed("filenode")),
 		// bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator")),
-		bundleNode.NewConsensusApp(logger.NewNamed("consensus")),
+		// bundleNode.NewConsensusApp(logger.NewNamed("consensus")),
+		// bundleNode.NewFileNodeApp(logger.NewNamed("filenode")),
+		bundleNode.NewSyncApp(logger.NewNamed("sync")),
 	}
 
 	// start apps

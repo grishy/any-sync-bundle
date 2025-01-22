@@ -2,6 +2,13 @@
 
 Version from [here](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/).
 
+## Why created?
+
+- Hard to start, a lot of containers
+- Docs inacurate and created configs not fully correct
+- Heavy because of MinIO
+-
+
 ## Issues on Anytype side
 
 - https://github.com/anyproto/any-sync/issues/373

@@ -4,6 +4,8 @@ github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAE
 github.com/OneOfOne/xxhash v1.2.8 h1:31czK/TI9sNkxIKfaUfGlU47BAxQ0ztGgd9vPyqimf8=
 github.com/OneOfOne/xxhash v1.2.8/go.mod h1:eZbhyaAYD41SGSSsnmcpxVoRiQ/MPUTjUdIIOT9Um7Q=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
+github.com/akrylysov/pogreb v0.10.3-0.20240803013244-523613e335e9 h1:GnBlbnor8geJB4j7GGXqVHiSG0cHNEkIYNmpYDAPa+Y=
+github.com/akrylysov/pogreb v0.10.3-0.20240803013244-523613e335e9/go.mod h1:fPb3n+7H42SxX84B4/os7POrR+UGRKSRr3kNS5+xq/c=
 github.com/anyproto/any-sync v0.5.22 h1:mfAVfmcP8o/9ZIGS59YECiVCi9UZI9u3W0hK+vH7/z8=
 github.com/anyproto/any-sync v0.5.22/go.mod h1:ANfWnDHP9t4RHelUhX99YmaDvmzcaeIwR9grkKIkfeM=
 github.com/anyproto/any-sync-consensusnode v0.2.2 h1:3GzIyW38aT7oXcwCw5iQIK2DaV++23dJjtBHpNlBhUI=
@@ -12,6 +14,8 @@ github.com/anyproto/any-sync-coordinator v0.4.4 h1:i2F9H92Wl+a2tZiFX6kPaezo+4Uw1
 github.com/anyproto/any-sync-coordinator v0.4.4/go.mod h1:JiGHtp0nkRRoYJFXyYWd9zTVao/EL14yxPyWGo8Jqik=
 github.com/anyproto/any-sync-filenode v0.8.5 h1:XZfRtRklCQ8Gagn5yiuybOPAL4fqDR60+NKS6En5usg=
 github.com/anyproto/any-sync-filenode v0.8.5/go.mod h1:fQ2hpdki7ydZraDyCMR6YNjglHKL62oA9xQjimyOmc0=
+github.com/anyproto/any-sync-node v0.4.13 h1:3EcsCam8X7ySyA5zH3JVn252Pf132q81D5yEqEIJaR8=
+github.com/anyproto/any-sync-node v0.4.13/go.mod h1:YuHw1awd78F0le/WlteLQYF6+Z5Ff23sQ+5ygywkeoQ=
 github.com/anyproto/go-chash v0.1.0 h1:I9meTPjXFRfXZHRJzjOHC/XF7Q5vzysKkiT/grsogXY=
 github.com/anyproto/go-chash v0.1.0/go.mod h1:0UjNQi3PDazP0fINpFYu6VKhuna+W/V+1vpXHAfNgLY=
 github.com/anyproto/go-slip10 v1.0.0 h1:uAEtSuudR3jJBOfkOXf3bErxVoxbuKwdoJN55M1i6IA=
