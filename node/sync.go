@@ -44,8 +44,6 @@ import (
 	"github.com/anyproto/any-sync-node/nodestorage"
 
 	"go.uber.org/zap"
-
-	"any-sync-bundle/services/metricmock"
 )
 
 func NewSyncApp(log logger.CtxLogger) *app.App {
@@ -130,7 +128,7 @@ func NewSyncApp(log logger.CtxLogger) *app.App {
 	a.
 		Register(cfg).
 		Register(account.New()).
-		Register(metricmock.New()). // Changed
+		Register(metric.New()).
 		Register(debugstat.New()).
 		Register(credentialprovider.NewNoOp()).
 		Register(coordinatorclient.New()).

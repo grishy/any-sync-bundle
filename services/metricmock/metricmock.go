@@ -38,19 +38,19 @@ func (m *metricMock) RequestLog(ctx context.Context, rpc string, fields ...zap.F
 }
 
 func (m *metricMock) RegisterStreamPoolSyncMetric(mtr metric.StreamPoolMetric) {
-	// pass
+	panic("implement me")
 }
 
 func (m *metricMock) UnregisterStreamPoolSyncMetric() {
-	// pass
+	panic("implement me")
 }
 
 func (m *metricMock) RegisterSyncMetric(spaceId string, syncMetric metric.SyncMetric) {
-	// pass
+	panic("implement me")
 }
 
 func (m *metricMock) UnregisterSyncMetric(spaceId string) {
-	// pass
+	panic("implement me")
 }
 
 func (m *metricMock) Init(a *app.App) (err error) {
