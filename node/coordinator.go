@@ -55,9 +55,7 @@ func NewCoordinatorApp(log logger.CtxLogger) *app.App {
 		KeepAlivePeriodSec: 0,
 	}
 
-	metricCfg := metric.Config{
-		Addr: "0.0.0.0:18080",
-	}
+	metricCfg := metric.Config{}
 
 	drpcCfg := rpc.Config{
 		Stream: rpc.StreamConfig{
@@ -65,11 +63,10 @@ func NewCoordinatorApp(log logger.CtxLogger) *app.App {
 		},
 	}
 
-	// TODO: Create ticket about mkdirall
-	// https://github.com/anyproto/any-sync/pull/297
-	netStorePath := "./data/networkStore/filenode"
+	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
+	netStorePath := "./data/networkStore/coordinator"
 	if err := os.MkdirAll(netStorePath, 0o775); err != nil {
-		log.Panic("can't create directory for filenode", zap.Error(err))
+		log.Panic("can't create directory for", zap.Error(err))
 	}
 
 	cfg := &config.Config{
@@ -98,9 +95,10 @@ func NewCoordinatorApp(log logger.CtxLogger) *app.App {
 	}
 
 	a := new(app.App)
-	a.Register(cfg)
 
-	a.Register(db.New()).
+	a.
+		Register(cfg).
+		Register(db.New()).
 		Register(metricmock.New()). // Changed
 		Register(account.New()).
 		Register(nodeconfstore.New()).

@@ -6,6 +6,8 @@ github.com/OneOfOne/xxhash v1.2.8/go.mod h1:eZbhyaAYD41SGSSsnmcpxVoRiQ/MPUTjUdII
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
 github.com/anyproto/any-sync v0.5.22 h1:mfAVfmcP8o/9ZIGS59YECiVCi9UZI9u3W0hK+vH7/z8=
 github.com/anyproto/any-sync v0.5.22/go.mod h1:ANfWnDHP9t4RHelUhX99YmaDvmzcaeIwR9grkKIkfeM=
+github.com/anyproto/any-sync-consensusnode v0.2.2 h1:3GzIyW38aT7oXcwCw5iQIK2DaV++23dJjtBHpNlBhUI=
+github.com/anyproto/any-sync-consensusnode v0.2.2/go.mod h1:/NkhwrywZRc6vfR2rMaa31EB9HFx+OOBFbjoDkBaqTY=
 github.com/anyproto/any-sync-coordinator v0.4.4 h1:i2F9H92Wl+a2tZiFX6kPaezo+4Uw1ZdBYCqVT4SB75g=
 github.com/anyproto/any-sync-coordinator v0.4.4/go.mod h1:JiGHtp0nkRRoYJFXyYWd9zTVao/EL14yxPyWGo8Jqik=
 github.com/anyproto/any-sync-filenode v0.8.5 h1:XZfRtRklCQ8Gagn5yiuybOPAL4fqDR60+NKS6En5usg=

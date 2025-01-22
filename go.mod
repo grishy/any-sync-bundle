@@ -6,10 +6,13 @@ require github.com/anyproto/any-sync-filenode v0.8.5 // Prod ts=1725031592
 
 require (
 	github.com/anyproto/any-sync v0.5.22
+	github.com/anyproto/any-sync-consensusnode v0.2.2
 	github.com/anyproto/any-sync-coordinator v0.4.4
 	github.com/ipfs/go-block-format v0.2.0
 	github.com/ipfs/go-cid v0.4.1
+	github.com/prometheus/client_golang v1.20.5
 	go.uber.org/zap v1.27.0
+	storj.io/drpc v0.0.34
 )
 
 require (
@@ -67,7 +70,6 @@ require (
 	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo/v2 v2.20.2 // indirect
-	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.60.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
@@ -99,5 +101,4 @@ require (
 	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.3.0 // indirect
-	storj.io/drpc v0.0.34 // indirect
 )

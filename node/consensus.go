@@ -3,19 +3,13 @@ package app
 import (
 	"os"
 
-	"go.uber.org/zap"
-
-	"github.com/anyproto/any-sync-filenode/account"
-	"github.com/anyproto/any-sync-filenode/config"
-	"github.com/anyproto/any-sync-filenode/deletelog"
-	"github.com/anyproto/any-sync-filenode/filenode"
-	"github.com/anyproto/any-sync-filenode/index"
-	"github.com/anyproto/any-sync-filenode/redisprovider"
-
-	"github.com/anyproto/any-sync/acl"
+	"github.com/anyproto/any-sync-consensusnode/account"
+	"github.com/anyproto/any-sync-consensusnode/config"
+	"github.com/anyproto/any-sync-consensusnode/consensusrpc"
+	"github.com/anyproto/any-sync-consensusnode/db"
+	"github.com/anyproto/any-sync-consensusnode/stream"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
-	"github.com/anyproto/any-sync/consensus/consensusclient"
 	"github.com/anyproto/any-sync/coordinator/coordinatorclient"
 	"github.com/anyproto/any-sync/coordinator/nodeconfsource"
 	"github.com/anyproto/any-sync/metric"
@@ -28,12 +22,12 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
+	"go.uber.org/zap"
 
-	"any-sync-bundle/services/filenodesqlite"
 	"any-sync-bundle/services/metricmock"
 )
 
-func NewFileNodeApp(log logger.CtxLogger) *app.App {
+func NewConsensusApp(log logger.CtxLogger) *app.App {
 	yamixCfg := yamux.Config{
 		ListenAddrs: []string{
 			"0.0.0.0:15000",
@@ -62,48 +56,49 @@ func NewFileNodeApp(log logger.CtxLogger) *app.App {
 	}
 
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	netStorePath := "./data/networkStore/filenode"
+	netStorePath := "./data/networkStore/consensus"
 	if err := os.MkdirAll(netStorePath, 0o775); err != nil {
-		log.Panic("can't create directory for filenode", zap.Error(err))
+		log.Panic("can't create directory for consensus", zap.Error(err))
 	}
 
-	cfgFileNode := &config.Config{
-		Account: confAcc,
-		Drpc:    drpcCfg,
-		Yamux:   yamixCfg,
-		Quic:    quicCfg,
-		Metric:  metricCfg,
-		Redis: redisprovider.Config{
-			IsCluster: false,
-			Url:       "",
+	cfg := &config.Config{
+		Drpc:                     drpcCfg,
+		Account:                  confAcc,
+		Network:                  confNetwork,
+		NetworkStorePath:         netStorePath,
+		NetworkUpdateIntervalSec: 0,
+		Mongo: config.Mongo{
+			Connect:       "mongodb://lab_anytype_mongo:27017/?w=majority",
+			Database:      "consensus",
+			LogCollection: "log",
 		},
-		Network:          confNetwork,
-		NetworkStorePath: netStorePath,
-		DefaultLimit:     1099511627776, // 1 TB
+		Metric: metricCfg,
+		Log: logger.Config{
+			Production: false,
+		},
+		Yamux: yamixCfg,
+		Quic:  quicCfg,
 	}
 
 	a := new(app.App)
+
 	a.
-		Register(cfgFileNode).
+		Register(cfg).
 		Register(metricmock.New()). // Changed
 		Register(account.New()).
-		Register(nodeconfsource.New()).
-		Register(nodeconfstore.New()).
 		Register(nodeconf.New()).
-		Register(peerservice.New()).
-		Register(secureservice.New()).
-		Register(pool.New()).
+		Register(nodeconfstore.New()).
+		Register(nodeconfsource.New()).
 		Register(coordinatorclient.New()).
-		Register(consensusclient.New()).
-		Register(acl.New()).
-		Register(filenodesqlite.NewSqlStorage()). // Changed: Replacement for S3 store
-		Register(redisprovider.New()).
-		Register(index.New()).
-		Register(server.New()).
-		Register(filenode.New()).
-		Register(deletelog.New()).
+		Register(pool.New()).
+		Register(peerservice.New()).
 		Register(yamux.New()).
-		Register(quic.New())
+		Register(quic.New()).
+		Register(secureservice.New()).
+		Register(server.New()).
+		Register(db.New()).
+		Register(stream.New()).
+		Register(consensusrpc.New())
 
 	return a
 }
