@@ -7,13 +7,14 @@ services:
       - "--port"
       - "27017"
     ports:
-      - 27017:27017
-    healthcheck:
-      test: test $$(mongosh --port 27017 --quiet --eval "try {rs.initiate({_id:'rs0',members:[{_id:0,host:\"mongo:27017\"}]})} catch(e) {rs.status().ok}") -eq 1
-      interval: 10s
-      start_period: 30s
+      - "27017:27017"
+    # TODO: Don't use healthcheck for now replica set initialization
+    #    healthcheck:
+    #      test: test $$(mongosh --port 27017 --quiet --eval "try {rs.initiate({_id:'rs0',members:[{_id:0,host:\"localhost:27017\"}]})} catch(e) {rs.status().ok}") -eq 1
+    #      interval: 10s
+    #      start_period: 30s
     volumes:
-      - "./data/mongo:/data/db:Z"
+      - ./data/mongo:/data:Z
 
   redis:
     image: docker.io/redis/redis-stack-server:7.4.0-v2
@@ -34,7 +35,7 @@ services:
       - "--loadmodule"
       - "/opt/redis-stack/lib/redisbloom.so"
     ports:
-      - 6379:6379
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "-p", "6379", "incr", "ping"]
       interval: 10s

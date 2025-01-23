@@ -1,9 +1,8 @@
 package app
 
 import (
+	"fmt"
 	"os"
-
-	"go.uber.org/zap"
 
 	"github.com/anyproto/any-sync-coordinator/account"
 	"github.com/anyproto/any-sync-coordinator/accountlimit"
@@ -19,8 +18,6 @@ import (
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
-	"github.com/anyproto/any-sync/net/rpc"
-
 	"github.com/anyproto/any-sync/consensus/consensusclient"
 	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/net/peerservice"
@@ -31,75 +28,23 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
-
-	"any-sync-bundle/services/metricmock"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 )
 
-func NewCoordinatorApp(log logger.CtxLogger) *app.App {
-	yamixCfg := yamux.Config{
-		ListenAddrs: []string{
-			"0.0.0.0:15000",
-		},
-		WriteTimeoutSec:    10,
-		DialTimeoutSec:     10,
-		KeepAlivePeriodSec: 0,
-	}
-
-	quicCfg := quic.Config{
-		ListenAddrs: []string{
-			"0.0.0.0:15010",
-		},
-		WriteTimeoutSec:    0,
-		DialTimeoutSec:     0,
-		MaxStreams:         0,
-		KeepAlivePeriodSec: 0,
-	}
-
-	metricCfg := metric.Config{}
-
-	drpcCfg := rpc.Config{
-		Stream: rpc.StreamConfig{
-			MaxMsgSizeMb: 256,
-		},
-	}
-
+func NewCoordinatorApp(log logger.CtxLogger, cfg *config.Config) *app.App {
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	netStorePath := "./data/networkStore/coordinator"
-	if err := os.MkdirAll(netStorePath, 0o775); err != nil {
-		log.Panic("can't create directory for", zap.Error(err))
+	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
+		log.Panic("can't create directory network store", zap.Error(err))
 	}
 
-	cfg := &config.Config{
-		Account:                  confAcc,
-		Drpc:                     drpcCfg,
-		Metric:                   metricCfg,
-		Network:                  confNetwork,
-		NetworkStorePath:         netStorePath,
-		NetworkUpdateIntervalSec: 0,
-		Mongo: db.Mongo{
-			Connect:  "mongodb://localhost:27017",
-			Database: "coordinator",
-		},
-		SpaceStatus: spacestatus.Config{
-			RunSeconds:         5,
-			DeletionPeriodDays: 0,
-			SpaceLimit:         0,
-		},
-		Yamux: yamixCfg,
-		Quic:  quicCfg,
-		AccountLimits: accountlimit.SpaceLimits{
-			SpaceMembersRead:  1000,
-			SpaceMembersWrite: 1000,
-			SharedSpacesLimit: 1000,
-		},
-	}
+	cfgDump, _ := yaml.Marshal(cfg)
+	fmt.Println(string(cfgDump))
 
-	a := new(app.App)
-
-	a.
+	a := new(app.App).
 		Register(cfg).
 		Register(db.New()).
-		Register(metricmock.New()). // Changed
+		Register(metric.New()).
 		Register(account.New()).
 		Register(nodeconfstore.New()).
 		Register(nodeconf.New()).
