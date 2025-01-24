@@ -35,6 +35,9 @@ func main() {
 	cfgBundle := bundleCfg.BundleCfg(configBundlePath)
 	cfgNodes := cfgBundle.NodeConfigs()
 
+	// Dump client config
+	cfgBundle.DumpClientConfig(configClientPath)
+
 	// Common configs
 	apps := []*app.App{
 		bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator"), cfgNodes.Coordinator),
