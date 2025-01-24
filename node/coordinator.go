@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/anyproto/any-sync-coordinator/account"
@@ -29,7 +28,6 @@ import (
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
 )
 
 func NewCoordinatorApp(log logger.CtxLogger, cfg *config.Config) *app.App {
@@ -37,9 +35,6 @@ func NewCoordinatorApp(log logger.CtxLogger, cfg *config.Config) *app.App {
 	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
 		log.Panic("can't create directory network store", zap.Error(err))
 	}
-
-	cfgDump, _ := yaml.Marshal(cfg)
-	fmt.Println(string(cfgDump))
 
 	a := new(app.App).
 		Register(cfg).

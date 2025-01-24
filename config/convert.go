@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 
 	consensusconfig "github.com/anyproto/any-sync-consensusnode/config"
@@ -114,18 +115,15 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 			ListenAddrs: []string{
 				bc.Nodes.Consensus.ListenTCPAddr,
 			},
-			WriteTimeoutSec:    10,
-			DialTimeoutSec:     10,
-			KeepAlivePeriodSec: 0,
+			WriteTimeoutSec: 10,
+			DialTimeoutSec:  10,
 		},
 		Quic: quic.Config{
 			ListenAddrs: []string{
 				bc.Nodes.Consensus.ListenUDPAddr,
 			},
-			WriteTimeoutSec:    0,
-			DialTimeoutSec:     0,
-			MaxStreams:         0,
-			KeepAlivePeriodSec: 0,
+			WriteTimeoutSec: 10,
+			DialTimeoutSec:  10,
 		},
 	}
 
@@ -141,18 +139,15 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 			ListenAddrs: []string{
 				bc.Nodes.File.ListenTCPAddr,
 			},
-			WriteTimeoutSec:    10,
-			DialTimeoutSec:     10,
-			KeepAlivePeriodSec: 0,
+			WriteTimeoutSec: 10,
+			DialTimeoutSec:  10,
 		},
 		Quic: quic.Config{
 			ListenAddrs: []string{
 				bc.Nodes.File.ListenUDPAddr,
 			},
-			WriteTimeoutSec:    0,
-			DialTimeoutSec:     0,
-			MaxStreams:         0,
-			KeepAlivePeriodSec: 0,
+			WriteTimeoutSec: 10,
+			DialTimeoutSec:  10,
 		},
 		Metric: metricCfg,
 		Redis: redisprovider.Config{
@@ -197,9 +192,8 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 			ListenAddrs: []string{
 				bc.Nodes.Tree.ListenTCPAddr,
 			},
-			WriteTimeoutSec:    10,
-			DialTimeoutSec:     10,
-			KeepAlivePeriodSec: 0,
+			WriteTimeoutSec: 10,
+			DialTimeoutSec:  10,
 		},
 		Limiter: limiter.Config{
 			DefaultTokens: limiter.Tokens{
@@ -212,10 +206,8 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 			ListenAddrs: []string{
 				bc.Nodes.Tree.ListenUDPAddr,
 			},
-			WriteTimeoutSec:    0,
-			DialTimeoutSec:     0,
-			MaxStreams:         0,
-			KeepAlivePeriodSec: 0,
+			WriteTimeoutSec: 10,
+			DialTimeoutSec:  10,
 		},
 	}
 
@@ -227,11 +219,57 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 	}
 }
 
+// TODO: Support IPv6
+func convertListenToConnect(listenAddr string) string {
+	host, port, _ := strings.Cut(listenAddr, ":")
+	if host == "0.0.0.0" {
+		host = "127.0.0.1"
+	}
+	return host + ":" + port
+}
+
 func (bc *BundleConfig) networkCfg() nodeconf.Configuration {
 	network := nodeconf.Configuration{
-		Id:           bc.ConfigID,
-		NetworkId:    bc.NetworkID,
-		Nodes:        []nodeconf.Node{},
+		Id:        bc.ConfigID,
+		NetworkId: bc.NetworkID,
+		Nodes: []nodeconf.Node{
+			{
+				PeerId: bc.Accounts.Coordinator.PeerId,
+				Addresses: []string{
+					convertListenToConnect(bc.Nodes.Coordinator.ListenTCPAddr),
+				},
+				Types: []nodeconf.NodeType{
+					nodeconf.NodeTypeCoordinator,
+				},
+			},
+			{
+				PeerId: bc.Accounts.Consensus.PeerId,
+				Addresses: []string{
+					convertListenToConnect(bc.Nodes.Consensus.ListenTCPAddr),
+				},
+				Types: []nodeconf.NodeType{
+					nodeconf.NodeTypeConsensus,
+				},
+			},
+			{
+				PeerId: bc.Accounts.Tree.PeerId,
+				Addresses: []string{
+					convertListenToConnect(bc.Nodes.Tree.ListenTCPAddr),
+				},
+				Types: []nodeconf.NodeType{
+					nodeconf.NodeTypeTree,
+				},
+			},
+			{
+				PeerId: bc.Accounts.File.PeerId,
+				Addresses: []string{
+					convertListenToConnect(bc.Nodes.File.ListenTCPAddr),
+				},
+				Types: []nodeconf.NodeType{
+					nodeconf.NodeTypeFile,
+				},
+			},
+		},
 		CreationTime: time.Now(),
 	}
 	return network
