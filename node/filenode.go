@@ -35,6 +35,11 @@ func NewFileNodeApp(log logger.CtxLogger, cfg *config.Config) *app.App {
 		log.Panic("can't create directory network store", zap.Error(err))
 	}
 
+	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
+	if err := os.MkdirAll(cfg.FileDevStore.Path, 0o775); err != nil {
+		log.Panic("can't create directory file dev store", zap.Error(err))
+	}
+
 	a := new(app.App).
 		Register(cfg).
 		Register(metric.New()).
