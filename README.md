@@ -55,5 +55,6 @@ try {
 - https://github.com/anyproto/any-sync/issues/373
 - https://github.com/anyproto/any-sync-dockercompose/issues/126
 - https://github.com/anyproto/any-sync/pull/374
+- TODO: Anytype app sypport only .yml files, not .yaml
 
 > Because I stand on the shoulders of giants, I can see further than they can.
