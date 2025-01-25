@@ -1,14 +1,15 @@
 package config
 
 import (
+	"net"
 	"path/filepath"
-	"strings"
 	"time"
 
 	consensusconfig "github.com/anyproto/any-sync-consensusnode/config"
 	coordinatorconfig "github.com/anyproto/any-sync-coordinator/config"
 	filenodeconfig "github.com/anyproto/any-sync-filenode/config"
 	syncconfig "github.com/anyproto/any-sync-node/config"
+	"go.uber.org/zap"
 
 	"github.com/anyproto/any-sync-coordinator/accountlimit"
 	"github.com/anyproto/any-sync-coordinator/db"
@@ -156,9 +157,12 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 			IsCluster: false,
 			Url:       bc.Nodes.File.RedisURL,
 		},
-		Network:          networkCfg,
-		NetworkStorePath: filepath.Join(bc.StoragePath, "networkStore/filenode"),
-		DefaultLimit:     1099511627776, // 1 TB
+		Network:                  networkCfg,
+		NetworkStorePath:         filepath.Join(bc.StoragePath, "networkStore/filenode"),
+		NetworkUpdateIntervalSec: 0,
+		CafeMigrateKey:           "",
+		DefaultLimit:             1099511627776, // 1 TB
+		PersistTtl:               0,
 	}
 
 	// Sync
@@ -222,12 +226,27 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 }
 
 // TODO: Support IPv6
-func convertListenToConnect(listenAddr string) string {
-	host, port, _ := strings.Cut(listenAddr, ":")
-	if host == "0.0.0.0" {
-		host = "127.0.0.1"
+func convertListenToConnect(listen BundleConfigNodeShared) []string {
+	hostTCP, portTCP, err := net.SplitHostPort(listen.ListenTCPAddr)
+	if err != nil {
+		log.Panic("failed to split TCP listen addr", zap.Error(err))
 	}
-	return host + ":" + port
+	if hostTCP == "0.0.0.0" {
+		hostTCP = "127.0.0.1"
+	}
+
+	hostUDP, portUDP, err := net.SplitHostPort(listen.ListenUDPAddr)
+	if err != nil {
+		log.Panic("failed to split UDP listen addr", zap.Error(err))
+	}
+	if hostUDP == "0.0.0.0" {
+		hostUDP = "127.0.0.1"
+	}
+
+	return []string{
+		"quic://" + hostUDP + ":" + portUDP,
+		hostTCP + ":" + portTCP,
+	}
 }
 
 func (bc *BundleConfig) networkCfg() nodeconf.Configuration {
@@ -236,37 +255,29 @@ func (bc *BundleConfig) networkCfg() nodeconf.Configuration {
 		NetworkId: bc.NetworkID,
 		Nodes: []nodeconf.Node{
 			{
-				PeerId: bc.Accounts.Coordinator.PeerId,
-				Addresses: []string{
-					convertListenToConnect(bc.Nodes.Coordinator.ListenTCPAddr),
-				},
+				PeerId:    bc.Accounts.Coordinator.PeerId,
+				Addresses: convertListenToConnect(bc.Nodes.Coordinator.BundleConfigNodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeCoordinator,
 				},
 			},
 			{
-				PeerId: bc.Accounts.Consensus.PeerId,
-				Addresses: []string{
-					convertListenToConnect(bc.Nodes.Consensus.ListenTCPAddr),
-				},
+				PeerId:    bc.Accounts.Consensus.PeerId,
+				Addresses: convertListenToConnect(bc.Nodes.Consensus.BundleConfigNodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeConsensus,
 				},
 			},
 			{
-				PeerId: bc.Accounts.Tree.PeerId,
-				Addresses: []string{
-					convertListenToConnect(bc.Nodes.Tree.ListenTCPAddr),
-				},
+				PeerId:    bc.Accounts.Tree.PeerId,
+				Addresses: convertListenToConnect(bc.Nodes.Tree.BundleConfigNodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeTree,
 				},
 			},
 			{
-				PeerId: bc.Accounts.File.PeerId,
-				Addresses: []string{
-					convertListenToConnect(bc.Nodes.File.ListenTCPAddr),
-				},
+				PeerId:    bc.Accounts.File.PeerId,
+				Addresses: convertListenToConnect(bc.Nodes.File.BundleConfigNodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeFile,
 				},
