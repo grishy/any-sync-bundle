@@ -5,6 +5,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -19,8 +20,8 @@ import (
 var log = logger.NewNamed("main")
 
 const (
-	configBundlePath = "./data/cfg/priv_bundle.yaml"
-	configClientPath = "./data/cfg/pub_client.yaml"
+	configBundlePath = "./data/cfg/priv_bundle.yml"
+	configClientPath = "./data/cfg/pub_client.yml"
 )
 
 func main() {
@@ -38,11 +39,13 @@ func main() {
 	// Dump client config
 	cfgBundle.DumpClientConfig(configClientPath)
 
+	fileStore := filepath.Join(cfgBundle.StoragePath, "storage-file")
+
 	// Common configs
 	apps := []*app.App{
 		bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator"), cfgNodes.Coordinator),
 		bundleNode.NewConsensusApp(logger.NewNamed("consensus"), cfgNodes.Consensus),
-		bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode),
+		bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode, fileStore),
 		bundleNode.NewSyncApp(logger.NewNamed("sync"), cfgNodes.Sync),
 	}
 

@@ -58,7 +58,7 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 		},
 		Metric:                   metricCfg,
 		Network:                  networkCfg,
-		NetworkStorePath:         filepath.Join(bc.StoragePath, "networkStore/coordinator"),
+		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/coordinator"),
 		NetworkUpdateIntervalSec: 0,
 		Mongo: db.Mongo{
 			Connect:  bc.Nodes.Coordinator.MongoConnect,
@@ -100,7 +100,7 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 		},
 		Account:                  bc.Accounts.Consensus,
 		Network:                  networkCfg,
-		NetworkStorePath:         filepath.Join(bc.StoragePath, "networkStore/consensus"),
+		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/consensus"),
 		NetworkUpdateIntervalSec: 0,
 		Mongo: consensusconfig.Mongo{
 			Connect:       bc.Nodes.Consensus.MongoConnect,
@@ -150,15 +150,12 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 			DialTimeoutSec:  10,
 		},
 		Metric: metricCfg,
-		FileDevStore: filenodeconfig.FileDevStore{
-			Path: filepath.Join(bc.StoragePath, "file-storage"),
-		},
 		Redis: redisprovider.Config{
 			IsCluster: false,
 			Url:       bc.Nodes.File.RedisURL,
 		},
 		Network:                  networkCfg,
-		NetworkStorePath:         filepath.Join(bc.StoragePath, "networkStore/filenode"),
+		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/filenode"),
 		NetworkUpdateIntervalSec: 0,
 		CafeMigrateKey:           "",
 		DefaultLimit:             1099511627776, // 1 TB
@@ -174,14 +171,14 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 		},
 		Account:                  bc.Accounts.Tree,
 		Network:                  networkCfg,
-		NetworkStorePath:         filepath.Join(bc.StoragePath, "networkStore/sync"),
+		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/sync"),
 		NetworkUpdateIntervalSec: 0,
 		Space: config.Config{
 			GCTTL:      60,
 			SyncPeriod: 600,
 		},
 		Storage: nodestorage.Config{
-			Path: filepath.Join(bc.StoragePath, "sync-storage"),
+			Path: filepath.Join(bc.StoragePath, "storage-sync"),
 		},
 		Metric: metricCfg,
 		Log: logger.Config{
