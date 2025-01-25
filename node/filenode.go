@@ -11,7 +11,6 @@ import (
 	"github.com/anyproto/any-sync-filenode/filenode"
 	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync-filenode/redisprovider"
-	"github.com/anyproto/any-sync-filenode/store/filedevstore"
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
@@ -27,17 +26,14 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
+
+	"any-sync-bundle/component/storeBadger"
 )
 
-func NewFileNodeApp(log logger.CtxLogger, cfg *config.Config) *app.App {
+func NewFileNodeApp(log logger.CtxLogger, cfg *config.Config, fileDir string) *app.App {
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
 	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
 		log.Panic("can't create directory network store", zap.Error(err))
-	}
-
-	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	if err := os.MkdirAll(cfg.FileDevStore.Path, 0o775); err != nil {
-		log.Panic("can't create directory file dev store", zap.Error(err))
 	}
 
 	a := new(app.App).
@@ -54,7 +50,8 @@ func NewFileNodeApp(log logger.CtxLogger, cfg *config.Config) *app.App {
 		Register(consensusclient.New()).
 		Register(acl.New()).
 		// Register(filenodesqlite.NewSqlStorage()). // Changed: Replacement for S3 store
-		Register(filedevstore.New()).
+		// Register(filedevstore.New()).
+		Register(storeBadger.New(fileDir)).
 		Register(redisprovider.New()).
 		Register(index.New()).
 		Register(server.New()).
