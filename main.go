@@ -30,12 +30,13 @@ const (
 	configClientPath = "./data/cfg/pub_client.yml"
 )
 
-type appUnit struct {
+type node struct {
 	name string
-	*app.App
+	app  *app.App
 }
 
 func main() {
+	// TODO: AppName global, AppName not working properly on app instance
 	app.AppName = "any-sync-bundle"
 
 	printWelcome()
@@ -56,11 +57,23 @@ func main() {
 	fileStore := filepath.Join(cfgBundle.StoragePath, "storage-file")
 
 	// Common configs
-	apps := []appUnit{
-		{name: "coordinator", App: bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator"), cfgNodes.Coordinator)},
-		{name: "consensus", App: bundleNode.NewConsensusApp(logger.NewNamed("consensus"), cfgNodes.Consensus)},
-		{name: "filenode", App: bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode, fileStore)},
-		{name: "sync", App: bundleNode.NewSyncApp(logger.NewNamed("sync"), cfgNodes.Sync)},
+	apps := []node{
+		{
+			name: "coordinator",
+			app:  bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator"), cfgNodes.Coordinator),
+		},
+		{
+			name: "consensus",
+			app:  bundleNode.NewConsensusApp(logger.NewNamed("consensus"), cfgNodes.Consensus),
+		},
+		{
+			name: "filenode",
+			app:  bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode, fileStore),
+		},
+		{
+			name: "sync",
+			app:  bundleNode.NewSyncApp(logger.NewNamed("sync"), cfgNodes.Sync),
+		},
 	}
 
 	// Start all services
@@ -68,7 +81,7 @@ func main() {
 
 	for _, a := range apps {
 		log.Info("▶️ Starting service", zap.String("name", a.name))
-		if err := a.Start(ctx); err != nil {
+		if err := a.app.Start(ctx); err != nil {
 			log.Panic("❌ Service startup failed",
 				zap.String("name", a.name),
 				zap.Error(err))
@@ -85,7 +98,7 @@ func main() {
 	// Stop apps in reverse order
 	for _, a := range slices.Backward(apps) {
 		ctxClose, cancelClose := context.WithTimeout(context.Background(), 30*time.Second)
-		if err := a.Close(ctxClose); err != nil {
+		if err := a.app.Close(ctxClose); err != nil {
 			log.Error("close error", zap.String("name", a.name), zap.Error(err))
 		}
 
@@ -187,9 +200,9 @@ func mongoInit(ctx context.Context, mongoURI string) {
 func printWelcome() {
 	fmt.Print(`
 ╔═══════════════════════════════════════════════════════════════════╗
-																   
-				Welcome to the AnySync Bundle!  
-		  https://github.com/grishy/any-sync-bundle                   
+
+                 Welcome to the AnySync Bundle!  
+           https://github.com/grishy/any-sync-bundle                   
 `)
 	fmt.Println("  Base on these components:")
 	info, ok := debug.ReadBuildInfo()
