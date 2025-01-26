@@ -3,7 +3,7 @@ package app
 import (
 	"os"
 
-	"any-sync-bundle/component/storeBadger"
+	"github.com/grishy/any-sync-bundle/component/storeBadger"
 
 	"go.uber.org/zap"
 
