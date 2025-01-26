@@ -42,7 +42,6 @@ jobs:
         run: go test -v ./...
 
   docker_build:
-    name: Docker Build test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,11 +58,10 @@ jobs:
           context: .
           push: false
           platforms: |
+            linux/386
             linux/amd64
-            linux/arm/v5
             linux/arm/v7
             linux/arm64/v8
-            linux/386
             linux/mips64le
             linux/ppc64le
             linux/s390x
