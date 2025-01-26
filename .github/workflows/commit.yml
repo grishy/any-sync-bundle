@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   golangci:
-    name: Linter
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +23,7 @@ jobs:
         with:
           version: v1.63.4
 
-  build_tests:
-    name: Build and Tests
+  build_and_tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,10 +41,9 @@ jobs:
       - name: Test
         run: go test -v ./...
 
-  docker:
+  docker_build:
     name: Docker Build test
     runs-on: ubuntu-latest
-    needs: build_tests
     steps:
       - uses: actions/checkout@v4
 
@@ -73,7 +70,7 @@ jobs:
           tags: latest
           file: ./docker/Dockerfile
 
-      - name: Build any-sync-bundle only
+      - name: Build all-in-one
         uses: docker/build-push-action@v6
         with:
           context: .
