@@ -41,6 +41,7 @@ docker run -it \
 
 - Create first tech version
 - Add release with binaries and containers for all platforms
+- Build in version into binary
 - Conjure up a version format
   - Recheck https://semver.org/
   - contain version of any-bundle, to track breaking changes
