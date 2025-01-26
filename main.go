@@ -185,11 +185,11 @@ func mongoInit(ctx context.Context, mongoURI string) {
 }
 
 func printWelcome() {
-	fmt.Println(`
+	fmt.Print(`
 ╔═══════════════════════════════════════════════════════════════════╗
-                                                                   
-                Welcome to the AnySync Bundle!  
-          https://github.com/grishy/any-sync-bundle                   
+																   
+				Welcome to the AnySync Bundle!  
+		  https://github.com/grishy/any-sync-bundle                   
 `)
 	fmt.Println("  Base on these components:")
 	info, ok := debug.ReadBuildInfo()
@@ -203,7 +203,7 @@ func printWelcome() {
 			fmt.Printf("  • %s (%s)\n", mod.Path, mod.Version)
 		}
 	}
-	fmt.Println(`
+	fmt.Print(`
 ╚═══════════════════════════════════════════════════════════════════╝
 `)
 }
