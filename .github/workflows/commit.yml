@@ -30,7 +30,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.5"
-          cache: false
 
       - name: Verify dependencies
         run: go mod verify
@@ -62,6 +61,8 @@ jobs:
             linux/amd64
           tags: latest
           file: ./docker/Dockerfile
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build all-in-one
         uses: docker/build-push-action@v6
@@ -73,3 +74,5 @@ jobs:
             linux/amd64
           tags: latest
           file: ./docker/Dockerfile.all-in-one
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
