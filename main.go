@@ -99,7 +99,11 @@ func mongoInit(ctx context.Context, mongoURI string) {
 		if err != nil {
 			return fmt.Errorf("failed to connect to mongo: %w", err)
 		}
-		defer client.Disconnect(ctx)
+		defer func() {
+			if err := client.Disconnect(ctx); err != nil {
+				log.Error("failed to disconnect from mongo", zap.Error(err))
+			}
+		}()
 
 		// Try to initialize replica set first
 		cmd := bson.D{
