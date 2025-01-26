@@ -56,5 +56,7 @@ try {
 - https://github.com/anyproto/any-sync-dockercompose/issues/126
 - https://github.com/anyproto/any-sync/pull/374
 - TODO: Anytype app sypport only .yml files, not .yaml
+- Found https://github.com/anyproto/any-sync-coordinator/issues/80#issuecomment-2220554099
+- Add API support for end user to get notes
 
 > Because I stand on the shoulders of giants, I can see further than they can.
