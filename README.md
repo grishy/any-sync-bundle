@@ -54,6 +54,7 @@ docker run -it \
 - Write a blog post on both languages
 - Create a video (on both languages?)
 - Publish on tegegram, reddit, issue on github into the ticket and docker-compose, forum on anytype and into the question as response
+- Add tests for the bundle
 
 ## Why created?
 
