@@ -1,6 +1,8 @@
+# For local development or reference only
+
 services:
   mongo:
-    image: docker.io/mongo:7.0.16
+    image: docker.io/mongo:8.0.4
     command:
       - "--replSet"
       - "rs0"
@@ -8,13 +10,13 @@ services:
       - "27017"
     ports:
       - "27017:27017"
-    # TODO: Don't use healthcheck for now replica set initialization
-    #    healthcheck:
-    #      test: test $$(mongosh --port 27017 --quiet --eval "try {rs.initiate({_id:'rs0',members:[{_id:0,host:\"localhost:27017\"}]})} catch(e) {rs.status().ok}") -eq 1
-    #      interval: 10s
-    #      start_period: 30s
+    # Yes, we init the replica set here...
+    healthcheck:
+      test: test $$(mongosh --port 27017 --quiet --eval "try {rs.initiate({_id:'rs0',members:[{_id:0,host:\"127.0.0.1:27017\"}]})} catch(e) {rs.status().ok}") -eq 1
+      interval: 10s
+      start_period: 30s
     volumes:
-      - ./data/mongo:/data:Z
+      - ./data/mongo:/data
 
   redis:
     image: docker.io/redis/redis-stack-server:7.4.0-v2
@@ -36,29 +38,4 @@ services:
       - "/opt/redis-stack/lib/redisbloom.so"
     ports:
       - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "-p", "6379", "incr", "ping"]
-      interval: 10s
-      timeout: 30s
-      retries: 3
-    volumes:
       - ./data/redis:/data
-
-  # TODO: Auto create bucket `bucket`
-#  minio:
-#    image: docker.io/minio/minio:RELEASE.2025-01-20T14-49-07Z
-#    command:
-#      - "server"
-#      - "/data"
-#      - "--address"
-#      - ":9000"
-#      - "--console-address"
-#      - ":9001"
-#    ports:
-#      - "9000:9000"
-#      - "9001:9001"
-#    volumes:
-#      - ./data/minio:/data
-#    environment:
-#      MINIO_ACCESS_KEY: "minio_access_key"
-#      MINIO_SECRET_KEY: "minio_secret_key"
