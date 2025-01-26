@@ -58,9 +58,8 @@ jobs:
           context: .
           push: false
           platforms: |
+            linux/arm64
             linux/amd64
-            linux/arm/v7
-            linux/arm64/v8
           tags: latest
           file: ./docker/Dockerfile
 
@@ -69,6 +68,8 @@ jobs:
         with:
           context: .
           push: false
-          platforms: linux/amd64,linux/arm64
+          platforms: |
+            linux/arm64
+            linux/amd64
           tags: latest
           file: ./docker/Dockerfile.all-in-one

@@ -6,7 +6,7 @@ RUN go mod download
 COPY ./ ./
 RUN go build -ldflags="-s -w" -o any-sync-bundle
 
-FROM redis/redis-stack-server:7.4.0-v2 
+FROM docker.io/redis/redis-stack-server:7.4.0-v2:7.4.0-v2 
 LABEL maintainer="Sergei G. <mail@grishy.dev>"
 LABEL description="Anytype Self-Hosting: All-in-One Prepared for You"
 
