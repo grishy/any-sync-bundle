@@ -3,6 +3,8 @@ package app
 import (
 	"os"
 
+	"any-sync-bundle/component/storeBadger"
+
 	"go.uber.org/zap"
 
 	"github.com/anyproto/any-sync-filenode/account"
@@ -26,8 +28,6 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
-
-	"any-sync-bundle/component/storeBadger"
 )
 
 func NewFileNodeApp(log logger.CtxLogger, cfg *config.Config, fileDir string) *app.App {
@@ -49,7 +49,6 @@ func NewFileNodeApp(log logger.CtxLogger, cfg *config.Config, fileDir string) *a
 		Register(coordinatorclient.New()).
 		Register(consensusclient.New()).
 		Register(acl.New()).
-		// Register(filenodesqlite.NewSqlStorage()). // Changed: Replacement for S3 store
 		// Register(filedevstore.New()).
 		Register(storeBadger.New(fileDir)).
 		Register(redisprovider.New()).

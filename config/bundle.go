@@ -126,7 +126,7 @@ func createBundleConfig() *BundleConfig {
 
 	cfg := &BundleConfig{
 		ExternalListenAddr: []string{
-			"192.168.100.3",
+			"192.168.100.6",
 		},
 		Version:     1,
 		ConfigID:    cfgId,
