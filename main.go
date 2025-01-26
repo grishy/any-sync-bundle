@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
+	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,15 +30,21 @@ const (
 	configClientPath = "./data/cfg/pub_client.yml"
 )
 
+type appUnit struct {
+	name string
+	*app.App
+}
+
 func main() {
-	// TODO: Replace it on new build-in version of it in Go
 	app.AppName = "any-sync-bundle"
+
+	printWelcome()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGKILL, syscall.SIGTERM, syscall.SIGQUIT)
 	defer cancel()
 
 	// TODO: Create commands to only generate conf and allow to provide external addrs
-	// TODO: Cread configs also from args or env
+	// TODO: Cread configs also from args or env?
 	cfgBundle := bundleCfg.BundleCfg(configBundlePath)
 	cfgNodes := cfgBundle.NodeConfigs()
 
@@ -48,36 +56,43 @@ func main() {
 	fileStore := filepath.Join(cfgBundle.StoragePath, "storage-file")
 
 	// Common configs
-	apps := []*app.App{
-		bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator"), cfgNodes.Coordinator),
-		bundleNode.NewConsensusApp(logger.NewNamed("consensus"), cfgNodes.Consensus),
-		bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode, fileStore),
-		bundleNode.NewSyncApp(logger.NewNamed("sync"), cfgNodes.Sync),
+	apps := []appUnit{
+		{name: "coordinator", App: bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator"), cfgNodes.Coordinator)},
+		{name: "consensus", App: bundleNode.NewConsensusApp(logger.NewNamed("consensus"), cfgNodes.Consensus)},
+		{name: "filenode", App: bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode, fileStore)},
+		{name: "sync", App: bundleNode.NewSyncApp(logger.NewNamed("sync"), cfgNodes.Sync)},
 	}
 
-	// start apps
+	// Start all services
+	log.Info("⚡ Initiating service startup", zap.Int("count", len(apps)))
+
 	for _, a := range apps {
+		log.Info("▶️ Starting service", zap.String("name", a.name))
 		if err := a.Start(ctx); err != nil {
-			log.Fatal("can't start app", zap.Error(err))
+			log.Panic("❌ Service startup failed",
+				zap.String("name", a.name),
+				zap.Error(err))
 		}
+
+		log.Info("✅ Service started successfully", zap.String("name", a.name))
 	}
-	log.Info("apps started")
+
+	log.Info("🚀 Service startup complete.")
 
 	// wait exit signal
 	<-ctx.Done()
 
-	// TODO: Stop in reverse order
-	// close apps
-	for _, a := range apps {
-		ctxClose, cancelClose := context.WithTimeout(context.Background(), time.Minute)
+	// Stop apps in reverse order
+	for _, a := range slices.Backward(apps) {
+		ctxClose, cancelClose := context.WithTimeout(context.Background(), 30*time.Second)
 		if err := a.Close(ctxClose); err != nil {
-			log.Fatal("close error", zap.Error(err))
+			log.Error("close error", zap.String("name", a.name), zap.Error(err))
 		}
+
 		cancelClose()
 	}
-	log.Info("goodbye!")
 
-	time.Sleep(time.Second / 3)
+	log.Info("goodbye!")
 }
 
 func mongoInit(ctx context.Context, mongoURI string) {
@@ -167,4 +182,28 @@ func mongoInit(ctx context.Context, mongoURI string) {
 	}
 
 	log.Panic("failed to initialize mongo replica set after all retries")
+}
+
+func printWelcome() {
+	fmt.Println(`
+╔═══════════════════════════════════════════════════════════════════╗
+                                                                   
+                Welcome to the AnySync Bundle!  
+          https://github.com/grishy/any-sync-bundle                   
+`)
+	fmt.Println("  Base on these components:")
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		log.Panic("failed to read build info")
+		return
+	}
+
+	for _, mod := range info.Deps {
+		if strings.HasPrefix(mod.Path, "github.com/anyproto/any-sync") {
+			fmt.Printf("  • %s (%s)\n", mod.Path, mod.Version)
+		}
+	}
+	fmt.Println(`
+╚═══════════════════════════════════════════════════════════════════╝
+`)
 }

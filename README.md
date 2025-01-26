@@ -7,17 +7,6 @@ Version from [here](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible
 Need to create replica set for MongoDB. Manually or with some script.  
 Check that address should be same as when we will start to use it?
 
-```js
-try {
-  rs.initiate({
-    _id: "rs0",
-    members: [{ _id: 0, host: "127.0.0.1:27017" }],
-  });
-} catch (e) {
-  rs.status().ok;
-}
-```
-
 ```bash
 docker build -t any --progress=plain -f docker/Dockerfile .
 

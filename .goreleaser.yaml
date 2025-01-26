@@ -28,7 +28,7 @@ archives:
 
 source:
   enabled: true
-  format: 'tar.gz'
+  format: "tar.gz"
 
 checksum:
   # https://goreleaser.com/customization/checksum/
@@ -39,7 +39,7 @@ release:
   target_commitish: "{{ .Commit }}"
   mode: replace
   header: |
-    ## ℹ️ For information on how to install and use please see `README.md`
+    ## ℹ️ For information on how to install and use please see [README.md](https://github.com/grishy/any-sync-bundle)
   footer: |
     Your PRs & issues are welcome! Thanks 😉
   disable: false
