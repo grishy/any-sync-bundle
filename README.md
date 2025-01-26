@@ -18,6 +18,25 @@ try {
 }
 ```
 
+```bash
+docker build -t any --progress=plain -f docker/Dockerfile .
+
+docker run -it \
+    -p 33010:33010 \
+    -p 33011:33011/udp \
+    -p 33020:33020 \
+    -p 33021:33021/udp \
+    -p 33030:33030 \
+    -p 33031:33031/udp \
+    -p 33040:33040 \
+    -p 33041:33041/udp \
+    -p 27017:27017 \
+    -p 6379:6379 \
+    -v $(pwd)/data:/data \
+    --name any-sync-bundle \
+    any:latest
+```
+
 ## TODO
 
 - Create first tech version
