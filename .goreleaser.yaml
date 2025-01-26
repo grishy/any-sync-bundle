@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# https://github.com/goreleaser/goreleaser/pull/4391
+version: 2
+
+report_sizes: true
+
+builds:
+  # https://goreleaser.com/customization/builds/go/
+  - env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -w -s
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.CommitDate}}
+    targets:
+      - go_first_class
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  # https://goreleaser.com/customization/archive/
+  - formats: ["tar.gz"]
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+
+source:
+  enabled: true
+  format: 'tar.gz'
+
+checksum:
+  # https://goreleaser.com/customization/checksum/
+  name_template: "checksums.txt"
+
+release:
+  # https://goreleaser.com/customization/release/
+  target_commitish: "{{ .Commit }}"
+  mode: replace
+  header: |
+    ## ℹ️ For information on how to install and use please see `README.md`
+  footer: |
+    Your PRs & issues are welcome! Thanks 😉
+  disable: false
+  skip_upload: false
+
+changelog:
+  # https://goreleaser.com/customization/changelog/
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "Bug fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Others
+      order: 999

@@ -1,12 +1,13 @@
-# Use bookworm to by sync with final stage redis
-FROM golang:1.23.5-bookworm AS build
+# syntax=docker/dockerfile:1
+
+FROM golang:1.23.5 AS build
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY ./ ./
-RUN go build -ldflags="-s -w" -o any-sync-bundle
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o any-sync-bundle
 
-FROM docker.io/redis/redis-stack-server:7.4.0-v2:7.4.0-v2 
+FROM docker.io/redis/redis-stack-server:7.4.0-v2
 LABEL maintainer="Sergei G. <mail@grishy.dev>"
 LABEL description="Anytype Self-Hosting: All-in-One Prepared for You"
 

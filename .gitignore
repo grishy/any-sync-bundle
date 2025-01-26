@@ -31,6 +31,7 @@ go.work.sum
 # such as folder view options, icon positions, and other visual information
 .DS_Store
 
-# Debug data
+# Local build data
+/dist/
 /data/
 /any-sync-bundle

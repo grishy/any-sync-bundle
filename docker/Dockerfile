@@ -5,9 +5,9 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY ./ ./
-RUN go build -ldflags="-s -w" -o any-sync-bundle
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o any-sync-bundle
 
-FROM gcr.io/distroless/base-debian12
+FROM gcr.io/distroless/static-debian12
 LABEL maintainer="Sergei G. <mail@grishy.dev>"
 LABEL description="Anytype Self-Hosting: All-in-One Prepared for You"
 
