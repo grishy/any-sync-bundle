@@ -1,4 +1,20 @@
-# any-sync-bundle
+# Any-sync Bundle
+
+<p align="center">
+  <img src="./docs/todo" width="350">
+   <br />
+   <strong>Status: </strong>Maintained
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="GitHub tag (with filter)">
+  <img src="https://goreportcard.com/badge/github.com/grishy/any-sync-bundle" alt="Go Report Card">
+  <img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build Status">
+</p>
+
+## TL;DR - How to start self-hosted Anytype server
+
+<!-- TODO -->
 
 Version from [here](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/).
 
@@ -70,3 +86,17 @@ docker run -it \
 - Add API support for end user to get notes
 
 > Because I stand on the shoulders of giants, I can see further than they can.
+
+## Release
+
+Reminder for me, just create a tag and push it.
+
+```bash
+git tag -a v0.1.0+20241218 -m "Release v0.1.0+20241218"
+git push origin tag v0.1.0+20241218
+```
+
+## License
+
+© 2025 [Sergei G.](https://github.com/grishy)  
+This project is [MIT](./LICENSE) licensed.
