@@ -1,4 +1,4 @@
-module any-sync-bundle
+module github.com/grishy/any-sync-bundle
 
 go 1.23.5
 

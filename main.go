@@ -19,8 +19,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 
-	bundleCfg "any-sync-bundle/config"
-	bundleNode "any-sync-bundle/node"
+	bundleCfg "github.com/grishy/any-sync-bundle/config"
+	bundleNode "github.com/grishy/any-sync-bundle/node"
 )
 
 var log = logger.NewNamed("main")
