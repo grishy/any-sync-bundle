@@ -26,10 +26,6 @@ archives:
       - goos: windows
         formats: ["zip"]
 
-source:
-  enabled: true
-  format: "tar.gz"
-
 checksum:
   # https://goreleaser.com/customization/checksum/
   name_template: "checksums.txt"
