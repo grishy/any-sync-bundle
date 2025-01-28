@@ -46,7 +46,11 @@ docker run -it \
 
 - Create first tech version
 - Add release with binaries and containers for all platforms
+- use port range to public for simplicity
+- check other docker build, like docker-mastodon
+- use go-avahi-cname release process
 - Build in version into binary
+- Create CI to check versions
 - Conjure up a version format
   - Recheck https://semver.org/
   - contain version of any-bundle, to track breaking changes
@@ -56,9 +60,12 @@ docker run -it \
     - `1.2021.09`
     - `2021.09.01`
     - `1.0.0+20250901`
+    - `v0.1.0+20241218-1734517522` - my version plus human readable date and original version
+    - `v0.1.0+snapshot.2024-12-18` - human readable date
 - Create images with arch and logo?
-- Write a blog post on both languages
-- Create a video (on both languages?)
+  - Use box with anytype logo inside and glow around
+- Write a blog post on eng,rus,esp
+- Create a video in eng and rus
 - Publish on tegegram, reddit, issue on github into the ticket and docker-compose, forum on anytype and into the question as response
 - Add tests for the bundle
 
@@ -73,6 +80,7 @@ docker run -it \
 
 - Allow each to generate client config
 - Use SQLite instead of MinIO
+  - used keyval
 - Don't use Redis, use in-memory storage, step by step for each service
 - Use one port for all services
 
@@ -89,11 +97,12 @@ docker run -it \
 
 ## Release
 
-Reminder for me, just create a tag and push it.
+Reminder for me, just create a tag and push it.  
+Format: `v0.2.0+snapshot.2024-12-18` (v<srm-version>+snapshot.<date-of-anytype-release-from-gomod>)
 
 ```bash
-git tag -a v0.1.0+20241218 -m "Release v0.1.0+20241218"
-git push origin tag v0.1.0+20241218
+git tag -a v0.2.0+snapshot.2024-12-18 -m "Release v0.2.0+snapshot.2024-12-18"
+git push origin tag v0.2.0+snapshot.2024-12-18
 ```
 
 ## License

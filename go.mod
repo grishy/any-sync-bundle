@@ -15,6 +15,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.5.1
 	github.com/ipfs/go-block-format v0.2.0
 	github.com/ipfs/go-cid v0.5.0
+	github.com/urfave/cli/v2 v2.27.5
 	go.mongodb.org/mongo-driver v1.17.2
 	go.uber.org/zap v1.27.0
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
@@ -37,6 +38,7 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cheggaaa/mb/v3 v3.0.2 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dgraph-io/ristretto/v2 v2.1.0 // indirect
@@ -88,12 +90,14 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/quic-go/quic-go v0.48.2 // indirect
 	github.com/redis/go-redis/v9 v9.6.1 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/tetratelabs/wazero v1.8.1 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
+	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
