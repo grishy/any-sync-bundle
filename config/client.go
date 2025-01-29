@@ -10,25 +10,31 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func (bc *Config) convertExternalListenAddr(listen NodeShared) []string {
-	if len(bc.ExternalAddr) == 0 {
-		return []string{}
-	}
-
+func (bc *Config) convertExternalAddrs(listen NodeShared) []string {
+	// TCP and UDP
 	addrs := make([]string, 0, len(bc.ExternalAddr)*2)
-	for _, addr := range bc.ExternalAddr {
-		_, portTCP, err := net.SplitHostPort(listen.ListenTCPAddr)
+
+	for _, externalAddr := range bc.ExternalAddr {
+		_, tcpPort, err := net.SplitHostPort(listen.ListenTCPAddr)
 		if err != nil {
-			log.Panic("failed to split external listen addr", zap.Error(err))
+			log.With(
+				zap.Error(err),
+				zap.String("addr", listen.ListenTCPAddr),
+			).Panic("invalid TCP listen address")
 		}
 
-		_, portUDP, err := net.SplitHostPort(listen.ListenUDPAddr)
+		_, udpPort, err := net.SplitHostPort(listen.ListenUDPAddr)
 		if err != nil {
-			log.Panic("failed to split external listen addr", zap.Error(err))
+			log.With(
+				zap.Error(err),
+				zap.String("addr", listen.ListenUDPAddr),
+			).Panic("invalid UDP listen address")
 		}
 
-		addrs = append(addrs, "quic://"+addr+":"+portUDP)
-		addrs = append(addrs, addr+":"+portTCP)
+		addrs = append(addrs,
+			"quic://"+externalAddr+":"+udpPort,
+			externalAddr+":"+tcpPort,
+		)
 	}
 
 	return addrs
@@ -41,28 +47,28 @@ func (bc *Config) ClientConfig() ([]byte, error) {
 		Nodes: []nodeconf.Node{
 			{
 				PeerId:    bc.Accounts.Coordinator.PeerId,
-				Addresses: bc.convertExternalListenAddr(bc.Nodes.Coordinator.NodeShared),
+				Addresses: bc.convertExternalAddrs(bc.Nodes.Coordinator.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeCoordinator,
 				},
 			},
 			{
 				PeerId:    bc.Accounts.Consensus.PeerId,
-				Addresses: bc.convertExternalListenAddr(bc.Nodes.Consensus.NodeShared),
+				Addresses: bc.convertExternalAddrs(bc.Nodes.Consensus.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeConsensus,
 				},
 			},
 			{
 				PeerId:    bc.Accounts.Tree.PeerId,
-				Addresses: bc.convertExternalListenAddr(bc.Nodes.Tree.NodeShared),
+				Addresses: bc.convertExternalAddrs(bc.Nodes.Tree.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeTree,
 				},
 			},
 			{
 				PeerId:    bc.Accounts.File.PeerId,
-				Addresses: bc.convertExternalListenAddr(bc.Nodes.File.NodeShared),
+				Addresses: bc.convertExternalAddrs(bc.Nodes.File.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeFile,
 				},
@@ -75,5 +81,6 @@ func (bc *Config) ClientConfig() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal network configuration: %w", err)
 	}
+
 	return yamlData, nil
 }
