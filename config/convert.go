@@ -38,7 +38,7 @@ type NodeConfigs struct {
 	Sync        *syncconfig.Config
 }
 
-func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
+func (bc *Config) NodeConfigs() *NodeConfigs {
 	networkCfg := bc.networkCfg()
 
 	// TODO: Don't use metrics
@@ -53,7 +53,7 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{
 				MaxMsgSizeMb: 256,
-				// 	TODO: Issue that `timeoutMilliseconds: 1000` is not exist in the configÏ
+				// 	TODO: Issue that `timeoutMilliseconds: 1000` is not exist in the config
 			},
 		},
 		Metric:                   metricCfg,
@@ -105,7 +105,7 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 		Mongo: consensusconfig.Mongo{
 			Connect:       bc.Nodes.Consensus.MongoConnect,
 			Database:      bc.Nodes.Consensus.MongoDatabase,
-			LogCollection: bc.Nodes.Consensus.MongoLogCollection,
+			LogCollection: "log",
 		},
 		Metric: metricCfg,
 		Log: logger.Config{
@@ -152,7 +152,7 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 		Metric: metricCfg,
 		Redis: redisprovider.Config{
 			IsCluster: false,
-			Url:       bc.Nodes.File.RedisURL,
+			Url:       bc.Nodes.File.RedisConnect,
 		},
 		Network:                  networkCfg,
 		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/filenode"),
@@ -223,7 +223,7 @@ func (bc *BundleConfig) NodeConfigs() *NodeConfigs {
 }
 
 // TODO: Support IPv6
-func convertListenToConnect(listen BundleConfigNodeShared) []string {
+func convertListenToConnect(listen NodeShared) []string {
 	hostTCP, portTCP, err := net.SplitHostPort(listen.ListenTCPAddr)
 	if err != nil {
 		log.Panic("failed to split TCP listen addr", zap.Error(err))
@@ -246,35 +246,35 @@ func convertListenToConnect(listen BundleConfigNodeShared) []string {
 	}
 }
 
-func (bc *BundleConfig) networkCfg() nodeconf.Configuration {
+func (bc *Config) networkCfg() nodeconf.Configuration {
 	network := nodeconf.Configuration{
 		Id:        bc.ConfigID,
 		NetworkId: bc.NetworkID,
 		Nodes: []nodeconf.Node{
 			{
 				PeerId:    bc.Accounts.Coordinator.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Coordinator.BundleConfigNodeShared),
+				Addresses: convertListenToConnect(bc.Nodes.Coordinator.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeCoordinator,
 				},
 			},
 			{
 				PeerId:    bc.Accounts.Consensus.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Consensus.BundleConfigNodeShared),
+				Addresses: convertListenToConnect(bc.Nodes.Consensus.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeConsensus,
 				},
 			},
 			{
 				PeerId:    bc.Accounts.Tree.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Tree.BundleConfigNodeShared),
+				Addresses: convertListenToConnect(bc.Nodes.Tree.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeTree,
 				},
 			},
 			{
 				PeerId:    bc.Accounts.File.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.File.BundleConfigNodeShared),
+				Addresses: convertListenToConnect(bc.Nodes.File.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeFile,
 				},
