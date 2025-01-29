@@ -14,6 +14,7 @@ import (
 	"github.com/anyproto/any-sync-coordinator/identityrepo"
 	"github.com/anyproto/any-sync-coordinator/nodeconfsource"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
+
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
@@ -27,10 +28,13 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
+
 	"go.uber.org/zap"
 )
 
-func NewCoordinatorApp(log logger.CtxLogger, cfg *config.Config) *app.App {
+func NewCoordinatorApp(cfg *config.Config) *app.App {
+	log := logger.NewNamed("coordinator")
+
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
 	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
 		log.Panic("can't create directory network store", zap.Error(err))
