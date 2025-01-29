@@ -90,13 +90,13 @@ func Root(ctx context.Context) *cli.App {
 			},
 			&cli.StringFlag{
 				Name:    fGlobalInitMongoURI,
-				Value:   "mongodb://127.0.0.1:27017",
+				Value:   "mongodb://127.0.0.1:27017/",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_MONGO_URI"},
 				Usage:   "Initial MongoDB URI for the bundle",
 			},
 			&cli.StringFlag{
 				Name:    fGlobalInitRedisURI,
-				Value:   "redis://127.0.0.1:6379",
+				Value:   "redis://127.0.0.1:6379/",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_REDIS_URI"},
 				Usage:   "Initial Redis URI for the bundle",
 			},
