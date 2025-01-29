@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
+	"os"
 	"path/filepath"
 	"runtime/debug"
 	"slices"
@@ -29,15 +29,12 @@ type node struct {
 	app  *app.App
 }
 
-func StartBundle(ctx context.Context) *cli.Command {
+func start(ctx context.Context) *cli.Command {
 	return &cli.Command{
 		Name:  "start",
 		Usage: "Stat bundle services",
 		Flags: []cli.Flag{},
 		Action: func(cCtx *cli.Context) error {
-			// For any-sync package, used in network communication but just for info
-			// Yes, this is global
-			app.AppName = cCtx.App.Name
 
 			log := logger.NewNamed("main")
 
@@ -47,7 +44,17 @@ func StartBundle(ctx context.Context) *cli.Command {
 
 			// TODO: Create commands to only generate conf and allow to provide external addrs
 			// TODO: Cread configs also from args or env?
-			cfgBundle := bundleCfg.BundleCfg(configBundlePath)
+
+			var cfgBundle *bundleCfg.Config
+			log.Info("loading config")
+			if _, err := os.Stat(configBundlePath); err == nil {
+				log.Info("loaded existing config")
+				cfgBundle = bundleCfg.Read(configBundlePath)
+			}
+
+			log.Info("file not found, created new config")
+			cfgBundle = bundleCfg.CreateWrite(configBundlePath)
+
 			cfgNodes := cfgBundle.NodeConfigs()
 
 			// mongoInit(ctx, cfgBundle.Nodes.Coordinator.MongoConnect)

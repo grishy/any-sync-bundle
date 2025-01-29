@@ -13,9 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func MongoInitReplica(ctx context.Context) *cli.Command {
+func initMongoReplica(ctx context.Context) *cli.Command {
 	return &cli.Command{
-		Name:  "mongo-init-replica",
+		Name:  "init-mongo-rs",
 		Usage: "Create replica set in mongo",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -33,7 +33,7 @@ func MongoInitReplica(ctx context.Context) *cli.Command {
 		},
 		Action: func(cCtx *cli.Context) error {
 			mongoURI := "TODO"
-			var log = logger.NewNamed("mongo-init-rs")
+			log := logger.NewNamed("mongo-init-rs")
 
 			log.Info("initializing mongo replica set", zap.String("uri", mongoURI))
 

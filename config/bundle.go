@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/anyproto/any-sync/accountservice"
+	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/util/crypto"
 
@@ -16,76 +17,64 @@ import (
 
 var log = logger.NewNamed("bundle-config")
 
-type BundleConfig struct {
-	Version            int                  `yaml:"version"`
-	ExternalListenAddr []string             `yaml:"externalListenAddr"`
-	ConfigID           string               `yaml:"configId"`
-	NetworkID          string               `yaml:"networkId"`
-	StoragePath        string               `yaml:"storagePath"`
-	Accounts           BundleConfigAccounts `yaml:"accounts"`
-	Nodes              BundleConfigNodes    `yaml:"nodes"`
+type Config struct {
+	BundleVersion string   `yaml:"bundleVersion"`
+	BundleFormat  int      `yaml:"bundleFormat"`
+	ExternalAddr  []string `yaml:"externalAddr"`
+	ConfigID      string   `yaml:"configId"`
+	NetworkID     string   `yaml:"networkId"`
+	StoragePath   string   `yaml:"storagePath"`
+	Accounts      Accounts `yaml:"accounts"`
+	Nodes         Nodes    `yaml:"nodes"`
 }
 
-type BundleConfigAccounts struct {
+type Accounts struct {
 	Coordinator accountservice.Config `yaml:"coordinator"`
 	Consensus   accountservice.Config `yaml:"consensus"`
 	Tree        accountservice.Config `yaml:"tree"`
 	File        accountservice.Config `yaml:"file"`
 }
 
-type BundleConfigNodes struct {
-	Coordinator BundleConfigNodeCoordinator `yaml:"coordinator"`
-	Consensus   BundleConfigNodeConsensus   `yaml:"consensus"`
-	Tree        BundleConfigNodeTree        `yaml:"tree"`
-	File        BundleConfigNodeFile        `yaml:"file"`
+type Nodes struct {
+	Coordinator NodeCoordinator `yaml:"coordinator"`
+	Consensus   NodeConsensus   `yaml:"consensus"`
+	Tree        Tree            `yaml:"tree"`
+	File        NodeFile        `yaml:"file"`
 }
 
-type BundleConfigNodeShared struct {
-	ListenTCPAddr string `yaml:"localTcpAddr"`
-	ListenUDPAddr string `yaml:"localUdpAddr"`
+type NodeShared struct {
+	ListenTCPAddr string `yaml:"localTCPAddr"`
+	ListenUDPAddr string `yaml:"localUDPAddr"`
 }
 
-type BundleConfigNodeCoordinator struct {
-	BundleConfigNodeShared `yaml:",inline"`
-	MongoConnect           string `yaml:"mongoConnect"`
-	MongoDatabase          string `yaml:"mongoDatabase"`
+type NodeCoordinator struct {
+	NodeShared    `yaml:",inline"`
+	MongoConnect  string `yaml:"mongoConnect"`
+	MongoDatabase string `yaml:"mongoDatabase"`
 }
 
-type BundleConfigNodeConsensus struct {
-	BundleConfigNodeShared `yaml:",inline"`
-	MongoConnect           string `yaml:"mongoConnect"`
-	MongoDatabase          string `yaml:"mongoDatabase"`
-	MongoLogCollection     string `yaml:"mongoLogCollection"`
+type NodeConsensus struct {
+	NodeShared    `yaml:",inline"`
+	MongoConnect  string `yaml:"mongoConnect"`
+	MongoDatabase string `yaml:"mongoDatabase"`
 }
 
-type BundleConfigNodeTree struct {
-	BundleConfigNodeShared `yaml:",inline"`
+type Tree struct {
+	NodeShared `yaml:",inline"`
 }
 
-type BundleConfigNodeFile struct {
-	BundleConfigNodeShared `yaml:",inline"`
-	RedisURL               string `yaml:"redisUrl"`
+type NodeFile struct {
+	NodeShared   `yaml:",inline"`
+	RedisConnect string `yaml:"redisConnect"`
 }
 
-func BundleCfg(cfgPath string) *BundleConfig {
-	if _, err := os.Stat(cfgPath); err == nil {
-		log.Info("loaded existing config")
-		return loadConfig(cfgPath)
-	}
-
-	createdCfg := createAndWriteConfig(cfgPath)
-	log.Info("created new config")
-
-	return createdCfg
-}
-
-func loadConfig(cfgPath string) *BundleConfig {
+func Read(cfgPath string) *Config {
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
 		log.Panic("can't read config file", zap.Error(err))
 	}
 
-	var cfg BundleConfig
+	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		log.Panic("can't unmarshal config", zap.Error(err))
 	}
@@ -93,8 +82,10 @@ func loadConfig(cfgPath string) *BundleConfig {
 	return &cfg
 }
 
-func createAndWriteConfig(cfgPath string) *BundleConfig {
-	createdCfg := createBundleConfig()
+func CreateWrite(cfgPath string) *Config {
+	createdCfg := newBundleConfig()
+
+	log.Info("writing new config", zap.String("path", cfgPath))
 
 	createCfgYaml, err := yaml.Marshal(createdCfg)
 	if err != nil {
@@ -112,62 +103,65 @@ func createAndWriteConfig(cfgPath string) *BundleConfig {
 	return createdCfg
 }
 
-// createConfig creates a new configuration for any-bundle that contain all info base of which internal services are created
+// newBundleConfig creates a new configuration for any-bundle that contain all info base of which internal services are created
 // Base on https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options
-func createBundleConfig() *BundleConfig {
+// But docs above are not accurate, so I used also source code as reference...
+func newBundleConfig() *Config {
 	cfgId := bson.NewObjectId().Hex()
 
 	netKey, _, err := crypto.GenerateRandomEd25519KeyPair()
 	if err != nil {
-		log.Panic("can't generate ed25519 key", zap.Error(err))
+		log.Panic("can't generate ed25519 key for network", zap.Error(err))
 	}
 
 	netId := netKey.GetPublic().Network()
 
-	cfg := &BundleConfig{
-		ExternalListenAddr: []string{
-			"192.168.100.6",
+	cfg := &Config{
+		BundleFormat:  1,
+		BundleVersion: app.Version(),
+		// TODO: Read from flag values
+		ExternalAddr: []string{
+			"192.168.100.9",
 		},
-		Version:     1,
-		ConfigID:    cfgId,
-		NetworkID:   netId,
+		ConfigID:  cfgId,
+		NetworkID: netId,
+		// TODO: Read from flag
 		StoragePath: "./data/storage",
-		Accounts: BundleConfigAccounts{
-			Coordinator: generateAccCfg(),
-			Consensus:   generateAccCfg(),
-			Tree:        generateAccCfg(),
-			File:        generateAccCfg(),
+		Accounts: Accounts{
+			Coordinator: newAcc(),
+			Consensus:   newAcc(),
+			Tree:        newAcc(),
+			File:        newAcc(),
 		},
-		Nodes: BundleConfigNodes{
-			Coordinator: BundleConfigNodeCoordinator{
-				BundleConfigNodeShared: BundleConfigNodeShared{
+		Nodes: Nodes{
+			Coordinator: NodeCoordinator{
+				NodeShared: NodeShared{
 					ListenTCPAddr: "0.0.0.0:33010",
-					ListenUDPAddr: "0.0.0.0:33011",
+					ListenUDPAddr: "0.0.0.0:33020",
 				},
 				MongoConnect:  "mongodb://127.0.0.1:27017/",
 				MongoDatabase: "coordinator",
 			},
-			Consensus: BundleConfigNodeConsensus{
-				BundleConfigNodeShared: BundleConfigNodeShared{
-					ListenTCPAddr: "0.0.0.0:33020",
+			Consensus: NodeConsensus{
+				NodeShared: NodeShared{
+					ListenTCPAddr: "0.0.0.0:33011",
 					ListenUDPAddr: "0.0.0.0:33021",
 				},
-				MongoConnect:       "mongodb://127.0.0.1:27017/?w=majority",
-				MongoDatabase:      "consensus",
-				MongoLogCollection: "log",
+				MongoConnect:  "mongodb://127.0.0.1:27017/?w=majority",
+				MongoDatabase: "consensus",
 			},
-			Tree: BundleConfigNodeTree{
-				BundleConfigNodeShared{
-					ListenTCPAddr: "0.0.0.0:33030",
-					ListenUDPAddr: "0.0.0.0:33031",
+			Tree: Tree{
+				NodeShared{
+					ListenTCPAddr: "0.0.0.0:33012",
+					ListenUDPAddr: "0.0.0.0:33022",
 				},
 			},
-			File: BundleConfigNodeFile{
-				BundleConfigNodeShared: BundleConfigNodeShared{
-					ListenTCPAddr: "0.0.0.0:33040",
-					ListenUDPAddr: "0.0.0.0:33041",
+			File: NodeFile{
+				NodeShared: NodeShared{
+					ListenTCPAddr: "0.0.0.0:33013",
+					ListenUDPAddr: "0.0.0.0:33023",
 				},
-				RedisURL: "redis://127.0.0.1:6379?dial_timeout=3&read_timeout=6s",
+				RedisConnect: "redis://127.0.0.1:6379?dial_timeout=3&read_timeout=6s",
 			},
 		},
 	}
@@ -183,7 +177,7 @@ func createBundleConfig() *BundleConfig {
 	return cfg
 }
 
-func generateAccCfg() accountservice.Config {
+func newAcc() accountservice.Config {
 	signKey, _, err := crypto.GenerateRandomEd25519KeyPair()
 	if err != nil {
 		log.Panic("can't generate ed25519 key for account", zap.Error(err))
