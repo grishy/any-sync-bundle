@@ -15,9 +15,19 @@ const (
 	flagForce = "force"
 )
 
-func createConfig(ctx context.Context) *cli.Command {
+func cmdConfig(ctx context.Context) *cli.Command {
 	return &cli.Command{
-		Name:  "create-config",
+		Name:  "config",
+		Usage: "Generates a new bundle configuration file with secure default settings.",
+		Subcommands: []*cli.Command{
+			cmdConfigCreate(ctx),
+		},
+	}
+}
+
+func cmdConfigCreate(_ctx context.Context) *cli.Command {
+	return &cli.Command{
+		Name:  "create",
 		Usage: "Generates a new bundle configuration file with secure default settings.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
