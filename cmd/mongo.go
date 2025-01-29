@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func initMongoReplica(ctx context.Context) *cli.Command {
+func cmdMongo(ctx context.Context) *cli.Command {
 	return &cli.Command{
 		Name:  "init-mongo-rs",
 		Usage: "Create replica set in mongo",

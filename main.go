@@ -14,7 +14,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	root := cmd.Root(ctx)
+	root := cmd.CmdRoot(ctx)
 
 	if err := root.Run(os.Args); err != nil {
 		fmt.Println("Error:")

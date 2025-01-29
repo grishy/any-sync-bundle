@@ -24,6 +24,7 @@ const (
 	flagClientConfig = "client-config"
 )
 
+// Version information, set during build
 var (
 	version = "dev"
 	commit  = "none"
@@ -32,7 +33,7 @@ var (
 
 var log = logger.NewNamed("cli")
 
-func Root(ctx context.Context) *cli.App {
+func CmdRoot(ctx context.Context) *cli.App {
 	cli.VersionPrinter = versionPrinter
 
 	// For any-sync package, used in network communication but just for info
@@ -72,7 +73,8 @@ func Root(ctx context.Context) *cli.App {
 			&cli.PathFlag{
 				Name:    flagClientConfig,
 				Aliases: []string{"cc"},
-				// TODO: Anytype support only yml, but not yaml
+				// NOTE: Anytype support only yml, but not yaml
+				// TODO: https://github.com/anyproto/anytype-ts/pull/1186
 				Value:   "./data/client-config.yml",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_CLIENT_CONFIG"},
 				Usage:   "Path where wtite to the Anytype client configuration YAML file (must be readable)",
@@ -87,9 +89,9 @@ func Root(ctx context.Context) *cli.App {
 		},
 		Before: setupLogger,
 		Commands: []*cli.Command{
-			createConfig(ctx),
-			initMongoReplica(ctx),
-			start(ctx),
+			cmdConfig(ctx),
+			cmdMongo(ctx),
+			cmdStart(ctx),
 		},
 	}
 

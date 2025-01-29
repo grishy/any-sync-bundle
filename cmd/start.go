@@ -29,7 +29,7 @@ type node struct {
 	app  *app.App
 }
 
-func start(ctx context.Context) *cli.Command {
+func cmdStart(ctx context.Context) *cli.Command {
 	return &cli.Command{
 		Name:  "start",
 		Usage: "Stat bundle services",
