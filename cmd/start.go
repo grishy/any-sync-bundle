@@ -35,7 +35,6 @@ func cmdStart(ctx context.Context) *cli.Command {
 		Usage: "Stat bundle services",
 		Flags: []cli.Flag{},
 		Action: func(cCtx *cli.Context) error {
-
 			log := logger.NewNamed("main")
 
 			// TODO: AppName global, AppName not working properly on app instance
@@ -53,14 +52,17 @@ func cmdStart(ctx context.Context) *cli.Command {
 			}
 
 			log.Info("file not found, created new config")
-			cfgBundle = bundleCfg.CreateWrite(configBundlePath)
+			// TODO Real data
+			cfgBundle = bundleCfg.CreateWrite(&bundleCfg.CreateOptions{})
 
 			cfgNodes := cfgBundle.NodeConfigs()
 
+			// TODO
 			// mongoInit(ctx, cfgBundle.Nodes.Coordinator.MongoConnect)
 
 			// Dump client config
-			cfgBundle.DumpClientConfig(configClientPath)
+			// TODO
+			// cfgBundle.ClientConfig(configClientPath)
 
 			fileStore := filepath.Join(cfgBundle.StoragePath, "storage-file")
 
@@ -120,13 +122,19 @@ func cmdStart(ctx context.Context) *cli.Command {
 }
 
 func printWelcome() {
-	fmt.Print(`
-╔═══════════════════════════════════════════════════════════════════╗
+	fmt.Printf(`
+┌───────────────────────────────────────────────────────────────────┐
 
-                 Welcome to the AnySync Bundle!  
+                 Welcome to the AnySync Bundle!
            https://github.com/grishy/any-sync-bundle                   
-`)
-	fmt.Println("  Base on these components:")
+
+    Version: %s
+    Built:   %s
+    Commit:  %s
+
+`, version, commit, date)
+
+	fmt.Println(" Based on these components:")
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		log.Panic("failed to read build info")
@@ -135,10 +143,10 @@ func printWelcome() {
 
 	for _, mod := range info.Deps {
 		if strings.HasPrefix(mod.Path, "github.com/anyproto/any-sync") {
-			fmt.Printf("  • %s (%s)\n", mod.Path, mod.Version)
+			fmt.Printf(" ▸ %s (%s)\n", mod.Path, mod.Version)
 		}
 	}
 	fmt.Print(`
-╚═══════════════════════════════════════════════════════════════════╝
+└───────────────────────────────────────────────────────────────────┘
 `)
 }

@@ -1,8 +1,8 @@
 package config
 
 import (
+	"fmt"
 	"net"
-	"os"
 	"time"
 
 	"github.com/anyproto/any-sync/nodeconf"
@@ -34,7 +34,7 @@ func (bc *Config) convertExternalListenAddr(listen NodeShared) []string {
 	return addrs
 }
 
-func (bc *Config) DumpClientConfig(cfgPath string) {
+func (bc *Config) ClientConfig() ([]byte, error) {
 	network := nodeconf.Configuration{
 		Id:        bc.ConfigID,
 		NetworkId: bc.NetworkID,
@@ -73,10 +73,7 @@ func (bc *Config) DumpClientConfig(cfgPath string) {
 
 	yamlData, err := yaml.Marshal(network)
 	if err != nil {
-		log.Panic("failed to marshal network configuration", zap.Error(err))
+		return nil, fmt.Errorf("failed to marshal network configuration: %w", err)
 	}
-
-	if err := os.WriteFile(cfgPath, yamlData, 0644); err != nil {
-		log.Panic("failed to write network configuration", zap.Error(err))
-	}
+	return yamlData, nil
 }

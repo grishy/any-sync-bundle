@@ -15,7 +15,7 @@ import (
 
 func cmdMongo(ctx context.Context) *cli.Command {
 	return &cli.Command{
-		Name:  "init-mongo-rs",
+		Name:  "mongo",
 		Usage: "Create replica set in mongo",
 		Flags: []cli.Flag{
 			&cli.StringFlag{

@@ -2,6 +2,7 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -82,21 +83,27 @@ func Read(cfgPath string) *Config {
 	return &cfg
 }
 
-func CreateWrite(cfgPath string) *Config {
-	createdCfg := newBundleConfig()
+type CreateOptions struct {
+	CfgPath       string
+	StorePath     string
+	MongoURI      string
+	RedisURI      string
+	ExternalAddrs []string
+}
 
-	log.Info("writing new config", zap.String("path", cfgPath))
+func CreateWrite(cfg *CreateOptions) *Config {
+	createdCfg := newBundleConfig(cfg)
 
 	createCfgYaml, err := yaml.Marshal(createdCfg)
 	if err != nil {
 		log.Panic("can't marshal config", zap.Error(err))
 	}
 
-	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cfg.CfgPath), 0o755); err != nil {
 		log.Panic("can't create config directory", zap.Error(err))
 	}
 
-	if err := os.WriteFile(cfgPath, createCfgYaml, 0o644); err != nil {
+	if err := os.WriteFile(cfg.CfgPath, createCfgYaml, 0o644); err != nil {
 		log.Panic("can't write config file", zap.Error(err))
 	}
 
@@ -106,7 +113,7 @@ func CreateWrite(cfgPath string) *Config {
 // newBundleConfig creates a new configuration for any-bundle that contain all info base of which internal services are created
 // Base on https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options
 // But docs above are not accurate, so I used also source code as reference...
-func newBundleConfig() *Config {
+func newBundleConfig(cfg *CreateOptions) *Config {
 	cfgId := bson.NewObjectId().Hex()
 
 	netKey, _, err := crypto.GenerateRandomEd25519KeyPair()
@@ -116,17 +123,26 @@ func newBundleConfig() *Config {
 
 	netId := netKey.GetPublic().Network()
 
-	cfg := &Config{
+	// Parse MongoDB URI and add w=majority if not already present
+	// Base on Anytype dockercompose version
+	mongoConsensusURI, err := url.Parse(cfg.MongoURI)
+	if err != nil {
+		log.Panic("invalid mongo URI", zap.Error(err))
+	}
+
+	query := mongoConsensusURI.Query()
+	if query.Get("w") == "" {
+		query.Set("w", "majority")
+		mongoConsensusURI.RawQuery = query.Encode()
+	}
+
+	defaultCfg := &Config{
 		BundleFormat:  1,
 		BundleVersion: app.Version(),
-		// TODO: Read from flag values
-		ExternalAddr: []string{
-			"192.168.100.9",
-		},
-		ConfigID:  cfgId,
-		NetworkID: netId,
-		// TODO: Read from flag
-		StoragePath: "./data/storage",
+		ExternalAddr:  cfg.ExternalAddrs,
+		ConfigID:      cfgId,
+		NetworkID:     netId,
+		StoragePath:   cfg.StorePath,
 		Accounts: Accounts{
 			Coordinator: newAcc(),
 			Consensus:   newAcc(),
@@ -139,7 +155,7 @@ func newBundleConfig() *Config {
 					ListenTCPAddr: "0.0.0.0:33010",
 					ListenUDPAddr: "0.0.0.0:33020",
 				},
-				MongoConnect:  "mongodb://127.0.0.1:27017/",
+				MongoConnect:  cfg.MongoURI,
 				MongoDatabase: "coordinator",
 			},
 			Consensus: NodeConsensus{
@@ -147,7 +163,7 @@ func newBundleConfig() *Config {
 					ListenTCPAddr: "0.0.0.0:33011",
 					ListenUDPAddr: "0.0.0.0:33021",
 				},
-				MongoConnect:  "mongodb://127.0.0.1:27017/?w=majority",
+				MongoConnect:  mongoConsensusURI.String(),
 				MongoDatabase: "consensus",
 			},
 			Tree: Tree{
@@ -161,7 +177,7 @@ func newBundleConfig() *Config {
 					ListenTCPAddr: "0.0.0.0:33013",
 					ListenUDPAddr: "0.0.0.0:33023",
 				},
-				RedisConnect: "redis://127.0.0.1:6379?dial_timeout=3&read_timeout=6s",
+				RedisConnect: cfg.RedisURI,
 			},
 		},
 	}
@@ -172,9 +188,9 @@ func newBundleConfig() *Config {
 	if err != nil {
 		log.Panic("can't encode network key to string", zap.Error(err))
 	}
-	cfg.Accounts.Coordinator.SigningKey = privNetKey
+	defaultCfg.Accounts.Coordinator.SigningKey = privNetKey
 
-	return cfg
+	return defaultCfg
 }
 
 func newAcc() accountservice.Config {

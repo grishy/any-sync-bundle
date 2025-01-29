@@ -12,52 +12,101 @@ import (
 )
 
 const (
-	flagForce = "force"
+	fForce = "force"
 )
 
-func cmdConfig(ctx context.Context) *cli.Command {
+func cmdConfig(_ctx context.Context) *cli.Command {
 	return &cli.Command{
 		Name:  "config",
 		Usage: "Generates a new bundle configuration file with secure default settings.",
 		Subcommands: []*cli.Command{
-			cmdConfigCreate(ctx),
+			cmdConfigBundle(),
+			cmdConfigClient(),
 		},
 	}
 }
 
-func cmdConfigCreate(_ctx context.Context) *cli.Command {
+func cmdConfigBundle() *cli.Command {
 	return &cli.Command{
-		Name:  "create",
+		Name:  "bundle",
 		Usage: "Generates a new bundle configuration file with secure default settings.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name:    flagForce,
+				Name:    fForce,
+				Aliases: []string{"f"},
 				Value:   false,
 				Usage:   "Force overwrite if configuration file already exists",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_FORCE"},
 			},
 		},
 		Action: func(cCtx *cli.Context) error {
-			cfgPath := cCtx.String(flagConfig)
+			initExternalAddrs := cCtx.StringSlice(fGlobalInitExternalAddrs)
+			initMongoURI := cCtx.String(fGlobalInitMongoURI)
+			initRedisURI := cCtx.String(fGlobalInitRedisURI)
+			cfgPath := cCtx.String(fGlobalBundleConfigPath)
+			storagePath := cCtx.String(fGlobalStoragePath)
+			force := cCtx.Bool(fForce)
 
-			log := log.With(zap.String("path", cfgPath))
+			log.Info("write new bundle configuration",
+				zap.String("path", cfgPath),
+				zap.Bool("force", force),
+				zap.String("initial-mongo-uri", initMongoURI),
+				zap.String("initial-redis-uri", initRedisURI),
+				zap.Strings("initial-external-addrs", initExternalAddrs),
+			)
 
 			// Check if file exists
 			if _, err := os.Stat(cfgPath); err == nil {
-				if !cCtx.Bool(flagForce) {
-					return fmt.Errorf("configuration file already exists at %s. Use --%s to overwrite", cfgPath, flagForce)
+				if !force {
+					return fmt.Errorf("configuration file already exists at '%s', use --%s to overwrite", cfgPath, fForce)
 				}
-				log.Warn("overwriting existing configuration file", zap.String("path", cfgPath))
+				log.Warn("overwriting existing configuration file")
 			}
 
 			log.Info("generating new bundle configuration")
 
-			cfg := bundleCfg.CreateWrite(cfgPath)
+			cfg := bundleCfg.CreateWrite(&bundleCfg.CreateOptions{
+				CfgPath:       cfgPath,
+				StorePath:     storagePath,
+				MongoURI:      initMongoURI,
+				RedisURI:      initRedisURI,
+				ExternalAddrs: initExternalAddrs,
+			})
+			_ = cfg
 
-			log.Info("bundle configuration generated successfully",
+			log.Info("bundle configuration written")
+
+			return nil
+		},
+	}
+}
+
+func cmdConfigClient() *cli.Command {
+	return &cli.Command{
+		Name:  "client",
+		Usage: "Generates a new bundle configuration file with secure default settings.",
+		Action: func(cCtx *cli.Context) error {
+			cfgPath := cCtx.String(fGlobalBundleConfigPath)
+			clientCfgPath := cCtx.String(fGlobalClientConfigPath)
+
+			log.Info("generating new client configuration based on bundle configuration",
 				zap.String("path", cfgPath),
-				zap.String("config_id", cfg.ConfigID),
-				zap.String("network_id", cfg.NetworkID))
+				zap.String("clientPath", clientCfgPath),
+			)
+
+			cfg := bundleCfg.Read(cfgPath)
+			log.Info("bundle configuration read")
+
+			clientCfgData, err := cfg.ClientConfig()
+			if err != nil {
+				return fmt.Errorf("failed to generate client configuration: %w", err)
+			}
+
+			if err := os.WriteFile(clientCfgPath, clientCfgData, 0o644); err != nil {
+				return fmt.Errorf("failed to write client configuration: %w", err)
+			}
+
+			log.Info("client configuration written")
 
 			return nil
 		},
