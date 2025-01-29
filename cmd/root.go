@@ -2,9 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"runtime"
 
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
@@ -85,7 +82,6 @@ func Root(ctx context.Context) *cli.App {
 				EnvVars: []string{"ANY_SYNC_BUNDLE_STORAGE"},
 				Usage:   "Path to the bundle data directory (must be writable)",
 			},
-			// 	TODO: Add exterma Addrese
 			&cli.StringSliceFlag{
 				Name:    fGlobalInitExternalAddrs,
 				Value:   cli.NewStringSlice("192.168.0.10", "example.local"),
@@ -131,29 +127,4 @@ func setupLogger(c *cli.Context) error {
 	anyLogCfg.ApplyGlobal()
 
 	return nil
-}
-
-// versionPrinter prints the application version and build, host information to attached later to an issue.
-func versionPrinter(c *cli.Context) {
-	valueOrError := func(value string, err error) string {
-		if err != nil {
-			return fmt.Sprintf("unknown (%s)", err)
-		}
-		return value
-	}
-
-	hostname := valueOrError(os.Hostname())
-	osInfo := valueOrError(getHostOS())
-	hostMemory := valueOrError(getHostMem())
-
-	fmt.Println(c.App.Name)
-	fmt.Printf("Version:   %s\n", version)
-	fmt.Printf("Commit:    %s\n", commit)
-	fmt.Printf("Date:      %s\n", date)
-	fmt.Printf("Hostname:  %s\n", hostname)
-	fmt.Printf("OS:        %s\n", osInfo)
-	fmt.Printf("GoVersion: %s\n", runtime.Version())
-	fmt.Printf("Platform:  %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	fmt.Printf("NumCPU:    %d\n", runtime.NumCPU())
-	fmt.Printf("Memory:    %s\n", hostMemory)
 }

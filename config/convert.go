@@ -9,7 +9,6 @@ import (
 	coordinatorconfig "github.com/anyproto/any-sync-coordinator/config"
 	filenodeconfig "github.com/anyproto/any-sync-filenode/config"
 	syncconfig "github.com/anyproto/any-sync-node/config"
-	"go.uber.org/zap"
 
 	"github.com/anyproto/any-sync-coordinator/accountlimit"
 	"github.com/anyproto/any-sync-coordinator/db"
@@ -29,6 +28,8 @@ import (
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
+
+	"go.uber.org/zap"
 )
 
 type NodeConfigs struct {
