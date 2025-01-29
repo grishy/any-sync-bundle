@@ -39,9 +39,7 @@ COPY --from=build /app/any-sync-bundle /usr/local/bin/any-sync-bundle
 
 # All default ports of any-sync-bundle
 # NOTE: Need to specify UDP, because the default is TCP
-EXPOSE 33010 33011/udp \
-       33020 33021/udp \
-       33030 33031/udp \
-       33040 33041/udp
+EXPOSE 33010-33013 \
+       33020-33023/udp
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

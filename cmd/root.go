@@ -4,24 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
-	"strconv"
-	"strings"
 
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/urfave/cli/v2"
-)
-
-const (
-	appName = "any-sync-bundle"
-
-	// CLI global flags
-	flagDebug        = "debug"
-	flagDataDir      = "data-dir"
-	flagConfig       = "config"
-	flagClientConfig = "client-config"
 )
 
 // Version information, set during build
@@ -31,13 +18,26 @@ var (
 	date    = "unknown"
 )
 
+const (
+	appName = "any-sync-bundle"
+
+	// CLI global flags
+	fGlobalIsDbg             = "debug"
+	fGlobalStoragePath       = "storage"
+	fGlobalBundleConfigPath  = "bundle-config"
+	fGlobalClientConfigPath  = "client-config"
+	fGlobalInitExternalAddrs = "initial-external-addrs"
+	fGlobalInitMongoURI      = "initial-mongo-uri"
+	fGlobalInitRedisURI      = "initial-redis-uri"
+)
+
 var log = logger.NewNamed("cli")
 
-func CmdRoot(ctx context.Context) *cli.App {
+func Root(ctx context.Context) *cli.App {
 	cli.VersionPrinter = versionPrinter
 
-	// For any-sync package, used in network communication but just for info
-	// Yes, this is global
+	// Any-sync package, used in network communication but just for info
+	// Yes, this is global between all instances of the app...
 	// TODO: Create task to avoid it, use app instance.
 	app.AppName = appName
 	app.GitSummary = version
@@ -58,33 +58,51 @@ func CmdRoot(ctx context.Context) *cli.App {
 		// Global flags, before any subcommand
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name:    flagDebug,
+				Name:    fGlobalIsDbg,
 				Value:   false,
 				Usage:   "Enable debug mode with detailed logging",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_DEBUG"},
 			},
 			&cli.PathFlag{
-				Name:    flagConfig,
+				Name:    fGlobalBundleConfigPath,
 				Aliases: []string{"c"},
-				Value:   "./data/config.yml",
+				Value:   "./data/bundle-config.yml",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_CONFIG"},
-				Usage:   "Path to the bundle configuration YAML file (must be readable)",
+				Usage:   "Path to the bundle configuration YAML file",
 			},
 			&cli.PathFlag{
-				Name:    flagClientConfig,
+				Name:    fGlobalClientConfigPath,
 				Aliases: []string{"cc"},
 				// NOTE: Anytype support only yml, but not yaml
-				// TODO: https://github.com/anyproto/anytype-ts/pull/1186
+				// Fixed: https://github.com/anyproto/anytype-ts/pull/1186
 				Value:   "./data/client-config.yml",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_CLIENT_CONFIG"},
-				Usage:   "Path where wtite to the Anytype client configuration YAML file (must be readable)",
+				Usage:   "Path where write to the Anytype client configuration YAML file if needed",
 			},
 			&cli.PathFlag{
-				Name:    flagDataDir,
-				Aliases: []string{"d"},
-				Value:   "./data/store/",
-				EnvVars: []string{"ANY_SYNC_BUNDLE_DATA"},
+				Name:    fGlobalStoragePath,
+				Value:   "./data/storage/",
+				EnvVars: []string{"ANY_SYNC_BUNDLE_STORAGE"},
 				Usage:   "Path to the bundle data directory (must be writable)",
+			},
+			// 	TODO: Add exterma Addrese
+			&cli.StringSliceFlag{
+				Name:    fGlobalInitExternalAddrs,
+				Value:   cli.NewStringSlice("192.168.0.10", "example.local"),
+				EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS"},
+				Usage:   "Initial external addresses for the bundle",
+			},
+			&cli.StringFlag{
+				Name:    fGlobalInitMongoURI,
+				Value:   "mongodb://127.0.0.1:27017",
+				EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_MONGO_URI"},
+				Usage:   "Initial MongoDB URI for the bundle",
+			},
+			&cli.StringFlag{
+				Name:    fGlobalInitRedisURI,
+				Value:   "redis://127.0.0.1:6379",
+				EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_REDIS_URI"},
+				Usage:   "Initial Redis URI for the bundle",
 			},
 		},
 		Before: setupLogger,
@@ -101,12 +119,11 @@ func CmdRoot(ctx context.Context) *cli.App {
 // setupLogger configures the global logger with appropriate settings
 func setupLogger(c *cli.Context) error {
 	anyLogCfg := logger.Config{
-		Production:   false,
 		DefaultLevel: "",
 		Format:       logger.PlaintextOutput,
 	}
 
-	if c.Bool(flagDebug) {
+	if c.Bool(fGlobalIsDbg) {
 		anyLogCfg.DefaultLevel = "debug"
 		anyLogCfg.Format = logger.ColorizedOutput
 	}
@@ -116,7 +133,7 @@ func setupLogger(c *cli.Context) error {
 	return nil
 }
 
-// versionPrinter prints the application version and build, host information to attached later to ticket.
+// versionPrinter prints the application version and build, host information to attached later to an issue.
 func versionPrinter(c *cli.Context) {
 	valueOrError := func(value string, err error) string {
 		if err != nil {
@@ -126,7 +143,7 @@ func versionPrinter(c *cli.Context) {
 	}
 
 	hostname := valueOrError(os.Hostname())
-	osInfo := valueOrError(getOSInfo())
+	osInfo := valueOrError(getHostOS())
 	hostMemory := valueOrError(getHostMem())
 
 	fmt.Println(c.App.Name)
@@ -139,85 +156,4 @@ func versionPrinter(c *cli.Context) {
 	fmt.Printf("Platform:  %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	fmt.Printf("NumCPU:    %d\n", runtime.NumCPU())
 	fmt.Printf("Memory:    %s\n", hostMemory)
-}
-
-// getOSInfo returns detailed information about the operating system.
-func getOSInfo() (string, error) {
-	switch runtime.GOOS {
-	case "linux":
-		// Content example:
-		// PRETTY_NAME="Ubuntu 23.04"
-		// NAME="Ubuntu"
-		// VERSION_ID="23.04"
-		data, err := os.ReadFile("/etc/os-release")
-		if err == nil {
-			for _, line := range strings.Split(string(data), "\n") {
-				if strings.HasPrefix(line, "PRETTY_NAME=") {
-					return strings.Trim(strings.TrimPrefix(line, "PRETTY_NAME="), "\""), nil
-				}
-			}
-		}
-		return "Linux", nil
-
-	case "darwin":
-		if out, err := exec.Command("sw_vers", "-productVersion").Output(); err == nil {
-			return fmt.Sprintf("macOS %s", strings.TrimSpace(string(out))), nil
-		}
-		return "macOS", nil
-
-	case "windows":
-		// NOTE: NOT verified on real machine
-		if out, err := exec.Command("ver").Output(); err == nil {
-			return strings.TrimSpace(string(out)), nil
-		}
-		return "Windows", nil
-
-	default:
-		return runtime.GOOS, nil
-	}
-}
-
-// getHostMem returns the total amount of memory available on the host system.
-func getHostMem() (string, error) {
-	var totalBytes uint64
-
-	switch runtime.GOOS {
-	case "linux":
-		data, err := os.ReadFile("/proc/meminfo")
-		if err != nil {
-			return "unknown", fmt.Errorf("failed to read /proc/meminfo: %w", err)
-		}
-
-		for _, line := range strings.Split(string(data), "\n") {
-			if !strings.HasPrefix(line, "MemTotal:") {
-				continue
-			}
-			fields := strings.Fields(line)
-			if len(fields) != 3 || fields[2] != "kB" {
-				return "unknown", fmt.Errorf("unexpected meminfo format, got: %q", line)
-			}
-			kb, err := strconv.ParseUint(fields[1], 10, 64)
-			if err != nil {
-				return "unknown", fmt.Errorf("failed to parse memory value %q: %w", fields[1], err)
-			}
-			totalBytes = kb * 1024 // Convert KB to bytes
-			break
-		}
-
-	case "darwin":
-		out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
-		if err != nil {
-			return "unknown", fmt.Errorf("failed to execute sysctl command: %w", err)
-		}
-		totalBytes, err = strconv.ParseUint(strings.TrimSpace(string(out)), 10, 64)
-		if err != nil {
-			return "unknown", fmt.Errorf("failed to parse sysctl output %q: %w", string(out), err)
-		}
-
-	default:
-		return "unknown", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
-	}
-
-	mb := totalBytes / 1024 / 1024
-	return fmt.Sprintf("%d MB", mb), nil
 }
