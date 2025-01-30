@@ -46,7 +46,7 @@ func Root(ctx context.Context) *cli.App {
 
 	return &cli.App{
 		Name:    appName,
-		Usage:   "Anytype sync bundle",
+		Usage:   "📦 Anytype Self-Hosting: All-in-One Prepared for You",
 		Version: version,
 		Authors: []*cli.Author{{
 			Name:  "Sergei G.",
