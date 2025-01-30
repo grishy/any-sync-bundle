@@ -2,10 +2,19 @@
 
 FROM golang:1.23.5 AS build
 WORKDIR /app
+
 COPY go.mod go.sum ./
 RUN go mod download
+
 COPY ./ ./
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o any-sync-bundle
+RUN CGO_ENABLED=0 \
+    go build \
+       -trimpath \
+       -ldflags="-w -s \
+              -X github.com/grishy/any-sync-bundle/cmd.version=${VERSION} \
+              -X github.com/grishy/any-sync-bundle/cmd.commit=${COMMIT} \
+              -X github.com/grishy/any-sync-bundle/cmd.date=${COMMIT_DATE}" \
+       -o any-sync-bundle
 
 FROM gcr.io/distroless/static-debian12
 
