@@ -52,7 +52,7 @@ jobs:
           tags: |
             type=raw,value=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
             
-      - name: Build and push Docker image (Minimal)
+      - name: Build and push Docker image (stage-release-minimal)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -61,6 +61,7 @@ jobs:
           platforms: |
             linux/arm64
             linux/amd64
+          target: stage-release-minimal
           tags: |
             ghcr.io/${{ github.repository }}:minimal
             ${{ steps.meta.outputs.tags }}-minimal
@@ -74,15 +75,16 @@ jobs:
           provenance: true
           sbom: true
 
-      - name: Build and push Docker image (All-In-One)
+      - name: Build and push Docker image (stage-release)
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.all-in-one
+          file: ./docker/Dockerfile
           push: true
           platforms: |
             linux/arm64
             linux/amd64
+          target: stage-release
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ${{ steps.meta.outputs.tags }}
