@@ -107,7 +107,7 @@ goreleaser release --snapshot --clean
 # Create tag and push
 
 # Set version
-set VERSION v0.3.1+2024-12-18
+set VERSION v0.3.2+2024-12-18
 # Create tag and push
 git tag -a $VERSION -m "Release $VERSION"
 git push origin tag $VERSION
