@@ -19,7 +19,6 @@ func main() {
 	defer cancel()
 
 	cliRoot := cmd.Root(ctx)
-
 	if err := cliRoot.Run(os.Args); err != nil {
 		fmt.Println("Error:")
 		fmt.Printf(" > %+v\n", err)

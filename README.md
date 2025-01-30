@@ -95,7 +95,7 @@ Format: `v0.2.0+2024-12-18` (v<srm-version>+<date-of-anytype-release-from-gomod>
 goreleaser release --snapshot --clean
 
 # Set version
-set VERSION v0.3.5+2024-12-18
+set VERSION v0.3.6+2024-12-18
 # Create tag and push
 git tag -a $VERSION -m "Release $VERSION"
 git push origin tag $VERSION
