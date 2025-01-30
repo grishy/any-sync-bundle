@@ -122,7 +122,7 @@ func (b *Badger) GetMany(ctx context.Context, ks []cid.Cid) <-chan blocks.Block 
 			return nil
 		})
 		if err != nil {
-			log.Info("badger view transaction failed", zap.Error(err))
+			log.Warn("badger view transaction failed", zap.Error(err))
 		}
 
 		_ = g.Wait() // Ignore error since individual errors are already logged, no way to return error

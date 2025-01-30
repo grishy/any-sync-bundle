@@ -47,6 +47,7 @@ docker run --rm -it \
 - use port range to public for simplicity
 - check other docker build, like docker-mastodon
 - use go-avahi-cname release process
+- Add way to controll logger level and default warning
 - Build in version into binary
 - Create CI to check versions once a week
 - Create images with arch and logo?
@@ -84,6 +85,7 @@ docker run --rm -it \
 
 ## Release
 
+- RAM up to 1GB with cache, usually ~300MB
 - Conjure up a version format
   - Recheck https://semver.org/
   - contain version of any-bundle, to track breaking changes
@@ -100,6 +102,9 @@ Reminder for me, just create a tag and push it.
 Format: `v0.2.0+snapshot.2024-12-18` (v<srm-version>+snapshot.<date-of-anytype-release-from-gomod>)
 
 ```bash
+# Check localy
+goreleaser release --snapshot --clean
+# Create tag and push
 git tag -a v0.2.0+snapshot.2024-12-18 -m "Release v0.2.0+snapshot.2024-12-18"
 git push origin tag v0.2.0+snapshot.2024-12-18
 ```
