@@ -69,7 +69,7 @@ type NodeFile struct {
 	RedisConnect string `yaml:"redisConnect"`
 }
 
-func Read(cfgPath string) *Config {
+func Load(cfgPath string) *Config {
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
 		log.Panic("can't read config file", zap.Error(err))

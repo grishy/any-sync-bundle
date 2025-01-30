@@ -3,7 +3,10 @@ package app
 import (
 	"os"
 
+	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/debugstat"
+	"github.com/anyproto/any-sync/app/logger"
+	"github.com/anyproto/any-sync/commonspace"
 	"github.com/anyproto/any-sync/commonspace/credentialprovider"
 	"github.com/anyproto/any-sync/consensus/consensusclient"
 	"github.com/anyproto/any-sync/coordinator/coordinatorclient"
@@ -13,6 +16,7 @@ import (
 	"github.com/anyproto/any-sync/net/pool"
 	"github.com/anyproto/any-sync/net/rpc/debugserver"
 	"github.com/anyproto/any-sync/net/rpc/server"
+	"github.com/anyproto/any-sync/net/secureservice"
 	"github.com/anyproto/any-sync/net/streampool"
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
@@ -21,29 +25,25 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 	"github.com/anyproto/any-sync/util/syncqueues"
 
-	"github.com/anyproto/any-sync-node/nodehead"
-	"github.com/anyproto/any-sync-node/nodespace/peermanager"
-	"github.com/anyproto/any-sync-node/nodespace/spacedeleter"
-	"github.com/anyproto/any-sync-node/nodesync"
-	"github.com/anyproto/any-sync-node/nodesync/coldsync"
-	"github.com/anyproto/any-sync-node/nodesync/hotsync"
-	"github.com/anyproto/any-sync/app"
-	"github.com/anyproto/any-sync/app/logger"
-	"github.com/anyproto/any-sync/commonspace"
-
-	"github.com/anyproto/any-sync/net/secureservice"
-
 	"github.com/anyproto/any-sync-node/account"
 	"github.com/anyproto/any-sync-node/config"
 	"github.com/anyproto/any-sync-node/debug/nodedebugrpc"
+	"github.com/anyproto/any-sync-node/nodehead"
 	"github.com/anyproto/any-sync-node/nodespace"
 	"github.com/anyproto/any-sync-node/nodespace/nodecache"
+	"github.com/anyproto/any-sync-node/nodespace/peermanager"
+	"github.com/anyproto/any-sync-node/nodespace/spacedeleter"
 	"github.com/anyproto/any-sync-node/nodestorage"
+	"github.com/anyproto/any-sync-node/nodesync"
+	"github.com/anyproto/any-sync-node/nodesync/coldsync"
+	"github.com/anyproto/any-sync-node/nodesync/hotsync"
 
 	"go.uber.org/zap"
 )
 
-func NewSyncApp(log logger.CtxLogger, cfg *config.Config) *app.App {
+func NewSyncApp(cfg *config.Config) *app.App {
+	log := logger.NewNamed("sync")
+
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
 	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
 		log.Panic("can't create directory network store", zap.Error(err))

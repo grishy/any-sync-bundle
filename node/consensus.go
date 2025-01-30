@@ -8,6 +8,7 @@ import (
 	"github.com/anyproto/any-sync-consensusnode/consensusrpc"
 	"github.com/anyproto/any-sync-consensusnode/db"
 	"github.com/anyproto/any-sync-consensusnode/stream"
+
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/coordinator/coordinatorclient"
@@ -21,10 +22,13 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
+
 	"go.uber.org/zap"
 )
 
-func NewConsensusApp(log logger.CtxLogger, cfg *config.Config) *app.App {
+func NewConsensusApp(cfg *config.Config) *app.App {
+	log := logger.NewNamed("consensus")
+
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
 	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
 		log.Panic("can't create directory network store", zap.Error(err))

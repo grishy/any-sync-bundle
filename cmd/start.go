@@ -24,111 +24,101 @@ type node struct {
 	app  *app.App
 }
 
+const serviceShutdownTimeout = 30 * time.Second
+
 func cmdStart(ctx context.Context) *cli.Command {
 	return &cli.Command{
-		Name:  "start",
-		Usage: "Start bundle services",
-		Flags: []cli.Flag{},
-		Action: func(cCtx *cli.Context) error {
-			log := logger.NewNamed("main")
+		Name:   "start",
+		Usage:  "Start bundle services",
+		Action: startAction(ctx),
+	}
+}
 
-			initExternalAddrs := cCtx.StringSlice(fGlobalInitExternalAddrs)
-			initMongoURI := cCtx.String(fGlobalInitMongoURI)
-			initRedisURI := cCtx.String(fGlobalInitRedisURI)
-			cfgPath := cCtx.String(fGlobalBundleConfigPath)
-			storagePath := cCtx.String(fGlobalStoragePath)
+func startAction(ctx context.Context) cli.ActionFunc {
+	return func(cCtx *cli.Context) error {
+		printWelcome()
 
-			// TODO: AppName global, AppName not working properly on app instance
+		// Load or create bundle configuration
+		cfgBundle := loadOrCreateConfig(cCtx, log)
 
-			printWelcome()
+		// TODO: Write client config if not exists
 
-			// TODO: Create commands to only generate conf and allow to provide external addrs
-			// TODO: Cread configs also from args or env?
+		// TODO: merge it?
+		cfgNodes := cfgBundle.NodeConfigs()
+		fileStore := filepath.Join(cfgBundle.StoragePath, "storage-file")
 
-			var cfgBundle *bundleCfg.Config
-			log.Info("loading config")
-			if _, err := os.Stat(cfgPath); err == nil {
-				log.Info("loaded existing config")
-				cfgBundle = bundleCfg.Read(cfgPath)
-			}
+		// Initialize service instances
+		apps := []node{
+			{name: "coordinator", app: bundleNode.NewCoordinatorApp(cfgNodes.Coordinator)},
+			{name: "consensus", app: bundleNode.NewConsensusApp(cfgNodes.Consensus)},
+			{name: "filenode", app: bundleNode.NewFileNodeApp(cfgNodes.Filenode, fileStore)},
+			{name: "sync", app: bundleNode.NewSyncApp(cfgNodes.Sync)},
+		}
 
-			log.Info("file not found, created new config")
-			// TODO Create if not exist
-			cfgBundle = bundleCfg.CreateWrite(&bundleCfg.CreateOptions{
-				CfgPath:       cfgPath,
-				StorePath:     storagePath,
-				MongoURI:      initMongoURI,
-				RedisURI:      initRedisURI,
-				ExternalAddrs: initExternalAddrs,
-			})
+		if err := startServices(ctx, apps); err != nil {
+			return err
+		}
 
-			cfgNodes := cfgBundle.NodeConfigs()
+		// Wait for shutdown signal
+		<-ctx.Done()
 
-			// TODO
-			// mongoInit(ctx, cfgBundle.Nodes.Coordinator.MongoConnect)
+		shutdownServices(apps)
 
-			// Dump client config
-			// TODO if no exist create
-			// cfgBundle.ClientConfig(configClientPath)
+		log.Info("→ Goodbye!")
+		return nil
+	}
+}
 
-			fileStore := filepath.Join(cfgBundle.StoragePath, "storage-file")
+func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleCfg.Config {
+	cfgPath := cCtx.String(fGlobalBundleConfigPath)
+	log.Info("loading config")
 
-			// Common configs
-			apps := []node{
-				{
-					name: "coordinator",
-					app:  bundleNode.NewCoordinatorApp(logger.NewNamed("coordinator"), cfgNodes.Coordinator),
-				},
-				{
-					name: "consensus",
-					app:  bundleNode.NewConsensusApp(logger.NewNamed("consensus"), cfgNodes.Consensus),
-				},
-				{
-					name: "filenode",
-					app:  bundleNode.NewFileNodeApp(logger.NewNamed("filenode"), cfgNodes.Filenode, fileStore),
-				},
-				{
-					name: "sync",
-					app:  bundleNode.NewSyncApp(logger.NewNamed("sync"), cfgNodes.Sync),
-				},
-			}
+	if _, err := os.Stat(cfgPath); err == nil {
+		log.Info("loaded existing config")
+		return bundleCfg.Load(cfgPath)
+	}
 
-			// Start all services
-			log.Info("Initiating service startup", zap.Int("count", len(apps)))
+	log.Info("creating new config")
+	return bundleCfg.CreateWrite(&bundleCfg.CreateOptions{
+		CfgPath:       cfgPath,
+		StorePath:     cCtx.String(fGlobalStoragePath),
+		MongoURI:      cCtx.String(fGlobalInitMongoURI),
+		RedisURI:      cCtx.String(fGlobalInitRedisURI),
+		ExternalAddrs: cCtx.StringSlice(fGlobalInitExternalAddrs),
+	})
+}
 
-			for _, a := range apps {
-				log.Info("▶ Starting service", zap.String("name", a.name))
-				if err := a.app.Start(ctx); err != nil {
-					log.Panic("✗ Service startup failed",
-						zap.String("name", a.name),
-						zap.Error(err))
-				}
+func startServices(ctx context.Context, apps []node) error {
+	log.Info("initiating service startup", zap.Int("count", len(apps)))
 
-				log.Info("✓ Service started successfully", zap.String("name", a.name))
-			}
+	for _, a := range apps {
+		log.Info("▶ starting service", zap.String("name", a.name))
+		if err := a.app.Start(ctx); err != nil {
+			return fmt.Errorf("service startup failed: %w", err)
+		}
 
-			log.Info("↑ Service startup complete")
+		log.Info("✓ service started successfully", zap.String("name", a.name))
+	}
 
-			// wait exit signal
-			<-ctx.Done()
+	log.Info("↑ service startup complete")
+	return nil
+}
 
-			// Stop apps in reverse order
-			log.Info("⚡ Initiating service shutdown", zap.Int("count", len(apps)))
-			for _, a := range slices.Backward(apps) {
-				log.Info("▶ Stopping service", zap.String("name", a.name))
-				ctxClose, cancelClose := context.WithTimeout(context.Background(), 30*time.Second)
-				if err := a.app.Close(ctxClose); err != nil {
-					log.Error("✗ Service shutdown failed", zap.String("name", a.name), zap.Error(err))
-				} else {
-					log.Info("✓ Service stopped successfully", zap.String("name", a.name))
-				}
+func shutdownServices(apps []node) {
+	log.Info("⚡ initiating service shutdown", zap.Int("count", len(apps)))
 
-				cancelClose()
-			}
+	for _, a := range slices.Backward(apps) {
+		log.Info("▶ stopping service", zap.String("name", a.name))
 
-			log.Info("→ Goodbye!")
-			return nil
-		},
+		ctx, cancel := context.WithTimeout(context.Background(), serviceShutdownTimeout)
+
+		if err := a.app.Close(ctx); err != nil {
+			log.Error("✗ service shutdown failed", zap.String("name", a.name), zap.Error(err))
+		} else {
+			log.Info("✓ service stopped successfully", zap.String("name", a.name))
+		}
+
+		cancel()
 	}
 }
 
