@@ -42,7 +42,7 @@ docker run --rm -it \
 - https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes#non-bsd
 - Create first tech version
 - Improve loggings and add prefix for each service, like `any-sync-coordinator:`
-    - Maybe replace supervisor with some simple script
+  - Maybe replace supervisor with some simple script
 - Add release with binaries and containers for all platforms
 - use port range to public for simplicity
 - check other docker build, like docker-mastodon
@@ -105,8 +105,12 @@ Format: `v0.2.0+snapshot.2024-12-18` (v<srm-version>+snapshot.<date-of-anytype-r
 # Check localy
 goreleaser release --snapshot --clean
 # Create tag and push
-git tag -a v0.2.0+snapshot.2024-12-18 -m "Release v0.2.0+snapshot.2024-12-18"
-git push origin tag v0.2.0+snapshot.2024-12-18
+
+# Set version
+set VERSION v0.3.1+2024-12-18
+# Create tag and push
+git tag -a $VERSION -m "Release $VERSION"
+git push origin tag $VERSION
 ```
 
 ## License
