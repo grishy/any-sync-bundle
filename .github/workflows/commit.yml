@@ -54,7 +54,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Test build Docker image (Minimal)
+      - name: Test build Docker image (stage-bin)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -63,7 +63,8 @@ jobs:
           platforms: |
             linux/arm64
             linux/amd64
-          tags: test-build-minimal
+          target: stage-bin
+          tags: test-build-bin
           build-args: |
             VERSION=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
             COMMIT=${{ fromJSON(steps.goreleaser.outputs.metadata).commit }}
@@ -71,16 +72,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Test build Docker image (All-In-One)
+      - name: Test build Docker image (stage-release)
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.all-in-one
+          file: ./docker/Dockerfile
           push: false
           platforms: |
             linux/arm64
             linux/amd64
-          tags: test-build-all-in-one
+          target: stage-release
+          tags: test-build-release
           build-args: |
             VERSION=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
             COMMIT=${{ fromJSON(steps.goreleaser.outputs.metadata).commit }}

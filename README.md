@@ -39,12 +39,14 @@ docker run --rm -it \
 
 ## TODO
 
+- RAM up to 1GB with cache, usually ~300MB
 - https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes#non-bsd
 - Create first tech version
 - Improve loggings and add prefix for each service, like `any-sync-coordinator:`
   - Maybe replace supervisor with some simple script
 - Add release with binaries and containers for all platforms
 - use port range to public for simplicity
+- merge all docker outputs into one with multi-stage and target stage
 - check other docker build, like docker-mastodon
 - use go-avahi-cname release process
 - Add way to controll logger level and default warning
@@ -85,26 +87,12 @@ docker run --rm -it \
 
 ## Release
 
-- RAM up to 1GB with cache, usually ~300MB
-- Conjure up a version format
-  - Recheck https://semver.org/
-  - contain version of any-bundle, to track breaking changes
-  - contain date of release, used as base
-  - Ideas
-    - `1.0.0-2025-09-01`
-    - `1.2021.09`
-    - `2021.09.01`
-    - `1.0.0+20250901`
-    - `v0.1.0+20241218-1734517522` - my version plus human readable date and original version
-    - `v0.1.0+snapshot.2024-12-18` - human readable date
-
 Reminder for me, just create a tag and push it.  
-Format: `v0.2.0+snapshot.2024-12-18` (v<srm-version>+snapshot.<date-of-anytype-release-from-gomod>)
+Format: `v0.2.0+2024-12-18` (v<srm-version>+<date-of-anytype-release-from-gomod>)
 
 ```bash
 # Check localy
 goreleaser release --snapshot --clean
-# Create tag and push
 
 # Set version
 set VERSION v0.3.5+2024-12-18
