@@ -108,6 +108,8 @@ func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, r
 		log.Info("successfully initialized new replica set, waiting for stabilization...")
 		time.Sleep(mongoStabilizeWaitTime)
 		return nil
+	} else {
+		log.Warn("failed to initialize new replica set", zap.Error(err))
 	}
 
 	return checkReplicaSetStatus(ctx, client)
@@ -136,6 +138,8 @@ func initNewReplicaSet(ctx context.Context, client *mongo.Client, replica, uri s
 func checkReplicaSetStatus(ctx context.Context, client *mongo.Client) error {
 	ctxCmd, cancel := context.WithTimeout(ctx, mongoCommandTimeout)
 	defer cancel()
+
+	log.Info("checking replica set status")
 
 	var result bson.M
 	err := client.Database("admin").
