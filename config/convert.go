@@ -13,13 +13,10 @@ import (
 	"github.com/anyproto/any-sync-coordinator/accountlimit"
 	"github.com/anyproto/any-sync-coordinator/db"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
-
 	"github.com/anyproto/any-sync-filenode/redisprovider"
-
 	"github.com/anyproto/any-sync-node/nodestorage"
 	"github.com/anyproto/any-sync-node/nodesync"
 	"github.com/anyproto/any-sync-node/nodesync/hotsync"
-
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/commonspace/config"
 	"github.com/anyproto/any-sync/metric"
@@ -32,198 +29,191 @@ import (
 	"go.uber.org/zap"
 )
 
+// NodeConfigs holds configuration for all node types in the system
 type NodeConfigs struct {
 	Coordinator *coordinatorconfig.Config
 	Consensus   *consensusconfig.Config
 	Filenode    *filenodeconfig.Config
 	Sync        *syncconfig.Config
+
+	// Used for our component and we can't add this into existing configs
+	FilenodeStorePath string
 }
 
+type nodeConfigOpts struct {
+	pathNetworkStoreCoordinator string
+	pathNetworkStoreConsensus   string
+	pathNetworkStoreFilenode    string
+	pathNetworkStoreSync        string
+	pathStorageSync             string
+	pathStorageFilenode         string
+
+	networkCfg nodeconf.Configuration
+	metricCfg  metric.Config
+}
+
+// NodeConfigs generates configurations for all node types based on the base config
 func (bc *Config) NodeConfigs() *NodeConfigs {
-	networkCfg := bc.networkCfg()
+	opts := &nodeConfigOpts{
+		pathNetworkStoreCoordinator: filepath.Join(bc.StoragePath, "network-store/coordinator"),
+		pathNetworkStoreConsensus:   filepath.Join(bc.StoragePath, "network-store/consensus"),
+		pathNetworkStoreFilenode:    filepath.Join(bc.StoragePath, "network-store/filenode"),
+		pathNetworkStoreSync:        filepath.Join(bc.StoragePath, "network-store/sync"),
+		pathStorageSync:             filepath.Join(bc.StoragePath, "storage-sync"),
+		pathStorageFilenode:         filepath.Join(bc.StoragePath, "storage-file"),
+		networkCfg:                  bc.networkCfg(),
+		// TODO: Don't turn on metrics
+		// https://github.com/anyproto/any-sync/issues/373
+		metricCfg: metric.Config{},
+	}
 
-	// TODO: Don't use metrics
-	// https://github.com/anyproto/any-sync/issues/373
-	metricCfg := metric.Config{}
+	return &NodeConfigs{
+		Coordinator: bc.coordinatorConfig(opts),
+		Consensus:   bc.consensusConfig(opts),
+		Filenode:    bc.filenodeConfig(opts),
+		Sync:        bc.syncConfig(opts),
 
-	// TODO: Check all fields
+		FilenodeStorePath: opts.pathStorageFilenode,
+	}
+}
 
-	// Coordinator
-	cfgCoord := &coordinatorconfig.Config{
+func (bc *Config) coordinatorConfig(opts *nodeConfigOpts) *coordinatorconfig.Config {
+	return &coordinatorconfig.Config{
 		Account: bc.Accounts.Coordinator,
 		Drpc: rpc.Config{
-			Stream: rpc.StreamConfig{
-				MaxMsgSizeMb: 256,
-				// 	TODO: Issue that `timeoutMilliseconds: 1000` is not exist in the config
-			},
+			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
-		Metric:                   metricCfg,
-		Network:                  networkCfg,
-		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/coordinator"),
+		Metric:                   opts.metricCfg,
+		Network:                  opts.networkCfg,
+		NetworkStorePath:         opts.pathNetworkStoreCoordinator,
 		NetworkUpdateIntervalSec: 0,
 		Mongo: db.Mongo{
 			Connect:  bc.Nodes.Coordinator.MongoConnect,
 			Database: bc.Nodes.Coordinator.MongoDatabase,
-			// TODO: Issue that `log: log` and `spaces: spaces` is not exist in the config
 		},
 		SpaceStatus: spacestatus.Config{
 			RunSeconds:         5,
 			DeletionPeriodDays: 0,
 			SpaceLimit:         0,
 		},
-		Yamux: yamux.Config{
-			ListenAddrs: []string{
-				bc.Nodes.Coordinator.ListenTCPAddr,
-			},
-			WriteTimeoutSec: 10,
-			DialTimeoutSec:  10,
-		},
-		Quic: quic.Config{
-			ListenAddrs: []string{
-				bc.Nodes.Coordinator.ListenUDPAddr,
-			},
-			WriteTimeoutSec: 10,
-			DialTimeoutSec:  10,
-		},
+		Yamux: bc.yamuxConfig(bc.Nodes.Coordinator.ListenTCPAddr),
+		Quic:  bc.quicConfig(bc.Nodes.Coordinator.ListenUDPAddr),
 		AccountLimits: accountlimit.SpaceLimits{
 			SpaceMembersRead:  1000,
 			SpaceMembersWrite: 1000,
 			SharedSpacesLimit: 1000,
 		},
 	}
+}
 
-	// Consensus
-	cfgCons := &consensusconfig.Config{
+func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config {
+	return &consensusconfig.Config{
 		Drpc: rpc.Config{
-			Stream: rpc.StreamConfig{
-				MaxMsgSizeMb: 256,
-			},
+			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
 		Account:                  bc.Accounts.Consensus,
-		Network:                  networkCfg,
-		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/consensus"),
+		Network:                  opts.networkCfg,
+		NetworkStorePath:         opts.pathNetworkStoreConsensus,
 		NetworkUpdateIntervalSec: 0,
 		Mongo: consensusconfig.Mongo{
 			Connect:       bc.Nodes.Consensus.MongoConnect,
 			Database:      bc.Nodes.Consensus.MongoDatabase,
 			LogCollection: "log",
 		},
-		Metric: metricCfg,
-		Log: logger.Config{
-			Production: false,
-		},
-		Yamux: yamux.Config{
-			ListenAddrs: []string{
-				bc.Nodes.Consensus.ListenTCPAddr,
-			},
-			WriteTimeoutSec: 10,
-			DialTimeoutSec:  10,
-		},
-		Quic: quic.Config{
-			ListenAddrs: []string{
-				bc.Nodes.Consensus.ListenUDPAddr,
-			},
-			WriteTimeoutSec: 10,
-			DialTimeoutSec:  10,
-		},
-	}
-
-	// Filenode
-	cfgFileNode := &filenodeconfig.Config{
-		Account: bc.Accounts.File,
-		Drpc: rpc.Config{
-			Stream: rpc.StreamConfig{
-				MaxMsgSizeMb: 256,
-			},
-		},
-		Yamux: yamux.Config{
-			ListenAddrs: []string{
-				bc.Nodes.File.ListenTCPAddr,
-			},
-			WriteTimeoutSec: 10,
-			DialTimeoutSec:  10,
-		},
-		Quic: quic.Config{
-			ListenAddrs: []string{
-				bc.Nodes.File.ListenUDPAddr,
-			},
-			WriteTimeoutSec: 10,
-			DialTimeoutSec:  10,
-		},
-		Metric: metricCfg,
-		Redis: redisprovider.Config{
-			IsCluster: false,
-			Url:       bc.Nodes.File.RedisConnect,
-		},
-		Network:                  networkCfg,
-		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/filenode"),
-		NetworkUpdateIntervalSec: 0,
-		CafeMigrateKey:           "",
-		DefaultLimit:             1099511627776, // 1 TB
-		PersistTtl:               0,
-	}
-
-	// Sync
-	cfgSync := &syncconfig.Config{
-		Drpc: rpc.Config{
-			Stream: rpc.StreamConfig{
-				MaxMsgSizeMb: 256,
-			},
-		},
-		Account:                  bc.Accounts.Tree,
-		Network:                  networkCfg,
-		NetworkStorePath:         filepath.Join(bc.StoragePath, "network-store/sync"),
-		NetworkUpdateIntervalSec: 0,
-		Space: config.Config{
-			GCTTL:      60,
-			SyncPeriod: 600,
-		},
-		Storage: nodestorage.Config{
-			Path: filepath.Join(bc.StoragePath, "storage-sync"),
-		},
-		Metric: metricCfg,
-		Log: logger.Config{
-			Production: false,
-		},
-		NodeSync: nodesync.Config{
-			SyncOnStart:       false,
-			PeriodicSyncHours: 0,
-			HotSync: hotsync.Config{
-				SimultaneousRequests: 0,
-			},
-		},
-		Yamux: yamux.Config{
-			ListenAddrs: []string{
-				bc.Nodes.Tree.ListenTCPAddr,
-			},
-			WriteTimeoutSec: 10,
-			DialTimeoutSec:  10,
-		},
-		Limiter: limiter.Config{
-			DefaultTokens: limiter.Tokens{
-				TokensPerSecond: 0,
-				MaxTokens:       0,
-			},
-			ResponseTokens: nil,
-		},
-		Quic: quic.Config{
-			ListenAddrs: []string{
-				bc.Nodes.Tree.ListenUDPAddr,
-			},
-			WriteTimeoutSec: 10,
-			DialTimeoutSec:  10,
-		},
-	}
-
-	return &NodeConfigs{
-		Coordinator: cfgCoord,
-		Consensus:   cfgCons,
-		Filenode:    cfgFileNode,
-		Sync:        cfgSync,
+		Metric: opts.metricCfg,
+		Log:    logger.Config{Production: false},
+		Yamux:  bc.yamuxConfig(bc.Nodes.Consensus.ListenTCPAddr),
+		Quic:   bc.quicConfig(bc.Nodes.Consensus.ListenUDPAddr),
 	}
 }
 
-// TODO: Support IPv6
+func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
+	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TB in bytes
+
+	return &filenodeconfig.Config{
+		Account: bc.Accounts.File,
+		Drpc: rpc.Config{
+			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
+		},
+		Yamux:                    bc.yamuxConfig(bc.Nodes.File.ListenTCPAddr),
+		Quic:                     bc.quicConfig(bc.Nodes.File.ListenUDPAddr),
+		Metric:                   opts.metricCfg,
+		Redis:                    redisprovider.Config{Url: bc.Nodes.File.RedisConnect},
+		Network:                  opts.networkCfg,
+		NetworkStorePath:         opts.pathNetworkStoreFilenode,
+		NetworkUpdateIntervalSec: 0,
+		DefaultLimit:             oneTerabyte,
+	}
+}
+
+func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
+	return &syncconfig.Config{
+		Drpc: rpc.Config{
+			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
+		},
+		Account:                  bc.Accounts.Tree,
+		Network:                  opts.networkCfg,
+		NetworkStorePath:         opts.pathNetworkStoreSync,
+		NetworkUpdateIntervalSec: 0,
+		Space:                    config.Config{GCTTL: 60, SyncPeriod: 600},
+		Storage:                  nodestorage.Config{Path: opts.pathStorageSync},
+		Metric:                   opts.metricCfg,
+		Log:                      logger.Config{Production: false},
+		NodeSync:                 nodesync.Config{HotSync: hotsync.Config{}},
+		Yamux:                    bc.yamuxConfig(bc.Nodes.Tree.ListenTCPAddr),
+		Quic:                     bc.quicConfig(bc.Nodes.Tree.ListenUDPAddr),
+		Limiter:                  limiter.Config{},
+	}
+}
+
+func (bc *Config) yamuxConfig(listenAddr string) yamux.Config {
+	return yamux.Config{
+		ListenAddrs:     []string{listenAddr},
+		WriteTimeoutSec: 10,
+		DialTimeoutSec:  10,
+	}
+}
+
+func (bc *Config) quicConfig(listenAddr string) quic.Config {
+	return quic.Config{
+		ListenAddrs:     []string{listenAddr},
+		WriteTimeoutSec: 10,
+		DialTimeoutSec:  10,
+	}
+}
+
+func (bc *Config) networkCfg() nodeconf.Configuration {
+	return nodeconf.Configuration{
+		Id:        bc.ConfigID,
+		NetworkId: bc.NetworkID,
+		Nodes: []nodeconf.Node{
+			{
+				PeerId:    bc.Accounts.Coordinator.PeerId,
+				Addresses: convertListenToConnect(bc.Nodes.Coordinator.NodeShared),
+				Types:     []nodeconf.NodeType{nodeconf.NodeTypeCoordinator},
+			},
+			{
+				PeerId:    bc.Accounts.Consensus.PeerId,
+				Addresses: convertListenToConnect(bc.Nodes.Consensus.NodeShared),
+				Types:     []nodeconf.NodeType{nodeconf.NodeTypeConsensus},
+			},
+			{
+				PeerId:    bc.Accounts.Tree.PeerId,
+				Addresses: convertListenToConnect(bc.Nodes.Tree.NodeShared),
+				Types:     []nodeconf.NodeType{nodeconf.NodeTypeTree},
+			},
+			{
+				PeerId:    bc.Accounts.File.PeerId,
+				Addresses: convertListenToConnect(bc.Nodes.File.NodeShared),
+				Types:     []nodeconf.NodeType{nodeconf.NodeTypeFile},
+			},
+		},
+		CreationTime: time.Now(),
+	}
+}
+
+// convertListenToConnect converts listen addresses to connection addresses,
+// replacing 0.0.0.0 with 127.0.0.1 for local connections
 func convertListenToConnect(listen NodeShared) []string {
 	hostTCP, portTCP, err := net.SplitHostPort(listen.ListenTCPAddr)
 	if err != nil {
@@ -245,43 +235,4 @@ func convertListenToConnect(listen NodeShared) []string {
 		"quic://" + hostUDP + ":" + portUDP,
 		hostTCP + ":" + portTCP,
 	}
-}
-
-func (bc *Config) networkCfg() nodeconf.Configuration {
-	network := nodeconf.Configuration{
-		Id:        bc.ConfigID,
-		NetworkId: bc.NetworkID,
-		Nodes: []nodeconf.Node{
-			{
-				PeerId:    bc.Accounts.Coordinator.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Coordinator.NodeShared),
-				Types: []nodeconf.NodeType{
-					nodeconf.NodeTypeCoordinator,
-				},
-			},
-			{
-				PeerId:    bc.Accounts.Consensus.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Consensus.NodeShared),
-				Types: []nodeconf.NodeType{
-					nodeconf.NodeTypeConsensus,
-				},
-			},
-			{
-				PeerId:    bc.Accounts.Tree.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Tree.NodeShared),
-				Types: []nodeconf.NodeType{
-					nodeconf.NodeTypeTree,
-				},
-			},
-			{
-				PeerId:    bc.Accounts.File.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.File.NodeShared),
-				Types: []nodeconf.NodeType{
-					nodeconf.NodeTypeFile,
-				},
-			},
-		},
-		CreationTime: time.Now(),
-	}
-	return network
 }

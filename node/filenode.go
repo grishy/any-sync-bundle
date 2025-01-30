@@ -1,8 +1,6 @@
-package app
+package node
 
 import (
-	"os"
-
 	"github.com/anyproto/any-sync-filenode/account"
 	"github.com/anyproto/any-sync-filenode/config"
 	"github.com/anyproto/any-sync-filenode/deletelog"
@@ -12,7 +10,6 @@ import (
 
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
-	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/consensus/consensusclient"
 	"github.com/anyproto/any-sync/coordinator/coordinatorclient"
 	"github.com/anyproto/any-sync/coordinator/nodeconfsource"
@@ -26,18 +23,11 @@ import (
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 
-	"go.uber.org/zap"
-
 	"github.com/grishy/any-sync-bundle/component/storeBadger"
 )
 
 func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
-	log := logger.NewNamed("filenode")
-
-	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
-		log.Panic("can't create directory network store", zap.Error(err))
-	}
+	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
 		Register(cfg).

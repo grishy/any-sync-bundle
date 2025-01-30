@@ -24,22 +24,18 @@ Need to create replica set for MongoDB. Manually or with some script.
 Check that address should be same as when we will start to use it?
 
 ```bash
-docker build -t any --progress=plain -f docker/Dockerfile .
+```bash
+docker build -t any --progress=plain -f docker/Dockerfile.all-in-one .
 
 docker run -it \
-    -p 33010:33010 \
-    -p 33011:33011/udp \
-    -p 33020:33020 \
-    -p 33021:33021/udp \
-    -p 33030:33030 \
-    -p 33031:33031/udp \
-    -p 33040:33040 \
-    -p 33041:33041/udp \
-    -p 27017:27017 \
-    -p 6379:6379 \
-    -v $(pwd)/data:/data \
-    --name any-sync-bundle \
-    any:latest
+  -p 33010-33013:33010-33013 \
+  -p 33020-33023:33020-33023/udp \
+  -p 27017:27017 \
+  -p 6379:6379 \
+  -v $(pwd)/data:/data \
+  --name any-sync-bundle \
+  any:latest
+```
 ```
 
 ## TODO
@@ -50,18 +46,7 @@ docker run -it \
 - check other docker build, like docker-mastodon
 - use go-avahi-cname release process
 - Build in version into binary
-- Create CI to check versions
-- Conjure up a version format
-  - Recheck https://semver.org/
-  - contain version of any-bundle, to track breaking changes
-  - contain date of release, used as base
-  - Ideas
-    - `1.0.0-2025-09-01`
-    - `1.2021.09`
-    - `2021.09.01`
-    - `1.0.0+20250901`
-    - `v0.1.0+20241218-1734517522` - my version plus human readable date and original version
-    - `v0.1.0+snapshot.2024-12-18` - human readable date
+- Create CI to check versions once a week
 - Create images with arch and logo?
   - Use box with anytype logo inside and glow around
 - Write a blog post on eng,rus,esp
@@ -89,13 +74,25 @@ docker run -it \
 - https://github.com/anyproto/any-sync/issues/373
 - https://github.com/anyproto/any-sync-dockercompose/issues/126
 - https://github.com/anyproto/any-sync/pull/374
-- TODO: Anytype app sypport only .yml files, not .yaml
 - Found https://github.com/anyproto/any-sync-coordinator/issues/80#issuecomment-2220554099
 - Add API support for end user to get notes
+- Anytype app sypport only .yml files, not .yaml https://github.com/anyproto/anytype-ts/pull/1186
 
 > Because I stand on the shoulders of giants, I can see further than they can.
 
 ## Release
+
+- Conjure up a version format
+  - Recheck https://semver.org/
+  - contain version of any-bundle, to track breaking changes
+  - contain date of release, used as base
+  - Ideas
+    - `1.0.0-2025-09-01`
+    - `1.2021.09`
+    - `2021.09.01`
+    - `1.0.0+20250901`
+    - `v0.1.0+20241218-1734517522` - my version plus human readable date and original version
+    - `v0.1.0+snapshot.2024-12-18` - human readable date
 
 Reminder for me, just create a tag and push it.  
 Format: `v0.2.0+snapshot.2024-12-18` (v<srm-version>+snapshot.<date-of-anytype-release-from-gomod>)

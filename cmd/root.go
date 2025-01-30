@@ -46,7 +46,7 @@ func Root(ctx context.Context) *cli.App {
 
 	return &cli.App{
 		Name:    appName,
-		Usage:   "A TODO",
+		Usage:   "Anytype sync bundle",
 		Version: version,
 		Authors: []*cli.Author{{
 			Name:  "Sergei G.",
@@ -79,8 +79,6 @@ func buildGlobalFlags() []cli.Flag {
 		&cli.PathFlag{
 			Name:    fGlobalClientConfigPath,
 			Aliases: []string{"cc"},
-			// NOTE: Anytype support only yml, but not yaml
-			// Fixed: https://github.com/anyproto/anytype-ts/pull/1186
 			Value:   "./data/client-config.yml",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_CLIENT_CONFIG"},
 			Usage:   "Path where write to the Anytype client configuration YAML file if needed",

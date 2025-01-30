@@ -1,8 +1,6 @@
-package app
+package node
 
 import (
-	"os"
-
 	"github.com/anyproto/any-sync-consensusnode/account"
 	"github.com/anyproto/any-sync-consensusnode/config"
 	"github.com/anyproto/any-sync-consensusnode/consensusrpc"
@@ -10,7 +8,6 @@ import (
 	"github.com/anyproto/any-sync-consensusnode/stream"
 
 	"github.com/anyproto/any-sync/app"
-	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/coordinator/coordinatorclient"
 	"github.com/anyproto/any-sync/coordinator/nodeconfsource"
 	"github.com/anyproto/any-sync/metric"
@@ -22,17 +19,10 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
-
-	"go.uber.org/zap"
 )
 
 func NewConsensusApp(cfg *config.Config) *app.App {
-	log := logger.NewNamed("consensus")
-
-	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
-		log.Panic("can't create directory network store", zap.Error(err))
-	}
+	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
 		Register(cfg).

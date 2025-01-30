@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -43,15 +42,13 @@ func startAction(ctx context.Context) cli.ActionFunc {
 
 		// TODO: Write client config if not exists
 
-		// TODO: merge it?
-		cfgNodes := cfgBundle.NodeConfigs()
-		fileStore := filepath.Join(cfgBundle.StoragePath, "storage-file")
-
 		// Initialize service instances
+		cfgNodes := cfgBundle.NodeConfigs()
+
 		apps := []node{
 			{name: "coordinator", app: bundleNode.NewCoordinatorApp(cfgNodes.Coordinator)},
 			{name: "consensus", app: bundleNode.NewConsensusApp(cfgNodes.Consensus)},
-			{name: "filenode", app: bundleNode.NewFileNodeApp(cfgNodes.Filenode, fileStore)},
+			{name: "filenode", app: bundleNode.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
 			{name: "sync", app: bundleNode.NewSyncApp(cfgNodes.Sync)},
 		}
 

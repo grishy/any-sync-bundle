@@ -1,11 +1,8 @@
-package app
+package node
 
 import (
-	"os"
-
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/debugstat"
-	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/commonspace"
 	"github.com/anyproto/any-sync/commonspace/credentialprovider"
 	"github.com/anyproto/any-sync/consensus/consensusclient"
@@ -37,17 +34,10 @@ import (
 	"github.com/anyproto/any-sync-node/nodesync"
 	"github.com/anyproto/any-sync-node/nodesync/coldsync"
 	"github.com/anyproto/any-sync-node/nodesync/hotsync"
-
-	"go.uber.org/zap"
 )
 
 func NewSyncApp(cfg *config.Config) *app.App {
-	log := logger.NewNamed("sync")
-
-	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
-		log.Panic("can't create directory network store", zap.Error(err))
-	}
+	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
 		Register(cfg).
@@ -82,5 +72,6 @@ func NewSyncApp(cfg *config.Config) *app.App {
 		Register(nodedebugrpc.New()).
 		Register(quic.New()).
 		Register(yamux.New())
+
 	return a
 }

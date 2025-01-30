@@ -1,4 +1,4 @@
-// Package config build on top of github.com/anyproto/any-sync-tools/anyconf
+// Package config build on top of https://github.com/anyproto/any-sync-tools/tree/72b131eaf4d6dc299ecf87dad60648e68054b35a/anyconf
 package config
 
 import (
@@ -199,7 +199,7 @@ func newAcc() accountservice.Config {
 		log.Panic("can't generate ed25519 key for account", zap.Error(err))
 	}
 
-	encPeerSignKey, err := crypto.EncodeKeyToString(signKey) // encSignKey
+	encPeerSignKey, err := crypto.EncodeKeyToString(signKey)
 	if err != nil {
 		log.Panic("can't encode key to string", zap.Error(err))
 	}

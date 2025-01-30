@@ -1,8 +1,6 @@
-package app
+package node
 
 import (
-	"os"
-
 	"github.com/anyproto/any-sync-coordinator/account"
 	"github.com/anyproto/any-sync-coordinator/accountlimit"
 	"github.com/anyproto/any-sync-coordinator/acleventlog"
@@ -17,7 +15,6 @@ import (
 
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
-	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/consensus/consensusclient"
 	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/net/peerservice"
@@ -28,17 +25,10 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
-
-	"go.uber.org/zap"
 )
 
 func NewCoordinatorApp(cfg *config.Config) *app.App {
-	log := logger.NewNamed("coordinator")
-
-	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
-	if err := os.MkdirAll(cfg.NetworkStorePath, 0o775); err != nil {
-		log.Panic("can't create directory network store", zap.Error(err))
-	}
+	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
 		Register(cfg).
