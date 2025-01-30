@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Required for goreleaser to get git history
 
       - uses: actions/setup-go@v5
         with:
@@ -49,9 +49,6 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
 
       - name: Build and push Docker image (Minimal)
         uses: docker/build-push-action@v5
@@ -62,7 +59,9 @@ jobs:
           platforms: |
             linux/arm64
             linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ghcr.io/${{ github.repository }}:minimal
+            ghcr.io/${{ github.repository }}:${{ fromJSON(steps.goreleaser.outputs.metadata).version }}-minimal
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
@@ -82,7 +81,9 @@ jobs:
           platforms: |
             linux/arm64
             linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}-all-in-one
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
