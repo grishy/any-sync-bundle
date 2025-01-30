@@ -14,7 +14,6 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=bind,source=go.mod,target=go.mod \
     go mod download -x
 
-
 ARG VERSION
 ARG COMMIT
 ARG COMMIT_DATE
@@ -34,7 +33,6 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
               -X github.com/grishy/any-sync-bundle/cmd.commit=${COMMIT} \
               -X github.com/grishy/any-sync-bundle/cmd.date=${COMMIT_DATE}" \
        -o /bin/any-sync-bundle
-
 
 # 
 # Stage: stage-final-minimal
