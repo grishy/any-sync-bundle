@@ -42,8 +42,8 @@ func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
 		Register(coordinatorclient.New()).
 		Register(consensusclient.New()).
 		Register(acl.New()).
-		// Register(filedevstore.New()).
-		Register(storeBadger.New(fileDir)).
+		// Register(store()). // Original component replaced with storeBadger
+		Register(storeBadger.New(fileDir)). // Bundle component
 		Register(redisprovider.New()).
 		Register(index.New()).
 		Register(server.New()).
