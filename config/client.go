@@ -40,7 +40,7 @@ func (bc *Config) convertExternalAddrs(listen NodeShared) []string {
 	return addrs
 }
 
-func (bc *Config) ClientConfig() ([]byte, error) {
+func (bc *Config) YamlClientConfig() ([]byte, error) {
 	network := nodeconf.Configuration{
 		Id:        bc.ConfigID,
 		NetworkId: bc.NetworkID,

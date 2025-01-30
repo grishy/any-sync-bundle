@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -17,6 +18,10 @@ const (
 	mongoConnectTimeout    = 10 * time.Second
 	mongoCommandTimeout    = 5 * time.Second
 	mongoStabilizeWaitTime = 5 * time.Second
+
+	// Default MongoDB parameters
+	defaultMongoReplica = "rs0"
+	defaultMongoURI     = "mongodb://127.0.0.1:27017/"
 )
 
 func cmdMongo(ctx context.Context) *cli.Command {
@@ -35,56 +40,56 @@ func cmdMongoInit(ctx context.Context) *cli.Command {
 			&cli.StringFlag{
 				Name:    "replica",
 				Aliases: []string{"r"},
-				Value:   "rs0",
+				Value:   defaultMongoReplica,
 				Usage:   "Name of the replica set",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_MONGO_REPLICA"},
 			},
 			&cli.StringFlag{
 				Name:    "uri",
 				Aliases: []string{"u"},
-				Value:   "mongodb://127.0.0.1:27017/",
+				Value:   defaultMongoURI,
 				Usage:   "MongoDB connection URI",
 				EnvVars: []string{"ANY_SYNC_BUNDLE_MONGO_URI"},
 			},
 		},
-		Action: initReplicaSetAction(ctx),
+		Action: func(cCtx *cli.Context) error {
+			replica := cCtx.String("replica")
+			mongoURI := cCtx.String("uri")
+
+			return initReplicaSetAction(ctx, replica, mongoURI)
+		},
 	}
 }
 
-func initReplicaSetAction(ctx context.Context) cli.ActionFunc {
-	// Fibonacci sequence for exponential backoff, limit number of attempts
+func initReplicaSetAction(ctx context.Context, replica, mongoURI string) error {
+	// For exponential backoff, limit number of attempts
 	retryDelays := []int{1, 2, 3, 5, 8, 13, 21, 34, 55, 89}
 
-	return func(cCtx *cli.Context) error {
-		replica := cCtx.String("replica")
-		mongoURI := cCtx.String("uri")
+	log.Info("initializing mongo replica set",
+		zap.String("uri", mongoURI),
+		zap.String("replica", replica))
 
-		log.Info("initializing mongo replica set",
-			zap.String("uri", mongoURI),
-			zap.String("replica", replica))
+	// Direct - before we have a replica set, we need it
+	clientOpts := options.Client().ApplyURI(mongoURI).SetDirect(true)
 
-		// Direct - before we have a replica set, we need it
-		clientOpts := options.Client().ApplyURI(mongoURI).SetDirect(true)
-
-		for _, delay := range retryDelays {
-			err := tryInitReplicaSet(ctx, clientOpts, replica)
-			if err == nil {
-				log.Info("successfully initialized mongo replica set")
-				return nil
-			} else if ctx.Err() != nil {
-				log.Error("context canceled while initializing mongo replica set", zap.Error(ctx.Err()))
-				return ctx.Err()
-			}
-
-			log.Warn("failed to initialize mongo replica set, retrying...",
-				zap.Error(err),
-				zap.Int("delay_seconds", delay))
-
-			time.Sleep(time.Duration(delay) * time.Second)
+	for _, delay := range retryDelays {
+		err := tryInitReplicaSet(ctx, clientOpts, replica)
+		if err == nil {
+			log.Info("successfully initialized mongo replica set")
+			return nil
+		} else if ctx.Err() != nil {
+			log.Error("context canceled while initializing mongo replica set", zap.Error(ctx.Err()))
+			return ctx.Err()
 		}
 
-		return fmt.Errorf("failed to initialize mongo replica set after all retries")
+		log.Warn("failed to initialize mongo replica set, retrying...",
+			zap.Error(err),
+			zap.Int("delay_seconds", delay))
+
+		time.Sleep(time.Duration(delay) * time.Second)
 	}
+
+	return fmt.Errorf("failed to initialize mongo replica set after all retries")
 }
 
 func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, replica string) error {
@@ -116,13 +121,18 @@ func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, r
 }
 
 func initNewReplicaSet(ctx context.Context, client *mongo.Client, replica, uri string) error {
+	parsedURL, err := url.Parse(uri)
+	if err != nil {
+		return fmt.Errorf("failed to parse mongodb uri: %w", err)
+	}
+
 	cmd := bson.D{
 		{Key: "replSetInitiate", Value: bson.D{
 			{Key: "_id", Value: replica},
 			{Key: "members", Value: bson.A{
 				bson.D{
 					{Key: "_id", Value: 0},
-					{Key: "host", Value: uri},
+					{Key: "host", Value: parsedURL.Host},
 				},
 			}},
 		}},

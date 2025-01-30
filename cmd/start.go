@@ -14,8 +14,12 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 
-	bundleCfg "github.com/grishy/any-sync-bundle/config"
+	bundleConfig "github.com/grishy/any-sync-bundle/config"
 	bundleNode "github.com/grishy/any-sync-bundle/node"
+)
+
+const (
+	fIsInitMongoRs = "init-mongo-rs"
 )
 
 type node struct {
@@ -27,23 +31,54 @@ const serviceShutdownTimeout = 30 * time.Second
 
 func cmdStart(ctx context.Context) *cli.Command {
 	return &cli.Command{
-		Name:   "start",
-		Usage:  "Start bundle services",
+		Name:  "start",
+		Usage: "Start bundle services",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    fIsInitMongoRs,
+				Usage:   "Initialize MongoDB replica set",
+				EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_MONGO_RS"},
+			},
+		},
 		Action: startAction(ctx),
 	}
 }
 
 func startAction(ctx context.Context) cli.ActionFunc {
 	return func(cCtx *cli.Context) error {
-		printWelcome()
+		clientCfgPath := cCtx.String(fGlobalClientConfigPath)
+		isInitMongoRs := cCtx.Bool(fIsInitMongoRs)
+
+		printWelcomeMsg()
 
 		// Load or create bundle configuration
-		cfgBundle := loadOrCreateConfig(cCtx, log)
+		bundleCfg := loadOrCreateConfig(cCtx, log)
 
-		// TODO: Write client config if not exists
+		// Create client configuration if not exists
+		if _, err := os.Stat(clientCfgPath); err != nil {
+			log.Warn("client configuration not found, creating new one")
+			yamlData, err := bundleCfg.YamlClientConfig()
+			if err != nil {
+				return fmt.Errorf("failed to generate client config: %w", err)
+			}
 
-		// Initialize service instances
-		cfgNodes := cfgBundle.NodeConfigs()
+			if err := os.WriteFile(clientCfgPath, yamlData, configFileMode); err != nil {
+				return fmt.Errorf("failed to write client config: %w", err)
+			}
+
+			log.Info("client configuration written", zap.String("path", clientCfgPath))
+		}
+
+		if isInitMongoRs {
+			log.Info("initializing MongoDB replica set")
+
+			if err := initReplicaSetAction(ctx, defaultMongoReplica, defaultMongoURI); err != nil {
+				return fmt.Errorf("failed to initialize MongoDB replica set: %w", err)
+			}
+		}
+
+		// Initialize nodes' instances
+		cfgNodes := bundleCfg.NodeConfigs()
 
 		apps := []node{
 			{name: "coordinator", app: bundleNode.NewCoordinatorApp(cfgNodes.Coordinator)},
@@ -56,27 +91,30 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			return err
 		}
 
+		printStartupMsg()
+
 		// Wait for shutdown signal
 		<-ctx.Done()
 
 		shutdownServices(apps)
+		printShutdownMsg()
 
 		log.Info("→ Goodbye!")
 		return nil
 	}
 }
 
-func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleCfg.Config {
+func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.Config {
 	cfgPath := cCtx.String(fGlobalBundleConfigPath)
 	log.Info("loading config")
 
 	if _, err := os.Stat(cfgPath); err == nil {
 		log.Info("loaded existing config")
-		return bundleCfg.Load(cfgPath)
+		return bundleConfig.Load(cfgPath)
 	}
 
 	log.Info("creating new config")
-	return bundleCfg.CreateWrite(&bundleCfg.CreateOptions{
+	return bundleConfig.CreateWrite(&bundleConfig.CreateOptions{
 		CfgPath:       cfgPath,
 		StorePath:     cCtx.String(fGlobalStoragePath),
 		MongoURI:      cCtx.String(fGlobalInitMongoURI),
@@ -97,7 +135,6 @@ func startServices(ctx context.Context, apps []node) error {
 		log.Info("✓ service started successfully", zap.String("name", a.name))
 	}
 
-	log.Info("↑ service startup complete")
 	return nil
 }
 
@@ -119,7 +156,7 @@ func shutdownServices(apps []node) {
 	}
 }
 
-func printWelcome() {
+func printWelcomeMsg() {
 	fmt.Printf(`
 ┌───────────────────────────────────────────────────────────────────┐
 
@@ -145,6 +182,29 @@ func printWelcome() {
 		}
 	}
 	fmt.Print(`
+└───────────────────────────────────────────────────────────────────┘
+`)
+}
+
+func printStartupMsg() {
+	fmt.Printf(`
+┌───────────────────────────────────────────────────────────────────┐
+
+                      AnySync Bundle is ready!
+                      All services are running.
+                   Press Ctrl+C to stop services.
+
+└───────────────────────────────────────────────────────────────────┘
+`)
+}
+
+func printShutdownMsg() {
+	fmt.Printf(`
+┌───────────────────────────────────────────────────────────────────┐
+
+                 AnySync Bundle shutdown complete!
+                     All services are stopped.
+
 └───────────────────────────────────────────────────────────────────┘
 `)
 }
