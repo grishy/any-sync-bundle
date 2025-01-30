@@ -24,10 +24,10 @@ Need to create replica set for MongoDB. Manually or with some script.
 Check that address should be same as when we will start to use it?
 
 ```bash
-```bash
 docker build -t any --progress=plain -f docker/Dockerfile.all-in-one .
 
-docker run -it \
+docker run --rm -it \
+  -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
   -p 33010-33013:33010-33013 \
   -p 33020-33023:33020-33023/udp \
   -p 27017:27017 \
@@ -36,11 +36,13 @@ docker run -it \
   --name any-sync-bundle \
   any:latest
 ```
-```
 
 ## TODO
 
+- https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes#non-bsd
 - Create first tech version
+- Improve loggings and add prefix for each service, like `any-sync-coordinator:`
+    - Maybe replace supervisor with some simple script
 - Add release with binaries and containers for all platforms
 - use port range to public for simplicity
 - check other docker build, like docker-mastodon

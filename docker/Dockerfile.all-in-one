@@ -8,8 +8,6 @@ COPY ./ ./
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o any-sync-bundle
 
 FROM docker.io/redis/redis-stack-server:7.4.0-v2
-LABEL maintainer="Sergei G. <mail@grishy.dev>"
-LABEL description="Anytype Self-Hosting: All-in-One Prepared for You"
 
 # Install supervisor and tool to intall mongoDB
 RUN DEBIAN_FRONTEND=noninteractive \

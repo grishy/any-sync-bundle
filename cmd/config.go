@@ -92,7 +92,7 @@ func cmdConfigClient() *cli.Command {
 
 			// Generate and write client configuration
 			bundleConfig := bundleCfg.Load(bundleCfgPath)
-			clientCfgData, err := bundleConfig.ClientConfig()
+			clientCfgData, err := bundleConfig.YamlClientConfig()
 			if err != nil {
 				return fmt.Errorf("failed to generate client configuration: %w", err)
 			}
