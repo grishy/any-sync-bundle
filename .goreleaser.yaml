@@ -12,19 +12,19 @@ builds:
       - -trimpath
     ldflags:
       - -w -s
-      - -X main.version={{.Version}}
-      - -X main.commit={{.ShortCommit}}
-      - -X main.date={{.CommitDate}}
+      - -X github.com/grishy/any-sync-bundle/cmd.version={{.Version}}
+      - -X github.com/grishy/any-sync-bundle/cmd.commit={{.Commit}}
+      - -X github.com/grishy/any-sync-bundle/cmd.date={{.CommitDate}}
     targets:
-      - go_first_class
+      # First class ports: https://go.dev/wiki/PortingPolicy#first-class-ports
+      - go_118_first_class
+      - freebsd_arm64
+      - freebsd_amd64
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
   # https://goreleaser.com/customization/archive/
   - formats: ["tar.gz"]
-    format_overrides:
-      - goos: windows
-        formats: ["zip"]
 
 checksum:
   # https://goreleaser.com/customization/checksum/
@@ -35,9 +35,9 @@ release:
   target_commitish: "{{ .Commit }}"
   mode: replace
   header: |
-    ## ℹ️ For information on how to install and use please see [README.md](https://github.com/grishy/any-sync-bundle)
+    ## ℹ️ For information on how to install and use, please see [README.md](https://github.com/grishy/go-avahi-cname)
   footer: |
-    Your PRs & issues are welcome! Thanks 😉
+    Your PRs and issues are welcome! Thanks 🙂
   disable: false
   skip_upload: false
 
@@ -46,9 +46,6 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
       - Merge pull request
       - Merge branch
   groups:
