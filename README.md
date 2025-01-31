@@ -1,7 +1,7 @@
 # Any-sync Bundle
 
 <p align="center">
-  <img src="./docs/todo" width="350">
+  <img src="./docs/logo.png" width="450">
    <br />
    <strong>Status: </strong>Maintained
 </p>
@@ -87,18 +87,24 @@ docker run --rm -it \
 
 ## Release
 
-Reminder for me, just create a tag and push it.  
+Reminder for me 🙂
 Format: `v0.2.0+2024-12-18` (v<srm-version>+<date-of-anytype-release-from-gomod>)
 
 ```bash
-# Check localy
+# 1. Check localy
 goreleaser release --snapshot --clean
 
-# Set version
-set VERSION v0.3.6+2024-12-18
+# 2. Set variables
+set VERSION v0.3.7
+set ANYTYPE_UNIX_TIMESTAMP 1734517522
+
+# 3. Set version
+set ANYTYPE_FORMATTED `date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d'`
+set FINAL_VERSION $VERSION+$ANYTYPE_FORMATTED
+
 # Create tag and push
-git tag -a $VERSION -m "Release $VERSION"
-git push origin tag $VERSION
+git tag -a $FINAL_VERSION -m "Release $FINAL_VERSION"
+git push origin tag $FINAL_VERSION
 ```
 
 ## License
