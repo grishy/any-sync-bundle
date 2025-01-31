@@ -86,7 +86,7 @@ goreleaser release --snapshot --clean
 
 ```sh
 # 1. Set variables (fish-shell)
-set VERSION v0.3.9
+set VERSION v0.5.0
 set ANYTYPE_UNIX_TIMESTAMP 1734517522
 
 # 2. Format date
