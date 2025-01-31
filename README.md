@@ -71,8 +71,7 @@ Example: `v0.5.0+2024-12-18`
 1. https://github.com/anyproto/any-sync/issues/373
 2. https://github.com/anyproto/any-sync-dockercompose/issues/126
 3. https://github.com/anyproto/any-sync/pull/374
-4. Add API support for end users to retrieve notes
-5. The Anytype app supports only .yml files, not .yaml: https://github.com/anyproto/anytype-ts/pull/1186
+4. https://github.com/anyproto/anytype-ts/pull/1186
 
 ## Release
 
