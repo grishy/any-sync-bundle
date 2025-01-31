@@ -66,18 +66,6 @@ Example: `v0.3.9+2025-12-18`
 2. MinIO was too large for some servers
 3. Documentation and generated configs were incomplete
 
-## Ideas
-
-1. Provide node configs for original consensus, coordinator, etc. to users (CLI command)
-2. Add a Docker Compose examples
-3. Add a logger-level option (default: “warning”). Now only INFO and DEBUG.
-4. Expose a REST API for object editing to able monify objects
-5. Remove Redis and use native Go data structures, step by step
-6. Add CI to check versions weekly of new Anytype releases
-7. Use one port for all services and nodes
-8. Improve logging with a service prefix in the all-in-one version (e.g., `any-sync-coordinator:`)
-   1. Possibly replace supervisord with a simpler script or a small Go wrapper
-
 ## Issues on Anytype side in work to improve bundle
 
 1. https://github.com/anyproto/any-sync/issues/373
@@ -89,7 +77,7 @@ Example: `v0.3.9+2025-12-18`
 ## Release
 
 Reminder for releasing a new version.  
-Format: `v0.2.0+2024-12-18` (v<bundle-version>+<date-of-anytype-release-from-gomod>)
+Format: `v0.2.0+2024-12-18` (v`<bundle-version>`+`<date-of-anytype-release-from-gomod>`)
 
 ```sh
 # 1. Check locally
