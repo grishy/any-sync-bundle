@@ -23,11 +23,11 @@
 
 ## TL;DR – How to start a self-hosted Anytype server
 
-Replace the external address (`192.168.100.9`) with your machine’s IP address or domain.  
-You can specify multiple addresses, separated by commas.  
-After that you can use client config YAML from the `./data` folder.
+Replace the external address (e.g., `192.168.100.9`) with a local IP address or domain.  
+Multiple addresses can be added, separated by commas.  
+Then use the client config YAML in `./data/client-config.yml`.
 
-```bash
+```sh
 docker run -d \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
     -p 33010-33013:33010-33013 \
@@ -38,67 +38,74 @@ docker run -d \
   ghcr.io/grishy/any-sync-bundle:latest
 ```
 
+## Version
+
+### Bundle version
+
+The project version combines the bundle version and the original Anytype version.  
+Example: `v0.3.9+2025-12-18`
+
+- `v0.3.9` – The bundle’s semver version
+- `2025-12-18` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+
+### Bundle start version
+
+1. Binary file for each release on the [Release page](https://github.com/grishy/any-sync-bundle/releases)
+2. All-in-one container on [ghcr.io/grishy/any-sync-bundle](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle) with Mongo and Redis included
+3. Minimal container (`-minimal`) with only any-sync-bundle, without Mongo or Redis
+
 ## Key features
-- **Easy to start**: Just one command to start the server
-- **Lightweight**: No MinIO inside and in plan to make it even smaller
-- **All-in-one option**: All services in one container, or you can download binaries separately 
 
-
-
-## TODO
-
-- https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes#non-bsd
-- Improve logging and add a prefix for each service (e.g., `any-sync-coordinator:`)
-  - Consider replacing Supervisor with a simpler script,maybe Go
-- Merge all Docker outputs into one with multi-stage builds and target stages
-- Check other Docker builds, e.g., docker-mastodon
-- Add an option to control the logger level, with a default of “warning”
-- Create CI to check versions weekly
-- Write a blog post in English, Russian, and Spanish
-- Create a video in English and Russian
-- Publish on Telegram, Reddit, GitHub issues, and the Anytype forum
-- Add Docker Compose example
-- Add tests for the bundle
+- **Easy to start**: A single command to launch the server
+- **All-in-one option**: All services in a single container or in separate binaries
+- **Lightweight**: No MinIO included, and plans exist to reduce size further
 
 ## Why created?
 
-- Hard to start, a lot of containers
-- Existing documentation was inaccurate, and created configs were not fully correct
-- MinIO made it overly large
+1. Existing solutions required many containers and complicated config
+2. MinIO was too large for some servers
+3. Documentation and generated configs were incomplete
 
 ## Ideas
 
-- Allow get each node config
-- Avoid Redis and use Go internal structure approach, implemented step by step for each service
-- Use one port for all services
+1. Provide node configs for original consensus, coordinator, etc. to users (CLI command)
+2. Add a Docker Compose examples
+3. Add a logger-level option (default: “warning”). Now only INFO and DEBUG.
+4. Expose a REST API for object editing to able monify objects
+5. Remove Redis and use native Go data structures, step by step
+6. Add CI to check versions weekly of new Anytype releases
+7. Use one port for all services and nodes
+8. Improve logging with a service prefix in the all-in-one version (e.g., `any-sync-coordinator:`)
+   1. Possibly replace supervisord with a simpler script or a small Go wrapper
 
-## Issues on Anytype side
+## Issues on Anytype side in work to improve bundle
 
-- https://github.com/anyproto/any-sync/issues/373
-- https://github.com/anyproto/any-sync-dockercompose/issues/126
-- https://github.com/anyproto/any-sync/pull/374
-- Found this: https://github.com/anyproto/any-sync-coordinator/issues/80#issuecomment-2220554099
-- Add API support for end users to get notes
-- Anytype app only supports .yml files, not .yaml: https://github.com/anyproto/anytype-ts/pull/1186
+1. https://github.com/anyproto/any-sync/issues/373
+2. https://github.com/anyproto/any-sync-dockercompose/issues/126
+3. https://github.com/anyproto/any-sync/pull/374
+4. Add API support for end users to retrieve notes
+5. The Anytype app supports only .yml files, not .yaml: https://github.com/anyproto/anytype-ts/pull/1186
 
 ## Release
 
-Reminder for myself on how to release a new version.  
-Format: `v0.2.0+2024-12-18` (v<srm-version>+<date-of-anytype-release-from-gomod>)
+Reminder for releasing a new version.  
+Format: `v0.2.0+2024-12-18` (v<bundle-version>+<date-of-anytype-release-from-gomod>)
 
-```bash
+```sh
 # 1. Check locally
 goreleaser release --snapshot --clean
+```
 
-# 2. Set variables
-set VERSION v0.3.8
+```sh
+# 1. Set variables (fish-shell)
+set VERSION v0.3.9
 set ANYTYPE_UNIX_TIMESTAMP 1734517522
 
-# 3. Set version
-set ANYTYPE_FORMATTED `date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d'`
+# 2. Format date
+set ANYTYPE_FORMATTED (date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d')
 set FINAL_VERSION $VERSION+$ANYTYPE_FORMATTED
 
-# Create tag and push
+# 3. Create tag and push
 git tag -a $FINAL_VERSION -m "Release $FINAL_VERSION"
 git push origin tag $FINAL_VERSION
 ```
@@ -108,4 +115,4 @@ git push origin tag $FINAL_VERSION
 ## License
 
 © 2025 [Sergei G.](https://github.com/grishy)  
-This project is [MIT](./LICENSE) licensed.
+Licensed under [MIT](./LICENSE).
