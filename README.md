@@ -43,10 +43,10 @@ docker run -d \
 ### Bundle version
 
 The project version combines the bundle version and the original Anytype version.  
-Example: `v0.3.9+2025-12-18`
+Example: `v0.5.0+2024-12-18`
 
-- `v0.3.9` – The bundle’s semver version
-- `2025-12-18` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+- `v0.5.0` – The bundle’s semver version
+- `2024-12-18` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 ### Bundle start version
 
@@ -76,8 +76,7 @@ Example: `v0.3.9+2025-12-18`
 
 ## Release
 
-Reminder for releasing a new version.  
-Format: `v0.2.0+2024-12-18` (v`<bundle-version>`+`<date-of-anytype-release-from-gomod>`)
+Reminder for releasing a new version.
 
 ```sh
 # 1. Check locally
