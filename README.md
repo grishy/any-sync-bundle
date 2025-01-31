@@ -1,17 +1,41 @@
 <p align="center">
   <img src="./docs/logo.png" width="550">
-   <br />
-   <strong>Status: </strong>Maintained
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="GitHub tag (with filter)">
-  <img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build Status">
+  <table align="center">
+    <tr>
+      <td><strong>Status</strong></td>
+      <td>Maintained</td>
+    </tr>
+    <tr>
+      <td><strong>Version</strong></td>
+      <td><a href="https://github.com/grishy/any-sync-bundle/tags"><img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="GitHub tag"></a></td>
+    </tr>
+    <tr>
+      <td><strong>CI/CD</strong></td>
+      <td><a href="https://github.com/grishy/any-sync-bundle/actions"><img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build Status"></a></td>
+    </tr>
+  </table>
 </p>
 
 ## TL;DR - How to start self-hosted Anytype server
 
-<!-- TODO -->
+Basic usage, replace external address (`ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`) with your machine IP address or domain.
+You can use multiple addresses separated by comma.
+
+Example with one address:
+
+```bash
+docker run -d \
+    -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+    -p 33010-33013:33010-33013 \
+    -p 33020-33023:33020-33023/udp \
+    -v $(pwd)/data:/data \
+    --restart unless-stopped \
+    --name any-sync-bundle \
+  ghcr.io/grishy/any-sync-bundle:latest
+```
 
 Version from [here](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/).
 
@@ -19,20 +43,6 @@ Version from [here](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible
 
 Need to create replica set for MongoDB. Manually or with some script.  
 Check that address should be same as when we will start to use it?
-
-```bash
-docker build -t any --progress=plain -f docker/Dockerfile.all-in-one .
-
-docker run --rm -it \
-  -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
-  -p 33010-33013:33010-33013 \
-  -p 33020-33023:33020-33023/udp \
-  -p 27017:27017 \
-  -p 6379:6379 \
-  -v $(pwd)/data:/data \
-  --name any-sync-bundle \
-  any:latest
-```
 
 ## TODO
 
