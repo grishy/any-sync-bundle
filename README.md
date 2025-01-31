@@ -1,14 +1,11 @@
-# Any-sync Bundle
-
 <p align="center">
-  <img src="./docs/logo.png" width="450">
+  <img src="./docs/logo.png" width="550">
    <br />
    <strong>Status: </strong>Maintained
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="GitHub tag (with filter)">
-  <img src="https://goreportcard.com/badge/github.com/grishy/any-sync-bundle" alt="Go Report Card">
   <img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build Status">
 </p>
 
@@ -87,7 +84,7 @@ docker run --rm -it \
 
 ## Release
 
-Reminder for me 🙂
+Reminder for me 🙂  
 Format: `v0.2.0+2024-12-18` (v<srm-version>+<date-of-anytype-release-from-gomod>)
 
 ```bash
