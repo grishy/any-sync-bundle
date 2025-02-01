@@ -9,6 +9,7 @@ import (
 
 var log = logger.NewNamed("node")
 
+// MustMkdirAll Just a temporary function before PR is merged and new any-sync version is released
 func MustMkdirAll(p string) {
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
 

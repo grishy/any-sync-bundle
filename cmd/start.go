@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	bundleConfig "github.com/grishy/any-sync-bundle/config"
-	bundleNode "github.com/grishy/any-sync-bundle/node"
+	"github.com/grishy/any-sync-bundle/node/consensus"
 )
 
 const (
@@ -81,10 +81,10 @@ func startAction(ctx context.Context) cli.ActionFunc {
 		cfgNodes := bundleCfg.NodeConfigs()
 
 		apps := []node{
-			{name: "coordinator", app: bundleNode.NewCoordinatorApp(cfgNodes.Coordinator)},
-			{name: "consensus", app: bundleNode.NewConsensusApp(cfgNodes.Consensus)},
-			{name: "filenode", app: bundleNode.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
-			{name: "sync", app: bundleNode.NewSyncApp(cfgNodes.Sync)},
+			// {name: "coordinator", app: bundleNode.NewCoordinatorApp(cfgNodes.Coordinator)},
+			{name: "consensus", app: consensus.NewLightConsensusApp(cfgNodes.Consensus)},
+			// {name: "filenode", app: bundleNode.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
+			// {name: "sync", app: bundleNode.NewSyncApp(cfgNodes.Sync)},
 		}
 
 		if err := startServices(ctx, apps); err != nil {
