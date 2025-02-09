@@ -2,40 +2,45 @@ package consensus
 
 import (
 	"github.com/anyproto/any-sync-consensusnode/config"
+
 	commonaccount "github.com/anyproto/any-sync/accountservice"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
-	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/net/rpc"
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 )
 
-var logCfg = logger.NewNamed("bundle.consensus.config")
+var logCfg = logger.NewNamed("light.consensus." + config.CName)
 
-type bundleConfig struct {
+type lightConfig struct {
 	Account       commonaccount.Config
 	Network       nodeconf.Configuration
 	ListenTCPAddr string
 	ListenUDPAddr string
+	DBPath        string
 }
 
-func (c *bundleConfig) Init(a *app.App) error {
+//
+// App Component
+//
+
+func (c *lightConfig) Init(a *app.App) error {
 	logCfg.Info("call Init")
 
 	return nil
 }
 
-func (c *bundleConfig) Name() (name string) {
+func (c *lightConfig) Name() (name string) {
 	return config.CName
 }
 
-func (c *bundleConfig) GetMongo() config.Mongo {
-	panic("no mongo config")
-}
+//
+// Component
+//
 
-func (c *bundleConfig) GetDrpc() rpc.Config {
+func (c *lightConfig) GetDrpc() rpc.Config {
 	logCfg.Info("call GetDrpc")
 
 	return rpc.Config{
@@ -45,33 +50,19 @@ func (c *bundleConfig) GetDrpc() rpc.Config {
 	}
 }
 
-func (c *bundleConfig) GetAccount() commonaccount.Config {
+func (c *lightConfig) GetAccount() commonaccount.Config {
 	logCfg.Info("call GetAccount")
 
 	return c.Account
 }
 
-func (c *bundleConfig) GetMetric() metric.Config {
-	logCfg.Info("call GetMetric")
-
-	return metric.Config{}
-}
-
-func (c *bundleConfig) GetNodeConf() nodeconf.Configuration {
+func (c *lightConfig) GetNodeConf() nodeconf.Configuration {
 	logCfg.Info("call GetNodeConf")
 
 	return c.Network
 }
 
-func (c *bundleConfig) GetNodeConfStorePath() string {
-	panic("no node conf store path")
-}
-
-func (c *bundleConfig) GetNodeConfUpdateInterval() int {
-	panic("no node conf update interval")
-}
-
-func (c *bundleConfig) GetYamux() yamux.Config {
+func (c *lightConfig) GetYamux() yamux.Config {
 	logCfg.Info("call GetYamux")
 
 	return yamux.Config{
@@ -79,10 +70,16 @@ func (c *bundleConfig) GetYamux() yamux.Config {
 	}
 }
 
-func (c *bundleConfig) GetQuic() quic.Config {
+func (c *lightConfig) GetQuic() quic.Config {
 	logCfg.Info("call GetQuic")
 
 	return quic.Config{
 		ListenAddrs: []string{c.ListenUDPAddr},
 	}
+}
+
+func (c *lightConfig) GetDBPath() string {
+	logCfg.Info("call GetDBPath")
+
+	return c.DBPath
 }
