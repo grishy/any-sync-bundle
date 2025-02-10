@@ -1,4 +1,4 @@
-package light
+package lightnode
 
 import (
 	"os"

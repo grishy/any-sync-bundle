@@ -1,4 +1,4 @@
-package consensus
+package lightnodeconf
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var logNodeconf = logger.NewNamed("light.consensus." + config.CName)
+var log = logger.NewNamed("light.consensus." + config.CName)
 
 type cfgSrv interface {
 	GetNodeConf() nodeconf.Configuration
@@ -22,7 +22,7 @@ type lightNodeconf struct {
 	network nodeconf.Configuration
 }
 
-func NewLightNodeconf() nodeconf.Service {
+func New() nodeconf.Service {
 	return &lightNodeconf{}
 }
 
@@ -31,9 +31,9 @@ func NewLightNodeconf() nodeconf.Service {
 //
 
 func (s *lightNodeconf) Init(a *app.App) error {
-	logNodeconf.Info("call Init")
+	log.Info("call Init")
 
-	s.network = a.MustComponent(config.CName).(cfgSrv).GetNodeConf()
+	s.network = app.MustComponent[cfgSrv](a).GetNodeConf()
 
 	return nil
 }
@@ -47,13 +47,13 @@ func (s *lightNodeconf) Name() (name string) {
 //
 
 func (s *lightNodeconf) Run(_ context.Context) error {
-	logNodeconf.Info("call Run")
+	log.Info("call Run")
 
 	return nil
 }
 
 func (s *lightNodeconf) Close(ctx context.Context) error {
-	logNodeconf.Info("call Close")
+	log.Info("call Close")
 
 	return nil
 }
@@ -65,7 +65,7 @@ func (s *lightNodeconf) Close(ctx context.Context) error {
 // NodeTypes returns list of known nodeTypes by nodeId, if node not registered in configuration will return empty list
 // Implemented for secureservice
 func (s *lightNodeconf) NodeTypes(nodeId string) []nodeconf.NodeType {
-	logNodeconf.Info("call NodeTypes", zap.String("nodeId", nodeId))
+	log.Info("call NodeTypes", zap.String("nodeId", nodeId))
 
 	for _, m := range s.network.Nodes {
 		if m.PeerId == nodeId {
@@ -79,7 +79,7 @@ func (s *lightNodeconf) NodeTypes(nodeId string) []nodeconf.NodeType {
 // PeerAddresses returns peer addresses by peer id
 // Implemented for peerservice
 func (s *lightNodeconf) PeerAddresses(peerId string) (addrs []string, ok bool) {
-	logNodeconf.Info("call PeerAddresses", zap.String("peerId", peerId))
+	log.Info("call PeerAddresses", zap.String("peerId", peerId))
 
 	for _, m := range s.network.Nodes {
 		if m.PeerId == peerId {

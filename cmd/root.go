@@ -91,7 +91,7 @@ func buildGlobalFlags() []cli.Flag {
 		},
 		&cli.StringSliceFlag{
 			Name:    fGlobalInitExternalAddrs,
-			Value:   cli.NewStringSlice("192.168.0.10", "example.local"),
+			Value:   cli.NewStringSlice("192.168.100.4", "example.local"),
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS"},
 			Usage:   "Initial external addresses for the bundle",
 		},

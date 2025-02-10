@@ -15,8 +15,8 @@ import (
 	"go.uber.org/zap"
 
 	bundleConfig "github.com/grishy/any-sync-bundle/config"
-	"github.com/grishy/any-sync-bundle/light"
-	lightConsensus "github.com/grishy/any-sync-bundle/light/consensus"
+	"github.com/grishy/any-sync-bundle/lightnode"
+	lightConsensus "github.com/grishy/any-sync-bundle/lightnode/consensus"
 )
 
 const (
@@ -83,18 +83,18 @@ func startAction(ctx context.Context) cli.ActionFunc {
 
 		apps := []node{
 			{name: "consensus", app: lightConsensus.NewLightConsensusApp(cfgNodes.Consensus)},
-			{name: "coordinator", app: light.NewCoordinatorApp(cfgNodes.Coordinator)},
-			// {name: "consensus", app: lightConsensus.NewConsensusApp(cfgNodes.Consensus)},
-			// {name: "filenode", app: light.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
-			// {name: "sync", app: light.NewSyncApp(cfgNodes.Sync)},
+			{name: "coordinator", app: lightnode.NewCoordinatorApp(cfgNodes.Coordinator)},
+			{name: "filenode", app: lightnode.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
+			{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
 		}
 
+		// TODO: Just keep import here available
 		_ = []node{
 			{name: "consensus", app: lightConsensus.NewLightConsensusApp(cfgNodes.Consensus)},
 			{name: "consensus", app: lightConsensus.NewConsensusApp(cfgNodes.Consensus)},
-			{name: "coordinator", app: light.NewCoordinatorApp(cfgNodes.Coordinator)},
-			{name: "filenode", app: light.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
-			{name: "sync", app: light.NewSyncApp(cfgNodes.Sync)},
+			{name: "coordinator", app: lightnode.NewCoordinatorApp(cfgNodes.Coordinator)},
+			{name: "filenode", app: lightnode.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
+			{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
 		}
 
 		if err := startServices(ctx, apps); err != nil {
