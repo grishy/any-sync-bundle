@@ -8,10 +8,10 @@
   <table align="center">
     <tr>
       <td><strong>Status</strong></td>
-      <td><img src="https://camo.githubusercontent.com/073bbeaf83cb71a13531db968adfb9e5b0d5469b407ab0a550d770c5c9dd59a6/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f5374617475732d556e646572253230446576656c6f706d656e742d6f72616e6765" alt="Under Development" data-canonical-src="https://img.shields.io/badge/Status-Under%20Development-orange" style="max-width: 100%;"></td>
+      <td><b>⚠️ Under Development</b></td>
     </tr>
     <tr>
-      <td><strong>Version</strong></td>
+      <td><strong>Stable Version</strong></td>
       <td><a href="https://github.com/grishy/any-sync-bundle/tags"><img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="GitHub tag"></a></td>
     </tr>
     <tr>
@@ -27,10 +27,11 @@
   <h1 style="margin-top: 0; color: #ff7f0e;">⚠️ Under Development</h1>
   <p>It is better to use <b>Release</b>. The main branch contains code that is under active development. Future versions will include variants:</p>
   <ul>
-    <li><strong>Light</strong>: Preferred for self-hosting; uses one port, works without MongoDB, Redis, or MinIO; utilizes embedded BadgerDB for storage as Anytype on client side; supports a wide range of architectures with low overhead.</li>
-    <li><strong>Original Bundle (all-in-one container)</strong>: Bundled with MongoDB, Redis, and MinIO built in.</li>
-    <li><strong>Original Bundle (solo bundle)</strong>: A variant without MongoDB, Redis, and MinIO inside. You can use your own instances</li>
+    <li><strong>⚠️ Light version </strong>: Preferred for self-hosting; uses one port, works without MongoDB, Redis, or MinIO; utilizes embedded BadgerDB for storage as Anytype on client side; supports a wide range of architectures with low overhead.</li>
+    <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB, Redis, and MinIO built in.</li>
+    <li><strong>✅ Bundle (solo bundle)</strong>: A variant without MongoDB, Redis, and MinIO inside. You can use your own instances</li>
   </ul>
+  ✅ - Ready; ⚠️ - Under development
 </div>
 
 ---
