@@ -8,7 +8,7 @@
   <table align="center">
     <tr>
       <td><strong>Status</strong></td>
-      <td>Maintained</td>
+      <td><img src="https://camo.githubusercontent.com/073bbeaf83cb71a13531db968adfb9e5b0d5469b407ab0a550d770c5c9dd59a6/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f5374617475732d556e646572253230446576656c6f706d656e742d6f72616e6765" alt="Under Development" data-canonical-src="https://img.shields.io/badge/Status-Under%20Development-orange" style="max-width: 100%;"></td>
     </tr>
     <tr>
       <td><strong>Version</strong></td>
@@ -20,6 +20,20 @@
     </tr>
   </table>
 </p>
+
+---
+
+<div style="border: 1px solid #ffa500; background-color: #fff7e6; padding: 16px; border-radius: 6px; margin: 16px 0;">
+  <h1 style="margin-top: 0; color: #ff7f0e;">⚠️ Under Development</h1>
+  <p>It is better to use <b>Release</b>. The main branch contains code that is under active development. Future versions will include variants:</p>
+  <ul>
+    <li><strong>Light</strong>: Preferred for self-hosting; uses one port, works without MongoDB, Redis, or MinIO; utilizes embedded BadgerDB for storage as Anytype on client side; supports a wide range of architectures with low overhead.</li>
+    <li><strong>Bundle code (all-in-one)</strong>: Bundled with MongoDB, Redis, and MinIO built in.</li>
+    <li><strong>Bundle code (customizable)</strong>: A variant without MongoDB, Redis, and MinIO inside. You can use your own instances</li>
+  </ul>
+</div>
+
+---
 
 ## TL;DR – How to start a self-hosted Anytype server
 
