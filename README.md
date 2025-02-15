@@ -28,8 +28,8 @@
   <p>It is better to use <b>Release</b>. The main branch contains code that is under active development. Future versions will include variants:</p>
   <ul>
     <li><strong>Light</strong>: Preferred for self-hosting; uses one port, works without MongoDB, Redis, or MinIO; utilizes embedded BadgerDB for storage as Anytype on client side; supports a wide range of architectures with low overhead.</li>
-    <li><strong>Bundle code (all-in-one)</strong>: Bundled with MongoDB, Redis, and MinIO built in.</li>
-    <li><strong>Bundle code (customizable)</strong>: A variant without MongoDB, Redis, and MinIO inside. You can use your own instances</li>
+    <li><strong>Original Bundle (all-in-one container)</strong>: Bundled with MongoDB, Redis, and MinIO built in.</li>
+    <li><strong>Original Bundle (solo bundle)</strong>: A variant without MongoDB, Redis, and MinIO inside. You can use your own instances</li>
   </ul>
 </div>
 
