@@ -98,6 +98,8 @@ git push origin tag $FINAL_VERSION
 
 > Because I stand on the shoulders of giants, I can see further than they can.
 
+> "Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away" – Antoine de Saint-Exupéry
+
 ## License
 
 © 2025 [Sergei G.](https://github.com/grishy)  

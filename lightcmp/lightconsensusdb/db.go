@@ -19,6 +19,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// TODO: Use a BadgerDB because filenode already use it.
+
 const CName = "light.consensus.db"
 
 //go:embed schema.sql

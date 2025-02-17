@@ -2,7 +2,6 @@ package lightconfig
 
 import (
 	"github.com/anyproto/any-sync-consensusnode/config"
-
 	commonaccount "github.com/anyproto/any-sync/accountservice"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
@@ -22,6 +21,8 @@ type LightConfig struct {
 	ListenUDPAddr []string
 	// Consensus
 	ConsensusDBPath string
+	// Filenode
+	FilenodeStoreDir string
 }
 
 //
@@ -80,8 +81,18 @@ func (c *LightConfig) GetQuic() quic.Config {
 	}
 }
 
+//
+// Custom
+//
+
 func (c *LightConfig) GetConsensusDBPath() string {
 	log.Info("call GetConsensusDBPath")
 
 	return c.ConsensusDBPath
+}
+
+func (c *LightConfig) GetFilenodeStoreDir() string {
+	log.Info("call GetFilenodeStoreDir")
+
+	return c.FilenodeStoreDir
 }

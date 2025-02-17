@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const CName = "light.consensus.consensusrpc"
+const CName = "light.consensus.rpc"
 
 // TODO: Maybe use original RPC and just implement Database Interface
 var (
