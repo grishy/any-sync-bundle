@@ -30,15 +30,15 @@ func New() nodeconf.Service {
 // App Component
 //
 
-func (s *lightNodeconf) Init(a *app.App) error {
+func (nc *lightNodeconf) Init(a *app.App) error {
 	log.Info("call Init")
 
-	s.network = app.MustComponent[cfgSrv](a).GetNodeConf()
+	nc.network = app.MustComponent[cfgSrv](a).GetNodeConf()
 
 	return nil
 }
 
-func (s *lightNodeconf) Name() (name string) {
+func (nc *lightNodeconf) Name() (name string) {
 	return nodeconf.CName
 }
 
@@ -46,13 +46,13 @@ func (s *lightNodeconf) Name() (name string) {
 // App Component Runnable
 //
 
-func (s *lightNodeconf) Run(_ context.Context) error {
+func (nc *lightNodeconf) Run(_ context.Context) error {
 	log.Info("call Run")
 
 	return nil
 }
 
-func (s *lightNodeconf) Close(ctx context.Context) error {
+func (nc *lightNodeconf) Close(ctx context.Context) error {
 	log.Info("call Close")
 
 	return nil
@@ -64,10 +64,10 @@ func (s *lightNodeconf) Close(ctx context.Context) error {
 
 // NodeTypes returns list of known nodeTypes by nodeId, if node not registered in configuration will return empty list
 // Implemented for secureservice
-func (s *lightNodeconf) NodeTypes(nodeId string) []nodeconf.NodeType {
+func (nc *lightNodeconf) NodeTypes(nodeId string) []nodeconf.NodeType {
 	log.Info("call NodeTypes", zap.String("nodeId", nodeId))
 
-	for _, m := range s.network.Nodes {
+	for _, m := range nc.network.Nodes {
 		if m.PeerId == nodeId {
 			return m.Types
 		}
@@ -78,10 +78,10 @@ func (s *lightNodeconf) NodeTypes(nodeId string) []nodeconf.NodeType {
 
 // PeerAddresses returns peer addresses by peer id
 // Implemented for peerservice
-func (s *lightNodeconf) PeerAddresses(peerId string) (addrs []string, ok bool) {
+func (nc *lightNodeconf) PeerAddresses(peerId string) (addrs []string, ok bool) {
 	log.Info("call PeerAddresses", zap.String("peerId", peerId))
 
-	for _, m := range s.network.Nodes {
+	for _, m := range nc.network.Nodes {
 		if m.PeerId == peerId {
 			return m.Addresses, true
 		}
@@ -94,61 +94,71 @@ func (s *lightNodeconf) PeerAddresses(peerId string) (addrs []string, ok bool) {
 // Auto generated code to panic if called
 
 // CHash implements nodeconf.Service.
-func (s *lightNodeconf) CHash() chash.CHash {
+func (nc *lightNodeconf) CHash() chash.CHash {
 	panic("unimplemented")
 }
 
 // Configuration implements nodeconf.Service.
-func (s *lightNodeconf) Configuration() nodeconf.Configuration {
+func (nc *lightNodeconf) Configuration() nodeconf.Configuration {
 	panic("unimplemented")
 }
 
 // ConsensusPeers implements nodeconf.Service.
-func (s *lightNodeconf) ConsensusPeers() []string {
-	panic("unimplemented")
+func (nc *lightNodeconf) ConsensusPeers() []string {
+	return nc.findPeer(nodeconf.NodeTypeConsensus)
 }
 
 // CoordinatorPeers implements nodeconf.Service.
-func (s *lightNodeconf) CoordinatorPeers() []string {
-	panic("unimplemented")
+func (nc *lightNodeconf) CoordinatorPeers() []string {
+	return nc.findPeer(nodeconf.NodeTypeCoordinator)
 }
 
 // FilePeers implements nodeconf.Service.
-func (s *lightNodeconf) FilePeers() []string {
-	panic("unimplemented")
+func (nc *lightNodeconf) FilePeers() []string {
+	return nc.findPeer(nodeconf.NodeTypeFile)
 }
 
 // Id implements nodeconf.Service.
-func (s *lightNodeconf) Id() string {
+func (nc *lightNodeconf) Id() string {
 	panic("unimplemented")
 }
 
 // IsResponsible implements nodeconf.Service.
-func (s *lightNodeconf) IsResponsible(spaceId string) bool {
+func (nc *lightNodeconf) IsResponsible(spaceId string) bool {
 	panic("unimplemented")
 }
 
 // NamingNodePeers implements nodeconf.Service.
-func (s *lightNodeconf) NamingNodePeers() []string {
+func (nc *lightNodeconf) NamingNodePeers() []string {
 	panic("unimplemented")
 }
 
 // NetworkCompatibilityStatus implements nodeconf.Service.
-func (s *lightNodeconf) NetworkCompatibilityStatus() nodeconf.NetworkCompatibilityStatus {
+func (nc *lightNodeconf) NetworkCompatibilityStatus() nodeconf.NetworkCompatibilityStatus {
 	panic("unimplemented")
 }
 
 // NodeIds implements nodeconf.Service.
-func (s *lightNodeconf) NodeIds(spaceId string) []string {
+func (nc *lightNodeconf) NodeIds(spaceId string) []string {
 	panic("unimplemented")
 }
 
 // Partition implements nodeconf.Service.
-func (s *lightNodeconf) Partition(spaceId string) (part int) {
+func (nc *lightNodeconf) Partition(spaceId string) (part int) {
 	panic("unimplemented")
 }
 
 // PaymentProcessingNodePeers implements nodeconf.Service.
-func (s *lightNodeconf) PaymentProcessingNodePeers() []string {
+func (nc *lightNodeconf) PaymentProcessingNodePeers() []string {
 	panic("unimplemented")
+}
+
+func (nc *lightNodeconf) findPeer(nodeType nodeconf.NodeType) (peerIDs []string) {
+	for _, n := range nc.network.Nodes {
+		if n.HasType(nodeType) {
+			peerIDs = append(peerIDs, n.PeerId)
+		}
+	}
+
+	return peerIDs
 }

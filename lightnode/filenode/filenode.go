@@ -43,9 +43,13 @@ func NewLightFileNodeApp(cfg *config.Config, fileDir string) *app.App {
 		Register(lCfg).
 		Register(lightnodeconf.New()).
 		Register(lightfilenoderpc.New()).
-		// Register(lightfilenodestore.New()).
+		Register(lightfilenodestore.New()).
 		// Original components
 		Register(account.New()).
+		// TODO: Use direct call for all clients
+		Register(coordinatorclient.New()).
+		Register(consensusclient.New()).
+		Register(acl.New()).
 		Register(peerservice.New()).
 		Register(secureservice.New()).
 		Register(pool.New()).

@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anyproto/any-sync-filenode/store/s3store"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
-	"github.com/anyproto/any-sync/commonfile/fileblockstore"
-	"golang.org/x/sync/errgroup"
-
+	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/dgraph-io/badger/v4/options"
 	blocks "github.com/ipfs/go-block-format"
@@ -20,19 +17,30 @@ import (
 )
 
 const (
-	CName = fileblockstore.CName
+	CName = "light.filenode.store"
 
-	// Number of concurrent block retrievals in GetMany, took from S3 implementation
-	getManyWorkers = 4
-
-	// Prefix for index keys to separate them from block keys
-	indexKeyPrefix = "idx:"
+	kPrefixFileNode      = "fn"
+	kSeparator           = ":"
+	kPrefixBlock         = kPrefixFileNode + kSeparator + "b"
+	kPrefixCid           = kPrefixFileNode + kSeparator + "c"
+	kPrefixFile          = kPrefixFileNode + kSeparator + "f"
+	kPrefixLinkFileBlock = kPrefixFileNode + kSeparator + "l"
 )
 
 var log = logger.NewNamed(CName)
 
 type cfgSrv interface {
 	GetFilenodeStoreDir() string
+}
+
+type StoreService interface {
+	app.Component
+
+	// GetBlock retrieves a block by CID.
+	GetBlock(ctx context.Context, k cid.Cid, spaceId string, wait bool) ([]byte, error)
+
+	// PushBlock stores a block.
+	PushBlock(ctx context.Context, spaceId string, fileId string, block blocks.Block) error
 }
 
 // lightfilenodestore implements a block store using BadgerDB.
@@ -44,7 +52,7 @@ type lightfilenodestore struct {
 	badgerDB *badger.DB
 }
 
-func New() s3store.S3Store {
+func New() StoreService {
 	return &lightfilenodestore{}
 }
 
@@ -76,19 +84,6 @@ func (b *lightfilenodestore) Run(ctx context.Context) error {
 	opts := badger.DefaultOptions(storePath).
 		// Core settings
 		WithLogger(badgerLogger{}).
-		WithMetricsEnabled(false).  // Metrics are not used
-		WithDetectConflicts(false). // No need for conflict detection in blob store
-		WithNumGoroutines(1).       // We don't use Stream
-		// Memory and cache settings
-		WithNumMemtables(4).          // Reduced to save memory, total possible MemTableSize(64MB)*NumMemtables if they are all full
-		WithBlockCacheSize(64 << 20). // Block cache, we don't have reading same block frequently
-		// LSM tree settings
-		WithBaseTableSize(8 << 20).     // 8MB SSTable size
-		WithNumLevelZeroTables(2).      // Match NumMemtables
-		WithNumLevelZeroTablesStall(8). // Stall threshold
-		WithNumCompactors(2).           // 2 compactors to reduce CPU usage
-		// Value log settings
-		WithValueLogFileSize(512 << 20). // 512MB per value log file
 		// Disable compression since data is already encrypted
 		WithCompression(options.None).
 		WithZSTDCompressionLevel(0)
@@ -114,233 +109,23 @@ func (b *lightfilenodestore) Close(ctx context.Context) error {
 // Component methods
 //
 
-func (b *lightfilenodestore) Get(ctx context.Context, k cid.Cid) (blocks.Block, error) {
-	start := time.Now()
-	var val []byte
-
-	err := b.badgerDB.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(k.String()))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return fileblockstore.ErrCIDNotFound
-			}
-			return err
-		}
-		val, err = item.ValueCopy(nil)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debug("badger get",
-		zap.Duration("total", time.Since(start)),
-		zap.Int("kbytes", len(val)/1024),
-		zap.String("key", k.String()),
-	)
-	return blocks.NewBlockWithCid(val, k)
+func keyFile(spaceId string, fileId string) []byte {
+	return []byte(kPrefixFile + spaceId + kSeparator + fileId)
 }
 
-func (b *lightfilenodestore) GetMany(ctx context.Context, ks []cid.Cid) <-chan blocks.Block {
-	res := make(chan blocks.Block)
-
-	go func() {
-		defer close(res)
-
-		g, gctx := errgroup.WithContext(ctx)
-		g.SetLimit(getManyWorkers)
-
-		err := b.badgerDB.View(func(txn *badger.Txn) error {
-			for _, k := range ks {
-				// TODO: Check lateer, not needed in new Go 1.24?
-				k := k // Capture loop variable
-
-				g.Go(func() error {
-					item, err := txn.Get([]byte(k.String()))
-					if err != nil {
-						if !errors.Is(err, badger.ErrKeyNotFound) {
-							log.Info("failed to get block", zap.Error(err), zap.String("key", k.String()))
-						}
-						return nil
-					}
-
-					val, err := item.ValueCopy(nil)
-					if err != nil {
-						log.Info("failed to copy block value", zap.Error(err), zap.String("key", k.String()))
-						return nil
-					}
-
-					bl, err := blocks.NewBlockWithCid(val, k)
-					if err != nil {
-						log.Info("failed to create block", zap.Error(err), zap.String("key", k.String()))
-						return nil
-					}
-
-					select {
-					case res <- bl:
-					case <-gctx.Done():
-					}
-
-					return nil
-				})
-			}
-
-			return nil
-		})
-		if err != nil {
-			log.Warn("badger view transaction failed", zap.Error(err))
-		}
-
-		_ = g.Wait() // Ignore error since individual errors are already logged, no way to return error
-	}()
-
-	return res
+func keyLinkFileBlock(spaceId string, fileId string, k cid.Cid) []byte {
+	return []byte(kPrefixLinkFileBlock + spaceId + kSeparator + fileId + kSeparator + k.String())
 }
 
-func (b *lightfilenodestore) Add(ctx context.Context, bs []blocks.Block) error {
-	start := time.Now()
-	wb := b.badgerDB.NewWriteBatch()
-	defer wb.Cancel()
-
-	// Usually one block, so no concurrent writes needed
-	var dataLen int
-	keys := make([]string, 0, 1)
-
-	for _, bl := range bs {
-		data := bl.RawData()
-		dataLen += len(data)
-		key := bl.Cid().String()
-		keys = append(keys, key)
-
-		if err := wb.Set([]byte(key), data); err != nil {
-			return fmt.Errorf("failed to set key %s: %w", key, err)
-		}
-	}
-
-	if err := wb.Flush(); err != nil {
-		return fmt.Errorf("failed to flush write batch: %w", err)
-	}
-
-	log.Debug("badger put",
-		zap.Duration("total", time.Since(start)),
-		zap.Int("blocks", len(bs)),
-		zap.Int("kbytes", dataLen/1024),
-		zap.Strings("keys", keys),
-	)
-
-	return nil
-}
-
-func (b *lightfilenodestore) Delete(ctx context.Context, c cid.Cid) error {
-	// TODO: Create an issue that no Delete call after clean up of Bin in Anytype.
-	// Check before, that here is no deferred call to Delete
-
-	start := time.Now()
-	err := b.badgerDB.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(c.String()))
-	})
-
-	log.Debug("badger delete",
-		zap.Duration("total", time.Since(start)),
-		zap.String("key", c.String()),
-	)
-
-	return err
-}
-
-func (b *lightfilenodestore) DeleteMany(ctx context.Context, toDelete []cid.Cid) error {
-	start := time.Now()
-	wb := b.badgerDB.NewWriteBatch()
-	defer wb.Cancel()
-
-	var keys []string
-	for _, c := range toDelete {
-		key := c.String()
-		keys = append(keys, key)
-		if err := wb.Delete([]byte(key)); err != nil {
-			log.Warn("can't delete cid", zap.Error(err), zap.String("key", key))
-		}
-	}
-
-	err := wb.Flush()
-
-	log.Debug("badger delete many",
-		zap.Duration("total", time.Since(start)),
-		zap.Int("count", len(toDelete)),
-		zap.Strings("keys", keys),
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to flush write batch: %w", err)
-	}
-
-	return nil
-}
-
-func (b *lightfilenodestore) IndexGet(ctx context.Context, key string) (value []byte, err error) {
-	indexKey := indexKeyPrefix + key
-
-	err = b.badgerDB.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(indexKey))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				log.Warn("index key not found", zap.String("key", indexKey))
-				return nil
-			}
-
-			return fmt.Errorf("failed to get index key: %w", err)
-		}
-
-		value, err = item.ValueCopy(nil)
-
-		log.Debug("badger index get", zap.String("key", indexKey))
-		if err != nil {
-			return fmt.Errorf("failed to copy index value: %w", err)
-		}
-
-		return nil
-	})
-
-	return
-}
-
-// IndexPut stores a value in the index with the given key.
-func (b *lightfilenodestore) IndexPut(ctx context.Context, key string, value []byte) error {
-	indexKey := indexKeyPrefix + key
-
-	err := b.badgerDB.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(indexKey), value)
-	})
-
-	log.Debug("badger index put", zap.String("key", indexKey))
-	return err
-}
-
-// badgerLogger implements badger.Logger interface to redirect BadgerDB logs
-// to our application logger with appropriate prefixes
-type badgerLogger struct{}
-
-func (b badgerLogger) Errorf(s string, i ...interface{}) {
-	log.Error("badger: " + fmt.Sprintf(s, i...))
-}
-
-func (b badgerLogger) Warningf(s string, i ...interface{}) {
-	log.Warn("badger: " + fmt.Sprintf(s, i...))
-}
-
-func (b badgerLogger) Infof(s string, i ...interface{}) {
-	log.Info("badger: " + fmt.Sprintf(s, i...))
-}
-
-func (b badgerLogger) Debugf(s string, i ...interface{}) {
-	log.Debug("badger: " + fmt.Sprintf(s, i...))
+func (r *lightfilenodestore) checkBlock(ctx context.Context, k cid.Cid) (bool, error) {
+	return false, nil
 }
 
 // TODO: Read about garbage collection in badger, looks like we don't need it often
 // because here not a lot of deletions
-func (b *lightfilenodestore) runGC(ctx context.Context) {
+func (r *lightfilenodestore) runGC(ctx context.Context) {
 	log.Info("starting badger garbage collection routine")
-	ticker := time.NewTicker(29 * time.Hour) // Prime number interval, so it won't overlap with other routines (hopefully)
+	ticker := time.NewTicker(29 * time.Second) // Prime number interval, so it won't overlap with other routines (hopefully)
 	defer ticker.Stop()
 
 	const maxGCDuration = time.Minute
@@ -357,7 +142,7 @@ func (b *lightfilenodestore) runGC(ctx context.Context) {
 
 			for time.Since(start) < maxGCDuration {
 				// Try to reclaim space if at least 50% of a value log file can be garbage collected
-				err := b.badgerDB.RunValueLogGC(0.5)
+				err := r.badgerDB.RunValueLogGC(0.5)
 				if err != nil {
 					if errors.Is(err, badger.ErrNoRewrite) {
 						break // No more files to GC
@@ -374,4 +159,80 @@ func (b *lightfilenodestore) runGC(ctx context.Context) {
 				zap.Int("filesGCed", gcCount))
 		}
 	}
+}
+
+func (r *lightfilenodestore) GetBlock(ctx context.Context, k cid.Cid, spaceId string, wait bool) ([]byte, error) {
+	if wait {
+		// TODO: Implement simple for loop with sleep for waiting
+		// NOTE: 2025-02-15: Wait is not used on client side...So for now just panic.
+		panic("wait not supported")
+	}
+
+	var (
+		blockKey = keyBlock(spaceId, k)
+		data     []byte
+	)
+
+	err := r.badgerDB.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(blockKey)
+		if err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				return fileprotoerr.ErrCIDNotFound
+			}
+
+			return fmt.Errorf("failed to get block: %w", err)
+		}
+
+		var errCopy error
+		data, errCopy = item.ValueCopy(nil)
+		if errCopy != nil {
+			return fmt.Errorf("failed to copy block value: %w", errCopy)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed transaction: %w", err)
+	}
+
+	return data, nil
+}
+
+func (r *lightfilenodestore) PushBlock(ctx context.Context, spaceId string, fileId string, block blocks.Block) error {
+	// For counter update
+	// r.badgerDB.GetMergeOperator() // for counter update
+	// r.badgerDB.NewWriteBatch()    // ??? use it ???
+
+	blockKey := keyBlock(spaceId, block.Cid())
+	fileKey := keyFile(spaceId, fileId)
+	fileBlockLinkKey := keyLinkFileBlock(spaceId, fileId, block.Cid())
+
+	_ = blockKey
+	_ = fileKey
+	_ = fileBlockLinkKey
+
+	// err := r.badgerDB.Update(func(txn *badger.Txn) error {
+	// 	// Check link, if exists, return nil, already exists
+	// 	_, err := txn.Get(fileBlockLinkKey)
+	// 	if err != nil {
+	// 		if !errors.Is(err, badger.ErrKeyNotFound) {
+	// 			return fmt.Errorf("failed to get link: %w", err)
+	// 		}
+	// 	}
+	// 	// Link not found, continue
+
+	// 	// Check block, if exists, update counter otherwise add block
+	// 	_, err = txn.Get(blockKey)
+	// 	if err != nil {
+	// 		if !errors.Is(err, badger.ErrKeyNotFound) {
+
+	// 	// TODO: Use block bind that update all counters
+
+	// 	return nil
+	// })
+	// if err != nil {
+	// 	return fmt.Errorf("failed to push block: %w", err)
+	// }
+
+	return nil
 }

@@ -2,44 +2,35 @@ package lightfilenoderpc
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
 
+	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/commonfile/fileproto"
+	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/anyproto/any-sync/net/rpc/server"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
-
-	"github.com/dgraph-io/badger/v4"
-	"github.com/dgraph-io/badger/v4/options"
 )
 
-func byteSlicesToStrings(byteSlices [][]byte) []string {
-	strs := make([]string, len(byteSlices))
-	for i, b := range byteSlices {
-		strs[i] = string(b)
-	}
-	return strs
-}
-
 const (
-	CName = "light.filenode.rpc"
+	CName        = "light.filenode.rpc"
+	cidSizeLimit = 2 << 20 // 2 Mb
 )
 
 var log = logger.NewNamed(CName)
 
-type cfgSrv interface {
-	GetFilenodeStoreDir() string
+type storeService interface {
+	PushBlock(ctx context.Context, spaceId, fileId string, b blocks.Block) error
+	GetBlock(ctx context.Context, c cid.Cid, spaceId string, wait bool) ([]byte, error)
 }
 
 type lightfilenoderpc struct {
-	cfg  cfgSrv
-	dRPC server.DRPCServer
-
-	badgerDB *badger.DB
+	acl   acl.AclService
+	dRPC  server.DRPCServer
+	store storeService
 }
 
 func New() *lightfilenoderpc {
@@ -53,8 +44,9 @@ func New() *lightfilenoderpc {
 func (r *lightfilenoderpc) Init(a *app.App) error {
 	log.Info("call Init")
 
-	r.cfg = app.MustComponent[cfgSrv](a)
 	r.dRPC = app.MustComponent[server.DRPCServer](a)
+	r.acl = app.MustComponent[acl.AclService](a)
+	r.store = app.MustComponent[storeService](a)
 
 	return nil
 }
@@ -68,105 +60,11 @@ func (r *lightfilenoderpc) Name() (name string) {
 //
 
 func (r *lightfilenoderpc) Run(ctx context.Context) error {
-	log.Info("call Run")
-
-	storePath := r.cfg.GetFilenodeStoreDir()
-
-	// TODO: Add OnTableRead for block checskum
-	// TODO: Fine-tune BadgerDB options also base on anytype config
-	opts := badger.DefaultOptions(storePath).
-		// Core settings
-		WithLogger(badgerLogger{}).
-		WithMetricsEnabled(false). // Metrics are not used
-		WithNumGoroutines(1).      // We don't use Stream
-		// Memory and cache settings
-		WithNumMemtables(4).          // Reduced to save memory, total possible MemTableSize(64MB)*NumMemtables if they are all full
-		WithBlockCacheSize(64 << 20). // Block cache, we don't have reading same block frequently
-		// LSM tree settings
-		WithBaseTableSize(8 << 20).     // 8MB SSTable size
-		WithNumLevelZeroTables(2).      // Match NumMemtables
-		WithNumLevelZeroTablesStall(8). // Stall threshold
-		WithNumCompactors(2).           // 2 compactors to reduce CPU usage
-		// Value log settings
-		WithValueLogFileSize(512 << 20). // 512MB per value log file
-		// Disable compression since data is already encrypted
-		WithCompression(options.None).
-		WithZSTDCompressionLevel(0)
-
-	db, err := badger.Open(opts)
-	if err != nil {
-		return fmt.Errorf("failed to open badger db: %w", err)
-	}
-
-	r.badgerDB = db
-
-	// Start garbage collection in background
-	go r.runGC(ctx)
 	return fileproto.DRPCRegisterFile(r.dRPC, r)
 }
 
 func (r *lightfilenoderpc) Close(ctx context.Context) error {
-	return r.badgerDB.Close()
-}
-
-// badgerLogger implements badger.Logger interface to redirect BadgerDB logs
-// to our application logger with appropriate prefixes
-type badgerLogger struct{}
-
-func (b badgerLogger) Errorf(s string, i ...interface{}) {
-	log.Error("badger: " + fmt.Sprintf(s, i...))
-}
-
-func (b badgerLogger) Warningf(s string, i ...interface{}) {
-	log.Warn("badger: " + fmt.Sprintf(s, i...))
-}
-
-func (b badgerLogger) Infof(s string, i ...interface{}) {
-	log.Info("badger: " + fmt.Sprintf(s, i...))
-}
-
-func (b badgerLogger) Debugf(s string, i ...interface{}) {
-	log.Debug("badger: " + fmt.Sprintf(s, i...))
-}
-
-// TODO: Read about garbage collection in badger, looks like we don't need it often
-// because here not a lot of deletions
-func (r *lightfilenoderpc) runGC(ctx context.Context) {
-	log.Info("starting badger garbage collection routine")
-	ticker := time.NewTicker(29 * time.Minute) // Prime number interval, so it won't overlap with other routines (hopefully)
-	defer ticker.Stop()
-
-	const maxGCDuration = time.Minute
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Info("stopping badger garbage collection routine")
-			return
-		case <-ticker.C:
-			log.Debug("running badger garbage collection")
-			start := time.Now()
-			gcCount := 0
-
-			for time.Since(start) < maxGCDuration {
-				// Try to reclaim space if at least 50% of a value log file can be garbage collected
-				err := r.badgerDB.RunValueLogGC(0.5)
-				if err != nil {
-					if errors.Is(err, badger.ErrNoRewrite) {
-						break // No more files to GC
-					}
-
-					log.Warn("badger gc failed", zap.Error(err))
-					break
-				}
-				gcCount++
-			}
-
-			log.Info("badger garbage collection completed",
-				zap.Duration("duration", time.Since(start)),
-				zap.Int("filesGCed", gcCount))
-		}
-	}
+	return nil
 }
 
 //
@@ -176,39 +74,74 @@ func (r *lightfilenoderpc) runGC(ctx context.Context) {
 func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGetRequest) (*fileproto.BlockGetResponse, error) {
 	log.InfoCtx(ctx, "BlockGet",
 		zap.String("spaceId", req.SpaceId),
-		zap.String("cid", string(req.Cid)),
+		zap.Strings("cid", byteSlicesToStrings(req.Cid)),
 		zap.Bool("wait", req.Wait),
 	)
 
 	c, err := cid.Cast(req.Cid)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to cast CID: %w", err)
 	}
 
-	b, err := r.getBlock(ctx, c, req.Wait)
+	data, err := r.store.GetBlock(ctx, c, req.SpaceId, req.Wait)
 	if err != nil {
 		return nil, err
 	}
 
 	resp := &fileproto.BlockGetResponse{
 		Cid:  req.Cid,
-		Data: b.data,
+		Data: data,
 	}
 
 	return resp, nil
 }
 
-func (r *lightfilenoderpc) BlockPush(ctx context.Context, request *fileproto.BlockPushRequest) (*fileproto.Ok, error) {
+func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPushRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "BlockPush",
-		zap.String("spaceId", request.SpaceId),
-		zap.String("fileId", request.FileId),
-		zap.String("cid", string(request.Cid)),
-		zap.Int("dataSize", len(request.Data)),
+		zap.String("spaceId", req.SpaceId),
+		zap.String("fileId", req.FileId),
+		zap.Strings("cid", byteSlicesToStrings(req.Cid)),
+		zap.Int("dataSize", len(req.Data)),
 	)
 
-	// For counter update
-	r.badgerDB.GetMergeOperator() // for counter update
-	r.badgerDB.NewWriteBatch()    // ??? use it ???
+	// Verify that we have access to store and enough space
+	if ok, err := r.canWrite(ctx, req.SpaceId); err != nil {
+		return nil, fmt.Errorf("failed to check write access: %w", err)
+	} else if !ok {
+		return nil, err
+	}
+
+	// Check block itself
+	c, err := cid.Cast(req.Cid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to cast CID: %w", err)
+	}
+
+	b, err := blocks.NewBlockWithCid(req.Data, c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create block: %w", err)
+	}
+
+	if len(req.Data) > cidSizeLimit {
+		return nil, fileprotoerr.ErrQuerySizeExceeded
+	}
+
+	chkc, err := c.Prefix().Sum(req.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate block data checksum: %w", err)
+	}
+
+	if !chkc.Equals(c) {
+		return nil, fmt.Errorf("block data checksum mismatch: %s != %s", chkc, c)
+	}
+
+	// Finally, save the block
+	if err := r.store.PushBlock(ctx, req.SpaceId, req.FileId, b); err != nil {
+		return nil, fmt.Errorf("failed to push block: %w", err)
+	}
+
+	// And connect the block to the file
+	// TODO: Implement logic to connect the block to the file in the datastore
 
 	return &fileproto.Ok{}, nil
 }
@@ -216,7 +149,7 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, request *fileproto.Blo
 func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
 	log.InfoCtx(ctx, "BlocksCheck",
 		zap.String("spaceId", request.SpaceId),
-		zap.Strings("cids", byteSlicesToStrings(request.Cids)),
+		zap.Strings("cids", byteSlicesToStrings(request.Cids...)),
 	)
 
 	return &fileproto.BlocksCheckResponse{
@@ -233,7 +166,7 @@ func (r *lightfilenoderpc) BlocksBind(ctx context.Context, request *fileproto.Bl
 	log.InfoCtx(ctx, "BlocksBind",
 		zap.String("spaceId", request.SpaceId),
 		zap.String("fileId", request.FileId),
-		zap.Strings("cids", byteSlicesToStrings(request.Cids)),
+		zap.Strings("cids", byteSlicesToStrings(request.Cids...)),
 	)
 
 	return &fileproto.Ok{}, nil
@@ -245,32 +178,32 @@ func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.F
 		zap.Strings("fileIds", request.FileIds),
 	)
 
-	r.badgerDB.NewWriteBatch()
+	// r.badgerDB.NewWriteBatch()
 
-	err := r.badgerDB.Update(func(txn *badger.Txn) error {
-		// For each file, decrement reference counter and delete the key
-		prefix := []byte(fmt.Sprintf("l:%s.%s:", request.SpaceId, request.FileIds[0]))
-		opts := badger.IteratorOptions{PrefetchSize: 1000}
+	// err := r.badgerDB.Update(func(txn *badger.Txn) error {
+	// 	// For each file, decrement reference counter and delete the key
+	// 	prefix := []byte(fmt.Sprintf("l:%s.%s:", request.SpaceId, request.FileIds[0]))
+	// 	opts := badger.IteratorOptions{PrefetchSize: 1000}
 
-		it := txn.NewIterator(opts)
-		defer it.Close()
+	// 	it := txn.NewIterator(opts)
+	// 	defer it.Close()
 
-		batch := txn.NewBatch()
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			cid := extractCID(it.Item().Key())
+	// 	batch := txn.NewBatch()
+	// 	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+	// 		cid := extractCID(it.Item().Key())
 
-			batch.Merge(rcKey(cid), uint64ToBytes(^uint64(0))) // Decrement
-			batch.Delete(it.Item().Key())
+	// 		batch.Merge(rcKey(cid), uint64ToBytes(^uint64(0))) // Decrement
+	// 		batch.Delete(it.Item().Key())
 
-			if batch.Len() >= 1000 {
-				if err := batch.Flush(); err != nil {
-					return err
-				}
-				batch = txn.NewBatch()
-			}
-		}
-		return batch.Flush()
-	})
+	// 		if batch.Len() >= 1000 {
+	// 			if err := batch.Flush(); err != nil {
+	// 				return err
+	// 			}
+	// 			batch = txn.NewBatch()
+	// 		}
+	// 	}
+	// 	return batch.Flush()
+	// })
 
 	return &fileproto.FilesDeleteResponse{}, nil
 }
