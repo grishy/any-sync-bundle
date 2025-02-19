@@ -10,9 +10,12 @@ import (
 	"github.com/anyproto/any-sync/commonfile/fileproto"
 	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/anyproto/any-sync/net/rpc/server"
+	"github.com/dgraph-io/badger/v4"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
+
+	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
 const (
@@ -22,36 +25,35 @@ const (
 
 var log = logger.NewNamed(CName)
 
-type storeService interface {
-	PushBlock(ctx context.Context, spaceId, fileId string, b blocks.Block) error
-	GetBlock(ctx context.Context, c cid.Cid, spaceId string, wait bool) ([]byte, error)
-}
-
-type lightfilenoderpc struct {
+type lightFileNodeRpc struct {
 	acl   acl.AclService
 	dRPC  server.DRPCServer
-	store storeService
+	store lightfilenodestore.StoreService
 }
 
-func New() *lightfilenoderpc {
-	return &lightfilenoderpc{}
+func New() Service {
+	return new(lightFileNodeRpc)
+}
+
+type Service interface {
+	app.Component
 }
 
 //
 // App Component
 //
 
-func (r *lightfilenoderpc) Init(a *app.App) error {
+func (r *lightFileNodeRpc) Init(a *app.App) error {
 	log.Info("call Init")
 
 	r.dRPC = app.MustComponent[server.DRPCServer](a)
 	r.acl = app.MustComponent[acl.AclService](a)
-	r.store = app.MustComponent[storeService](a)
+	r.store = app.MustComponent[lightfilenodestore.StoreService](a)
 
 	return nil
 }
 
-func (r *lightfilenoderpc) Name() (name string) {
+func (r *lightFileNodeRpc) Name() (name string) {
 	return CName
 }
 
@@ -59,11 +61,11 @@ func (r *lightfilenoderpc) Name() (name string) {
 // App Component Runnable
 //
 
-func (r *lightfilenoderpc) Run(ctx context.Context) error {
+func (r *lightFileNodeRpc) Run(ctx context.Context) error {
 	return fileproto.DRPCRegisterFile(r.dRPC, r)
 }
 
-func (r *lightfilenoderpc) Close(ctx context.Context) error {
+func (r *lightFileNodeRpc) Close(ctx context.Context) error {
 	return nil
 }
 
@@ -71,10 +73,10 @@ func (r *lightfilenoderpc) Close(ctx context.Context) error {
 // Component methods
 //
 
-func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGetRequest) (*fileproto.BlockGetResponse, error) {
+func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGetRequest) (*fileproto.BlockGetResponse, error) {
 	log.InfoCtx(ctx, "BlockGet",
 		zap.String("spaceId", req.SpaceId),
-		zap.Strings("cid", byteSlicesToStrings(req.Cid)),
+		zap.Strings("cid", cidsToStrings(req.Cid)),
 		zap.Bool("wait", req.Wait),
 	)
 
@@ -83,24 +85,30 @@ func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 		return nil, fmt.Errorf("failed to cast CID: %w", err)
 	}
 
-	data, err := r.store.GetBlock(ctx, c, req.SpaceId, req.Wait)
-	if err != nil {
-		return nil, err
+	var blockObj *lightfilenodestore.BlockObj
+
+	errTx := r.store.TxView(func(txn *badger.Txn) error {
+		var errGet error
+		blockObj, errGet = r.store.GetBlock(txn, c, req.SpaceId, req.Wait)
+		return errGet
+	})
+	if errTx != nil {
+		return nil, fmt.Errorf("transaction view failed: %w", errTx)
 	}
 
 	resp := &fileproto.BlockGetResponse{
 		Cid:  req.Cid,
-		Data: data,
+		Data: blockObj.Data(),
 	}
 
 	return resp, nil
 }
 
-func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPushRequest) (*fileproto.Ok, error) {
+func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPushRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "BlockPush",
 		zap.String("spaceId", req.SpaceId),
 		zap.String("fileId", req.FileId),
-		zap.Strings("cid", byteSlicesToStrings(req.Cid)),
+		zap.Strings("cid", cidsToStrings(req.Cid)),
 		zap.Int("dataSize", len(req.Data)),
 	)
 
@@ -135,21 +143,29 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		return nil, fmt.Errorf("block data checksum mismatch: %s != %s", chkc, c)
 	}
 
-	// Finally, save the block
-	if err := r.store.PushBlock(ctx, req.SpaceId, req.FileId, b); err != nil {
-		return nil, fmt.Errorf("failed to push block: %w", err)
+	// Finally, save the block and update all necessary counters
+	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
+		if err := r.store.PushBlock(txn, req.SpaceId, b); err != nil {
+			return fmt.Errorf("failed to push block: %w", err)
+		}
+
+		// And connect the block to the file
+		// TODO: Implement logic to connect the block to the file in the datastore
+
+		return nil
+	})
+
+	if errTx != nil {
+		return nil, fmt.Errorf("transaction view failed: %w", errTx)
 	}
 
-	// And connect the block to the file
-	// TODO: Implement logic to connect the block to the file in the datastore
-
-	return &fileproto.Ok{}, nil
+	return &fileproto.Ok{}, errTx
 }
 
-func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
+func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
 	log.InfoCtx(ctx, "BlocksCheck",
 		zap.String("spaceId", request.SpaceId),
-		zap.Strings("cids", byteSlicesToStrings(request.Cids...)),
+		zap.Strings("cids", cidsToStrings(request.Cids...)),
 	)
 
 	return &fileproto.BlocksCheckResponse{
@@ -162,17 +178,17 @@ func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.B
 	}, nil
 }
 
-func (r *lightfilenoderpc) BlocksBind(ctx context.Context, request *fileproto.BlocksBindRequest) (*fileproto.Ok, error) {
+func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, request *fileproto.BlocksBindRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "BlocksBind",
 		zap.String("spaceId", request.SpaceId),
 		zap.String("fileId", request.FileId),
-		zap.Strings("cids", byteSlicesToStrings(request.Cids...)),
+		zap.Strings("cids", cidsToStrings(request.Cids...)),
 	)
 
 	return &fileproto.Ok{}, nil
 }
 
-func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.FilesDeleteRequest) (*fileproto.FilesDeleteResponse, error) {
+func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.FilesDeleteRequest) (*fileproto.FilesDeleteResponse, error) {
 	log.InfoCtx(ctx, "FilesDelete",
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("fileIds", request.FileIds),
@@ -208,7 +224,7 @@ func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.F
 	return &fileproto.FilesDeleteResponse{}, nil
 }
 
-func (r *lightfilenoderpc) FilesInfo(ctx context.Context, request *fileproto.FilesInfoRequest) (*fileproto.FilesInfoResponse, error) {
+func (r *lightFileNodeRpc) FilesInfo(ctx context.Context, request *fileproto.FilesInfoRequest) (*fileproto.FilesInfoResponse, error) {
 	log.InfoCtx(ctx, "FilesInfo",
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("fileIds", request.FileIds),
@@ -229,7 +245,7 @@ func (r *lightfilenoderpc) FilesInfo(ctx context.Context, request *fileproto.Fil
 	}, nil
 }
 
-func (r *lightfilenoderpc) FilesGet(request *fileproto.FilesGetRequest, stream fileproto.DRPCFile_FilesGetStream) error {
+func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream fileproto.DRPCFile_FilesGetStream) error {
 	log.InfoCtx(context.Background(), "FilesGet",
 		zap.String("spaceId", request.SpaceId),
 	)
@@ -247,7 +263,7 @@ func (r *lightfilenoderpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 	return nil
 }
 
-func (r *lightfilenoderpc) Check(ctx context.Context, request *fileproto.CheckRequest) (*fileproto.CheckResponse, error) {
+func (r *lightFileNodeRpc) Check(ctx context.Context, request *fileproto.CheckRequest) (*fileproto.CheckResponse, error) {
 	log.InfoCtx(ctx, "Check")
 
 	return &fileproto.CheckResponse{
@@ -256,7 +272,7 @@ func (r *lightfilenoderpc) Check(ctx context.Context, request *fileproto.CheckRe
 	}, nil
 }
 
-func (r *lightfilenoderpc) SpaceInfo(ctx context.Context, request *fileproto.SpaceInfoRequest) (*fileproto.SpaceInfoResponse, error) {
+func (r *lightFileNodeRpc) SpaceInfo(ctx context.Context, request *fileproto.SpaceInfoRequest) (*fileproto.SpaceInfoResponse, error) {
 	log.InfoCtx(ctx, "SpaceInfo",
 		zap.String("spaceId", request.SpaceId),
 	)
@@ -273,7 +289,7 @@ func (r *lightfilenoderpc) SpaceInfo(ctx context.Context, request *fileproto.Spa
 	}, nil
 }
 
-func (r *lightfilenoderpc) AccountInfo(ctx context.Context, request *fileproto.AccountInfoRequest) (*fileproto.AccountInfoResponse, error) {
+func (r *lightFileNodeRpc) AccountInfo(ctx context.Context, request *fileproto.AccountInfoRequest) (*fileproto.AccountInfoResponse, error) {
 	log.InfoCtx(ctx, "AccountInfo")
 
 	// Use file approach for counter that updated on each block push
@@ -296,7 +312,7 @@ func (r *lightfilenoderpc) AccountInfo(ctx context.Context, request *fileproto.A
 	}, nil
 }
 
-func (r *lightfilenoderpc) AccountLimitSet(ctx context.Context, request *fileproto.AccountLimitSetRequest) (*fileproto.Ok, error) {
+func (r *lightFileNodeRpc) AccountLimitSet(ctx context.Context, request *fileproto.AccountLimitSetRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "AccountLimitSet",
 		zap.String("identity", request.Identity),
 		zap.Uint64("limit", request.Limit),
@@ -305,7 +321,7 @@ func (r *lightfilenoderpc) AccountLimitSet(ctx context.Context, request *filepro
 	return &fileproto.Ok{}, nil
 }
 
-func (r *lightfilenoderpc) SpaceLimitSet(ctx context.Context, request *fileproto.SpaceLimitSetRequest) (*fileproto.Ok, error) {
+func (r *lightFileNodeRpc) SpaceLimitSet(ctx context.Context, request *fileproto.SpaceLimitSetRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "SpaceLimitSet",
 		zap.String("spaceId", request.SpaceId),
 		zap.Uint64("limit", request.Limit),

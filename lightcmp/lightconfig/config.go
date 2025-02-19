@@ -11,7 +11,11 @@ import (
 	"github.com/anyproto/any-sync/nodeconf"
 )
 
-var log = logger.NewNamed("light." + config.CName)
+const (
+	CName = config.CName
+)
+
+var log = logger.NewNamed("light." + CName)
 
 type LightConfig struct {
 	// Global
@@ -36,7 +40,7 @@ func (c *LightConfig) Init(a *app.App) error {
 }
 
 func (c *LightConfig) Name() (name string) {
-	return config.CName
+	return CName
 }
 
 //

@@ -27,7 +27,7 @@ import (
 	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
-func NewLightConsensusApp(cfg *config.Config) *app.App {
+func NewApp(cfg *config.Config) *app.App {
 	// TODO: Add limiter to server?
 
 	lCfg := &lightconfig.LightConfig{

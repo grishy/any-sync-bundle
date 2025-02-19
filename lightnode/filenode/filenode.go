@@ -30,7 +30,7 @@ import (
 	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
-func NewLightFileNodeApp(cfg *config.Config, fileDir string) *app.App {
+func NewApp(cfg *config.Config, fileDir string) *app.App {
 	lCfg := &lightconfig.LightConfig{
 		Account:          cfg.Account,
 		Network:          cfg.Network,

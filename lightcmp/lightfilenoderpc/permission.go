@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (r *lightfilenoderpc) getStoreKey(ctx context.Context, spaceId string) (storageKey index.Key, err error) {
+func (r *lightFileNodeRpc) getStoreKey(ctx context.Context, spaceId string) (storageKey index.Key, err error) {
 	if spaceId == "" {
 		return storageKey, fileprotoerr.ErrForbidden
 	}
@@ -29,7 +29,7 @@ func (r *lightfilenoderpc) getStoreKey(ctx context.Context, spaceId string) (sto
 	return
 }
 
-func (r *lightfilenoderpc) canWrite(ctx context.Context, spaceId string) (bool, error) {
+func (r *lightFileNodeRpc) canWrite(ctx context.Context, spaceId string) (bool, error) {
 	storageKey, err := r.getStoreKey(ctx, spaceId)
 	if err != nil {
 		return false, err
@@ -56,7 +56,7 @@ func (r *lightfilenoderpc) canWrite(ctx context.Context, spaceId string) (bool, 
 	return canWrite, nil
 }
 
-func (r *lightfilenoderpc) canWritePerm(ctx context.Context, storageKey *index.Key) (bool, error) {
+func (r *lightFileNodeRpc) canWritePerm(ctx context.Context, storageKey *index.Key) (bool, error) {
 	identity, err := peer.CtxPubKey(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to get identity: %w", err)
@@ -77,8 +77,8 @@ func (r *lightfilenoderpc) canWritePerm(ctx context.Context, storageKey *index.K
 	return true, nil
 }
 
-func (r *lightfilenoderpc) checkLimits(ctx context.Context, storageKey *index.Key) (bool, error) {
-	// TODO: Implement this
+func (r *lightFileNodeRpc) checkLimits(ctx context.Context, storageKey *index.Key) (bool, error) {
+	// TODO: Implement this when we will have spaces and groups in database
 
 	// 	if err = r.index.CheckLimits(ctx, storageKey); err != nil {
 	// 		if errors.Is(err, index.ErrLimitExceed) {
@@ -101,5 +101,5 @@ func (r *lightfilenoderpc) checkLimits(ctx context.Context, storageKey *index.Ke
 	// if entry.group.Size_ >= entry.group.Limit {
 	// 	return ErrLimitExceed
 	// }
-	return false, nil
+	return true, nil
 }

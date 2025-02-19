@@ -7,37 +7,58 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-func keyBlock(spaceId string, k cid.Cid) []byte {
-	return []byte(kPrefixBlock + spaceId + kSeparator + k.String())
-}
+const kPrefixBlock = kPrefixFileNode + kSeparator + "b"
 
 type BlockObj struct {
-	// Key
-	cid cid.Cid
+	key []byte
+
+	// Key parts
+	spaceId string
+	cid     cid.Cid
 	// Value
 	data []byte
 }
 
-func readDbBlock(txn *badger.Txn, spaceID string, k cid.Cid) (*BlockObj, error) {
-	key := keyBlock(spaceID, k)
+//
+// Public methods
+//
 
-	obj := &BlockObj{
-		cid:  k,
-		data: nil,
+func NewBlockObj(spaceId string, k cid.Cid) *BlockObj {
+	return &BlockObj{
+		key:     []byte(kPrefixBlock + spaceId + kSeparator + k.String()),
+		spaceId: spaceId,
+		cid:     k,
+		data:    nil,
 	}
+}
 
-	item, err := txn.Get(key)
+func (b *BlockObj) WithData(data []byte) *BlockObj {
+	b.data = data
+	return b
+}
+
+func (b *BlockObj) Data() []byte {
+	return b.data
+}
+
+//
+// Private methods
+//
+
+func (b *BlockObj) populateData(txn *badger.Txn) error {
+	item, err := txn.Get(b.key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get item: %w", err)
+		return fmt.Errorf("failed to get item: %w", err)
 	}
 
-	err = item.Value(func(val []byte) error {
-		obj.data = val
-		return nil
-	})
+	b.data, err = item.ValueCopy(nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get value: %w", err)
+		return fmt.Errorf("failed to copy value: %w", err)
 	}
 
-	return obj, nil
+	return nil
+}
+
+func (b *BlockObj) write(txn *badger.Txn) error {
+	return txn.Set(b.key, b.data)
 }

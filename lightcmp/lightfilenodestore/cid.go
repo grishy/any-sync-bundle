@@ -2,11 +2,18 @@ package lightfilenodestore
 
 import (
 	"bytes"
-	"errors"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/ipfs/go-cid"
+)
+
+// More about CID: https://docs.ipfs.tech/concepts/content-addressing/
+
+const (
+	kPrefixCid   = kPrefixFileNode + kSeparator + "c"
+	valueCidSize = 16 // 4 + 4 + 8 bytes for uint32 + uint32 + int64
 )
 
 func keyCid(spaceID string, k cid.Cid) []byte {
@@ -23,7 +30,9 @@ func keyCid(spaceID string, k cid.Cid) []byte {
 }
 
 type CidObj struct {
-	// Key
+	key []byte
+
+	// Key parts
 	cid cid.Cid
 	// Value
 	refCount  uint32
@@ -31,38 +40,68 @@ type CidObj struct {
 	createdAt int64
 }
 
-func (c *CidObj) marshalValue() ([]byte, error) {
-	return c.cid.Bytes(), nil
-}
+//
+// Public methods
+//
 
-func (c *CidObj) unmarshalValue(data []byte) error {
-	var err error
-	c.cid, err = cid.Cast(data)
-	return err
-}
-
-func fetchStoreCid(txn *badger.Txn, spaceID string, k cid.Cid) (*CidObj, error) {
-	key := keyCid(spaceID, k)
-
-	obj := &CidObj{
-		cid: k,
+func NewCidObj(spaceID string, k cid.Cid) *CidObj {
+	return &CidObj{
+		key:       keyCid(spaceID, k),
+		cid:       k,
+		refCount:  0,
+		sizeByte:  0,
+		createdAt: 0,
 	}
+}
 
-	item, err := txn.Get(key)
+func (c *CidObj) WithRefCount(refCount uint32) *CidObj {
+	c.refCount = refCount
+	return c
+}
+
+func (c *CidObj) WithSizeByte(sizeByte uint32) *CidObj {
+	c.sizeByte = sizeByte
+	return c
+}
+
+func (c *CidObj) WithCreatedAt(createdAt int64) *CidObj {
+	c.createdAt = createdAt
+	return c
+}
+
+//
+// Private methods
+//
+
+func (c *CidObj) marshalValue() []byte {
+	buf := make([]byte, valueCidSize)
+	binary.LittleEndian.PutUint32(buf[0:4], c.refCount)
+	binary.LittleEndian.PutUint32(buf[4:8], c.sizeByte)
+	binary.LittleEndian.PutUint64(buf[8:16], uint64(c.createdAt))
+	return buf
+}
+
+func (c *CidObj) unmarshalValue(val []byte) error {
+	if len(val) < valueCidSize {
+		return fmt.Errorf("value too short, expected at least 16 bytes, got %d", len(val))
+	}
+	c.refCount = binary.LittleEndian.Uint32(val[0:4])
+	c.sizeByte = binary.LittleEndian.Uint32(val[4:8])
+	c.createdAt = int64(binary.LittleEndian.Uint64(val[8:16]))
+	return nil
+}
+
+func (c *CidObj) write(txn *badger.Txn) error {
+	return txn.Set(c.key, c.marshalValue())
+}
+
+func (c *CidObj) populateValue(txn *badger.Txn) error {
+	item, err := txn.Get(c.key)
 	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return obj, nil
-		} else {
-			return nil, fmt.Errorf("failed to get item: %w", err)
-		}
+		return fmt.Errorf("failed to get item: %w", err)
 	}
 
-	err = item.Value(func(val []byte) error {
-		return obj.unmarshalValue(val)
+	return item.Value(func(val []byte) error {
+		return c.unmarshalValue(val)
 	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal value: %w", err)
-	}
-
-	return obj, nil
 }
