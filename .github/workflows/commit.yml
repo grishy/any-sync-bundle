@@ -17,7 +17,9 @@ jobs:
         with:
           go-version: "1.24.0"
 
+      - run: go mod download
       - run: go mod verify
+      - run: go install tool
 
       - run: go test -v ./...
 
