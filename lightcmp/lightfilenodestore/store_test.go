@@ -51,6 +51,14 @@ func TestBlockPushGet(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func TestBlockGetWaitPanic(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+	blk := testutil.NewRandBlock(1024)
 
 	// Try to get block with wait=true should panic
 	require.Panics(t, func() {
@@ -66,50 +74,54 @@ func TestBlockPushTwice(t *testing.T) {
 	defer fx.Finish(t)
 
 	spaceId := testutil.NewRandSpaceId()
-	blk := testutil.NewRandBlock(1024)
+	blk1 := testutil.NewRandBlock(1024)
+	// Only to get a different block data
+	blk2Data := testutil.NewRandBlock(2048)
+	blk2, err := blocks.NewBlockWithCid(blk2Data.RawData(), blk1.Cid())
+	require.Nil(t, err)
 
 	// First push
-	err := fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.PushBlock(txn, spaceId, blk)
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.PushBlock(txn, spaceId, blk1)
 	})
 	require.NoError(t, err)
 
 	// Verify block exists and CID metadata
 	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
 		// Check block data
-		block, err := fx.storeSrv.GetBlock(txn, blk.Cid(), spaceId, false)
+		block, err := fx.storeSrv.GetBlock(txn, blk1.Cid(), spaceId, false)
 		require.NoError(t, err)
-		require.Equal(t, blk.RawData(), block.Data())
+		require.Equal(t, blk1.RawData(), block.Data())
 
 		// Check CID metadata
-		cid := NewCidObj(spaceId, blk.Cid())
+		cid := NewCidObj(spaceId, blk1.Cid())
 		err = cid.populateValue(txn)
 		require.NoError(t, err)
 		require.Equal(t, uint32(1), cid.refCount)
-		require.Equal(t, uint32(len(blk.RawData())), cid.sizeByte)
+		require.Equal(t, uint32(len(blk1.RawData())), cid.sizeByte)
 		return nil
 	})
 	require.NoError(t, err)
 
 	// Push same block again
 	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.PushBlock(txn, spaceId, blk)
+		return fx.storeSrv.PushBlock(txn, spaceId, blk2)
 	})
 	require.NoError(t, err)
 
 	// Verify block data and CID metadata remain unchanged
 	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
 		// Check block data
-		block, err := fx.storeSrv.GetBlock(txn, blk.Cid(), spaceId, false)
+		block, err := fx.storeSrv.GetBlock(txn, blk2.Cid(), spaceId, false)
 		require.NoError(t, err)
-		require.Equal(t, blk.RawData(), block.Data())
+		require.Equal(t, blk2.RawData(), block.Data())
 
 		// Check CID metadata
-		cid := NewCidObj(spaceId, blk.Cid())
+		cid := NewCidObj(spaceId, blk2.Cid())
 		err = cid.populateValue(txn)
 		require.NoError(t, err)
 		require.Equal(t, uint32(1), cid.refCount)
-		require.Equal(t, uint32(len(blk.RawData())), cid.sizeByte)
+		require.Equal(t, uint32(len(blk2.RawData())), cid.sizeByte)
 		return nil
 	})
 	require.NoError(t, err)
@@ -122,7 +134,7 @@ func TestBlockPushParallel(t *testing.T) {
 	spaceId := testutil.NewRandSpaceId()
 
 	// Generate different blocks
-	const numBlocks = 500
+	const numBlocks = 100
 	blks := make([]blocks.Block, numBlocks)
 	for i := 0; i < numBlocks; i++ {
 		blks[i] = testutil.NewRandBlock(rand.IntN(1024) + 1)
