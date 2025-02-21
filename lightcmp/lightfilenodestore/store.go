@@ -1,4 +1,4 @@
-//go:generate moq -fmt gofumpt -out store_mock.go . configService StoreService
+//go:generate moq -fmt gofumpt -rm -out store_mock.go . configService StoreService
 
 package lightfilenodestore
 
@@ -43,7 +43,10 @@ type StoreService interface {
 	TxUpdate(f func(txn *badger.Txn) error) error
 
 	// GetBlock retrieves a block by CID.
-	GetBlock(txn *badger.Txn, k cid.Cid, spaceId string) (*BlockObj, error)
+	GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
+
+	// CheckCID checks if the given CIDs exist in the store.
+	HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error)
 
 	// PushBlock stores a block.
 	PushBlock(txn *badger.Txn, spaceId string, block blocks.Block) error
@@ -165,13 +168,12 @@ func (s *lightFileNodeStore) TxUpdate(f func(txn *badger.Txn) error) error {
 }
 
 // GetBlock retrieves a block by CID. Read-only transaction is used.
-func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid, spaceId string) (*BlockObj, error) {
+func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error) {
 	log.Info("GetBlock",
 		zap.String("cid", k.String()),
-		zap.String("spaceId", spaceId),
 	)
 
-	block := NewBlockObj(spaceId, k)
+	block := NewBlockObj(k)
 	if err := block.populateData(txn); err != nil {
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return nil, fileprotoerr.ErrCIDNotFound
@@ -182,13 +184,36 @@ func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid, spaceId string
 	return block, nil
 }
 
+func (s *lightFileNodeStore) HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
+	log.Info("HasCIDInSpace",
+		zap.String("cid", k.String()),
+		zap.String("spaceId", spaceId),
+	)
+
+	blkObj := NewCidObj(spaceId, k)
+	return blkObj.exists(txn)
+}
+
+func (s *lightFileNodeStore) HadCID(txn *badger.Txn, k cid.Cid) (bool, error) {
+	log.Info("HadCID",
+		zap.String("cid", k.String()),
+	)
+
+	blkObj := NewBlockObj(k)
+	return blkObj.exists(txn)
+}
+
+// PushBlock stores a block. Read-write transaction is used.
+// We store the block data and CID metadata in separate keys.
+// Block data is stored only by CID separations and CID metadata is stored by spaceId and CID.
+// This allows us to easily check is CID just exists or exists in the specific space.
 func (s *lightFileNodeStore) PushBlock(txn *badger.Txn, spaceId string, blk blocks.Block) error {
 	log.Debug("PushBlock",
 		zap.String("spaceId", spaceId),
 		zap.String("cid", blk.Cid().String()),
 	)
 
-	blkObj := NewBlockObj(spaceId, blk.Cid()).WithData(blk.RawData())
+	blkObj := NewBlockObj(blk.Cid()).WithData(blk.RawData())
 	if err := blkObj.write(txn); err != nil {
 		return fmt.Errorf("failed to save block: %w", err)
 	}

@@ -81,6 +81,9 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 		zap.Bool("wait", req.Wait),
 	)
 
+	// TODO: Check permissions to read blocks?
+	// Related issue: https://github.com/anyproto/any-sync-filenode/issues/140
+
 	c, err := cid.Cast(req.Cid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cast CID: %w", err)
@@ -90,7 +93,7 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 	for {
 		errTx := r.store.TxView(func(txn *badger.Txn) error {
 			var errGet error
-			blockObj, errGet = r.store.GetBlock(txn, c, req.SpaceId)
+			blockObj, errGet = r.store.GetBlock(txn, c)
 			return errGet
 		})
 
@@ -181,6 +184,9 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("cids", cidsToStrings(request.Cids...)),
 	)
+
+	cids := convertCids(request.Cids)
+	_ = cids
 
 	// TODO: Implement logic to check block availability in the datastore
 

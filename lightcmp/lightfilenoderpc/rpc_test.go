@@ -35,7 +35,7 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid, spaceId string) (*lightfilenodestore.BlockObj, error) {
+		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) (*lightfilenodestore.BlockObj, error) {
 			return nil, fileprotoerr.ErrCIDNotFound
 		}
 
@@ -58,8 +58,8 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid, spaceId string) (*lightfilenodestore.BlockObj, error) {
-			blkObj := lightfilenodestore.NewBlockObj(spaceId, b.Cid()).WithData(b.RawData())
+		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) (*lightfilenodestore.BlockObj, error) {
+			blkObj := lightfilenodestore.NewBlockObj(b.Cid()).WithData(b.RawData())
 			return blkObj, nil
 		}
 
@@ -83,7 +83,7 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			attempts      = 0
 		)
 
-		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid, spaceId string) (*lightfilenodestore.BlockObj, error) {
+		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) (*lightfilenodestore.BlockObj, error) {
 			t.Logf("GetBlock attempt %d", attempts)
 
 			attempts++
@@ -91,7 +91,7 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 				return nil, fileprotoerr.ErrCIDNotFound
 			}
 
-			blkObj := lightfilenodestore.NewBlockObj(spaceId, b.Cid()).WithData(b.RawData())
+			blkObj := lightfilenodestore.NewBlockObj(b.Cid()).WithData(b.RawData())
 			return blkObj, nil
 		}
 
@@ -115,11 +115,11 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid, spaceId string) (*lightfilenodestore.BlockObj, error) {
+		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) (*lightfilenodestore.BlockObj, error) {
 			return nil, fileprotoerr.ErrCIDNotFound
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer cancel()
 
 		resp, err := fx.rpcService.BlockGet(ctx, &fileproto.BlockGetRequest{

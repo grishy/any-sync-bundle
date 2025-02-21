@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func TestBlockPushGet(t *testing.T) {
+func TestBlockPushAndGet(t *testing.T) {
 	fx := newFixture(t)
 	defer fx.Finish(t)
 
@@ -30,7 +30,7 @@ func TestBlockPushGet(t *testing.T) {
 	// Get block and verify
 	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
 		// Check block data
-		block, err := fx.storeSrv.GetBlock(txn, blk.Cid(), spaceId)
+		block, err := fx.storeSrv.GetBlock(txn, blk.Cid())
 		require.NoError(t, err)
 		require.Equal(t, blk.RawData(), block.Data())
 
@@ -46,27 +46,11 @@ func TestBlockPushGet(t *testing.T) {
 
 	// Try to get non-existent block
 	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		_, err := fx.storeSrv.GetBlock(txn, testutil.NewRandCid(), spaceId)
+		_, err := fx.storeSrv.GetBlock(txn, testutil.NewRandCid())
 		require.ErrorIs(t, err, fileprotoerr.ErrCIDNotFound)
 		return nil
 	})
 	require.NoError(t, err)
-}
-
-func TestBlockGetWaitPanic(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
-
-	spaceId := testutil.NewRandSpaceId()
-	blk := testutil.NewRandBlock(1024)
-
-	// Try to get block with wait=true should panic
-	require.Panics(t, func() {
-		_ = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-			_, err := fx.storeSrv.GetBlock(txn, blk.Cid(), spaceId)
-			return err
-		})
-	})
 }
 
 func TestBlockPushTwice(t *testing.T) {
@@ -89,7 +73,7 @@ func TestBlockPushTwice(t *testing.T) {
 	// Verify block exists and CID metadata
 	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
 		// Check block data
-		block, err := fx.storeSrv.GetBlock(txn, blk1.Cid(), spaceId)
+		block, err := fx.storeSrv.GetBlock(txn, blk1.Cid())
 		require.NoError(t, err)
 		require.Equal(t, blk1.RawData(), block.Data())
 
@@ -112,7 +96,7 @@ func TestBlockPushTwice(t *testing.T) {
 	// Verify block data and CID metadata remain unchanged
 	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
 		// Check block data
-		block, err := fx.storeSrv.GetBlock(txn, blk2.Cid(), spaceId)
+		block, err := fx.storeSrv.GetBlock(txn, blk2.Cid())
 		require.NoError(t, err)
 		require.Equal(t, blk2.RawData(), block.Data())
 
@@ -157,7 +141,7 @@ func TestBlockPushParallel(t *testing.T) {
 	// Verify all blocks exist and have correct data
 	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
 		for _, blk := range blks {
-			block, err := fx.storeSrv.GetBlock(txn, blk.Cid(), spaceId)
+			block, err := fx.storeSrv.GetBlock(txn, blk.Cid())
 			require.NoError(t, err)
 			require.Equal(t, blk.RawData(), block.Data())
 		}
