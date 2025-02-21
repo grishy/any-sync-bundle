@@ -85,7 +85,7 @@ func (s *lightFileNodeStore) Name() (name string) {
 func (s *lightFileNodeStore) Run(ctx context.Context) error {
 	storePath := s.cfgSrv.GetFilenodeStoreDir()
 
-	// TODO: Add OnTableRead for block checskum
+	// TODO: Add OnTableRead for block checksum
 	opts := badger.DefaultOptions(storePath).
 		// Core settings
 		WithLogger(badgerLogger{}).

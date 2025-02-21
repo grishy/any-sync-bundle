@@ -86,7 +86,6 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 	}
 
 	var blockObj *lightfilenodestore.BlockObj
-
 	errTx := r.store.TxView(func(txn *badger.Txn) error {
 		var errGet error
 		blockObj, errGet = r.store.GetBlock(txn, c, req.SpaceId, req.Wait)
@@ -119,7 +118,7 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		return nil, err
 	}
 
-	// Check block itself
+	// Check that CID is valid for the data
 	c, err := cid.Cast(req.Cid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cast CID: %w", err)
@@ -168,6 +167,8 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 		zap.Strings("cids", cidsToStrings(request.Cids...)),
 	)
 
+	// TODO: Implement logic to check block availability in the datastore
+
 	return &fileproto.BlocksCheckResponse{
 		BlocksAvailability: []*fileproto.BlockAvailability{
 			{
@@ -185,6 +186,8 @@ func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, request *fileproto.Bl
 		zap.Strings("cids", cidsToStrings(request.Cids...)),
 	)
 
+	// TODO: Implement logic to bind blocks to the file in the datastore
+
 	return &fileproto.Ok{}, nil
 }
 
@@ -193,6 +196,8 @@ func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.F
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("fileIds", request.FileIds),
 	)
+
+	// TODO: Implement logic to bind blocks to the file in the datastore
 
 	// r.badgerDB.NewWriteBatch()
 
@@ -230,6 +235,8 @@ func (r *lightFileNodeRpc) FilesInfo(ctx context.Context, request *fileproto.Fil
 		zap.Strings("fileIds", request.FileIds),
 	)
 
+	// TODO: Implement logic to bind blocks to the file in the datastore
+
 	// Store usage and CID count in the same key
 	// Because we always update both values together
 	// Key format: f:<spaceId>.<fileId> -> [<usageBytes> uint64][<cidsCount> uint32}
@@ -249,6 +256,9 @@ func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 	log.InfoCtx(context.Background(), "FilesGet",
 		zap.String("spaceId", request.SpaceId),
 	)
+
+	// TODO: Implement logic to bind blocks to the file in the datastore
+
 	for i := 0; i < 10; i++ {
 		err := stream.Send(&fileproto.FilesGetResponse{
 			FileId: "test",
@@ -266,6 +276,8 @@ func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 func (r *lightFileNodeRpc) Check(ctx context.Context, request *fileproto.CheckRequest) (*fileproto.CheckResponse, error) {
 	log.InfoCtx(ctx, "Check")
 
+	// TODO: Implement logic to bind blocks to the file in the datastore
+
 	return &fileproto.CheckResponse{
 		SpaceIds:   []string{"space1", "space2"},
 		AllowWrite: true,
@@ -276,6 +288,8 @@ func (r *lightFileNodeRpc) SpaceInfo(ctx context.Context, request *fileproto.Spa
 	log.InfoCtx(ctx, "SpaceInfo",
 		zap.String("spaceId", request.SpaceId),
 	)
+
+	// TODO: Implement logic to bind blocks to the file in the datastore
 
 	// Use file approach for counter that updated on each block push
 
@@ -291,6 +305,8 @@ func (r *lightFileNodeRpc) SpaceInfo(ctx context.Context, request *fileproto.Spa
 
 func (r *lightFileNodeRpc) AccountInfo(ctx context.Context, request *fileproto.AccountInfoRequest) (*fileproto.AccountInfoResponse, error) {
 	log.InfoCtx(ctx, "AccountInfo")
+
+	// TODO: Implement logic to bind blocks to the file in the datastore
 
 	// Use file approach for counter that updated on each block push
 
@@ -318,6 +334,8 @@ func (r *lightFileNodeRpc) AccountLimitSet(ctx context.Context, request *filepro
 		zap.Uint64("limit", request.Limit),
 	)
 
+	// TODO: Implement logic to bind blocks to the file in the datastore
+
 	return &fileproto.Ok{}, nil
 }
 
@@ -326,6 +344,8 @@ func (r *lightFileNodeRpc) SpaceLimitSet(ctx context.Context, request *fileproto
 		zap.String("spaceId", request.SpaceId),
 		zap.Uint64("limit", request.Limit),
 	)
+
+	// TODO: Implement logic to bind blocks to the file in the datastore
 
 	return &fileproto.Ok{}, nil
 }

@@ -2,6 +2,7 @@ package lightfilenoderpc
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/anyproto/any-sync-filenode/index"
@@ -10,6 +11,7 @@ import (
 	"github.com/anyproto/any-sync/acl/mock_acl"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/commonfile/fileproto"
+	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/anyproto/any-sync/net/peer"
 	"github.com/anyproto/any-sync/net/rpc/server"
 	"github.com/anyproto/any-sync/util/crypto"
@@ -52,6 +54,79 @@ func TestFileNode_Add(t *testing.T) {
 		require.NotNil(t, resp)
 	})
 
+	t.Run("invalid cid", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			fileId        = testutil.NewRandCid().String()
+			b             = testutil.NewRandBlock(1024)
+			b2            = testutil.NewRandBlock(10)
+		)
+
+		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+
+		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
+			SpaceId: storeKey.SpaceId,
+			FileId:  fileId,
+			Cid:     b2.Cid().Bytes(),
+			Data:    b.RawData(),
+		})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "block data checksum mismatch")
+		require.Nil(t, resp)
+	})
+
+	t.Run("data too big", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+
+		var (
+			ctx, key = newRandKey()
+			spaceId  = key.SpaceId
+			fileId   = testutil.NewRandCid().String()
+			b        = testutil.NewRandBlock(3 << 20)
+		)
+
+		fx.aclService.EXPECT().OwnerPubKey(ctx, spaceId).Return(mustPubKey(ctx), nil)
+
+		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
+			SpaceId: spaceId,
+			FileId:  fileId,
+			Cid:     b.Cid().Bytes(),
+			Data:    b.RawData(),
+		})
+		require.EqualError(t, err, fileprotoerr.ErrQuerySizeExceeded.Error())
+		require.Nil(t, resp)
+	})
+
+	t.Run("store error", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			fileId        = testutil.NewRandCid().String()
+			b             = testutil.NewRandBlock(1024)
+		)
+
+		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+
+		fx.storeService.PushBlockFunc = func(txn *badger.Txn, spaceId string, b blocks.Block) error {
+			return fmt.Errorf("store error")
+		}
+
+		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
+			SpaceId: storeKey.SpaceId,
+			FileId:  fileId,
+			Cid:     b.Cid().Bytes(),
+			Data:    b.RawData(),
+		})
+		
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to push block: store error")
+		require.Nil(t, resp)
+	})
 }
 
 func newFixture(t *testing.T) *fixture {
