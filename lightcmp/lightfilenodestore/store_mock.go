@@ -161,7 +161,7 @@ var _ StoreService = &StoreServiceMock{}
 //
 //		// make and configure a mocked StoreService
 //		mockedStoreService := &StoreServiceMock{
-//			GetBlockFunc: func(txn *badger.Txn, k cid.Cid, spaceId string, wait bool) (*BlockObj, error) {
+//			GetBlockFunc: func(txn *badger.Txn, k cid.Cid, spaceId string) (*BlockObj, error) {
 //				panic("mock out the GetBlock method")
 //			},
 //			InitFunc: func(a *app.App) error {
@@ -187,7 +187,7 @@ var _ StoreService = &StoreServiceMock{}
 //	}
 type StoreServiceMock struct {
 	// GetBlockFunc mocks the GetBlock method.
-	GetBlockFunc func(txn *badger.Txn, k cid.Cid, spaceId string, wait bool) (*BlockObj, error)
+	GetBlockFunc func(txn *badger.Txn, k cid.Cid, spaceId string) (*BlockObj, error)
 
 	// InitFunc mocks the Init method.
 	InitFunc func(a *app.App) error
@@ -214,8 +214,6 @@ type StoreServiceMock struct {
 			K cid.Cid
 			// SpaceId is the spaceId argument value.
 			SpaceId string
-			// Wait is the wait argument value.
-			Wait bool
 		}
 		// Init holds details about calls to the Init method.
 		Init []struct {
@@ -254,7 +252,7 @@ type StoreServiceMock struct {
 }
 
 // GetBlock calls GetBlockFunc.
-func (mock *StoreServiceMock) GetBlock(txn *badger.Txn, k cid.Cid, spaceId string, wait bool) (*BlockObj, error) {
+func (mock *StoreServiceMock) GetBlock(txn *badger.Txn, k cid.Cid, spaceId string) (*BlockObj, error) {
 	if mock.GetBlockFunc == nil {
 		panic("StoreServiceMock.GetBlockFunc: method is nil but StoreService.GetBlock was just called")
 	}
@@ -262,17 +260,15 @@ func (mock *StoreServiceMock) GetBlock(txn *badger.Txn, k cid.Cid, spaceId strin
 		Txn     *badger.Txn
 		K       cid.Cid
 		SpaceId string
-		Wait    bool
 	}{
 		Txn:     txn,
 		K:       k,
 		SpaceId: spaceId,
-		Wait:    wait,
 	}
 	mock.lockGetBlock.Lock()
 	mock.calls.GetBlock = append(mock.calls.GetBlock, callInfo)
 	mock.lockGetBlock.Unlock()
-	return mock.GetBlockFunc(txn, k, spaceId, wait)
+	return mock.GetBlockFunc(txn, k, spaceId)
 }
 
 // GetBlockCalls gets all the calls that were made to GetBlock.
@@ -283,13 +279,11 @@ func (mock *StoreServiceMock) GetBlockCalls() []struct {
 	Txn     *badger.Txn
 	K       cid.Cid
 	SpaceId string
-	Wait    bool
 } {
 	var calls []struct {
 		Txn     *badger.Txn
 		K       cid.Cid
 		SpaceId string
-		Wait    bool
 	}
 	mock.lockGetBlock.RLock()
 	calls = mock.calls.GetBlock

@@ -43,7 +43,7 @@ type StoreService interface {
 	TxUpdate(f func(txn *badger.Txn) error) error
 
 	// GetBlock retrieves a block by CID.
-	GetBlock(txn *badger.Txn, k cid.Cid, spaceId string, wait bool) (*BlockObj, error)
+	GetBlock(txn *badger.Txn, k cid.Cid, spaceId string) (*BlockObj, error)
 
 	// PushBlock stores a block.
 	PushBlock(txn *badger.Txn, spaceId string, block blocks.Block) error
@@ -165,18 +165,11 @@ func (s *lightFileNodeStore) TxUpdate(f func(txn *badger.Txn) error) error {
 }
 
 // GetBlock retrieves a block by CID. Read-only transaction is used.
-func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid, spaceId string, wait bool) (*BlockObj, error) {
+func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid, spaceId string) (*BlockObj, error) {
 	log.Info("GetBlock",
 		zap.String("cid", k.String()),
 		zap.String("spaceId", spaceId),
-		zap.Bool("wait", wait),
 	)
-
-	if wait {
-		// TODO: Implement simple for loop with sleep for waiting
-		// NOTE: 2025-02-15: Wait is not used on client side...So for now just panic.
-		panic("wait parameter is not supported")
-	}
 
 	block := NewBlockObj(spaceId, k)
 	if err := block.populateData(txn); err != nil {

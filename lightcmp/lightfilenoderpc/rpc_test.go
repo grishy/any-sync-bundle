@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync-filenode/testutil"
@@ -17,6 +18,7 @@ import (
 	"github.com/anyproto/any-sync/util/crypto"
 	"github.com/dgraph-io/badger/v4"
 	blocks "github.com/ipfs/go-block-format"
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -24,7 +26,115 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
-func TestFileNode_Add(t *testing.T) {
+func TestLightFileNodeRpc_BlockGet(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			b             = testutil.NewRandBlock(1024)
+		)
+
+		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid, spaceId string) (*lightfilenodestore.BlockObj, error) {
+			return nil, fileprotoerr.ErrCIDNotFound
+		}
+
+		resp, err := fx.rpcService.BlockGet(ctx, &fileproto.BlockGetRequest{
+			SpaceId: storeKey.SpaceId,
+			Cid:     b.Cid().Bytes(),
+			Wait:    false,
+		})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, fileprotoerr.ErrCIDNotFound)
+		require.Nil(t, resp)
+	})
+
+	t.Run("found", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			b             = testutil.NewRandBlock(1024)
+		)
+
+		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid, spaceId string) (*lightfilenodestore.BlockObj, error) {
+			blkObj := lightfilenodestore.NewBlockObj(spaceId, b.Cid()).WithData(b.RawData())
+			return blkObj, nil
+		}
+
+		resp, err := fx.rpcService.BlockGet(ctx, &fileproto.BlockGetRequest{
+			SpaceId: storeKey.SpaceId,
+			Cid:     b.Cid().Bytes(),
+			Wait:    false,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, b.RawData(), resp.Data)
+	})
+
+	t.Run("wait", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			b             = testutil.NewRandBlock(1024)
+			attempts      = 0
+		)
+
+		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid, spaceId string) (*lightfilenodestore.BlockObj, error) {
+			t.Logf("GetBlock attempt %d", attempts)
+
+			attempts++
+			if attempts < 3 {
+				return nil, fileprotoerr.ErrCIDNotFound
+			}
+
+			blkObj := lightfilenodestore.NewBlockObj(spaceId, b.Cid()).WithData(b.RawData())
+			return blkObj, nil
+		}
+
+		resp, err := fx.rpcService.BlockGet(ctx, &fileproto.BlockGetRequest{
+			SpaceId: storeKey.SpaceId,
+			Cid:     b.Cid().Bytes(),
+			Wait:    true,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, b.RawData(), resp.Data)
+		require.Equal(t, 3, attempts)
+	})
+
+	t.Run("wait timeout", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			b             = testutil.NewRandBlock(1024)
+		)
+
+		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid, spaceId string) (*lightfilenodestore.BlockObj, error) {
+			return nil, fileprotoerr.ErrCIDNotFound
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+
+		resp, err := fx.rpcService.BlockGet(ctx, &fileproto.BlockGetRequest{
+			SpaceId: storeKey.SpaceId,
+			Cid:     b.Cid().Bytes(),
+			Wait:    true,
+		})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "context deadline exceeded")
+		require.Nil(t, resp)
+	})
+}
+
+func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		fx := newFixture(t)
 		defer fx.Finish(t)
@@ -122,7 +232,7 @@ func TestFileNode_Add(t *testing.T) {
 			Cid:     b.Cid().Bytes(),
 			Data:    b.RawData(),
 		})
-		
+
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to push block: store error")
 		require.Nil(t, resp)

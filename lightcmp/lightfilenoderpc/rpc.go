@@ -3,6 +3,7 @@ package lightfilenoderpc
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
@@ -86,13 +87,27 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 	}
 
 	var blockObj *lightfilenodestore.BlockObj
-	errTx := r.store.TxView(func(txn *badger.Txn) error {
-		var errGet error
-		blockObj, errGet = r.store.GetBlock(txn, c, req.SpaceId, req.Wait)
-		return errGet
-	})
-	if errTx != nil {
-		return nil, fmt.Errorf("transaction view failed: %w", errTx)
+	for {
+		errTx := r.store.TxView(func(txn *badger.Txn) error {
+			var errGet error
+			blockObj, errGet = r.store.GetBlock(txn, c, req.SpaceId)
+			return errGet
+		})
+
+		if errTx == nil {
+			break
+		}
+
+		if !req.Wait {
+			return nil, fmt.Errorf("transaction view failed: %w", errTx)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+			continue
+		}
 	}
 
 	resp := &fileproto.BlockGetResponse{
