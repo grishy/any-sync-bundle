@@ -1,4 +1,4 @@
-package light
+package lightnode
 
 import (
 	"github.com/anyproto/any-sync/app"

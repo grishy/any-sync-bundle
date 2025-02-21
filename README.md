@@ -8,10 +8,10 @@
   <table align="center">
     <tr>
       <td><strong>Status</strong></td>
-      <td>Maintained</td>
+      <td><b>⚠️ Under Development</b></td>
     </tr>
     <tr>
-      <td><strong>Version</strong></td>
+      <td><strong>Stable Version</strong></td>
       <td><a href="https://github.com/grishy/any-sync-bundle/tags"><img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="GitHub tag"></a></td>
     </tr>
     <tr>
@@ -20,6 +20,21 @@
     </tr>
   </table>
 </p>
+
+---
+
+<div style="border: 1px solid #ffa500; background-color: #fff7e6; padding: 16px; border-radius: 6px; margin: 16px 0;">
+  <h1 style="margin-top: 0; color: #ff7f0e;">⚠️ Under Development</h1>
+  <p>It is better to use <b>Release</b>. The main branch contains code that is under active development. Future versions will include variants:</p>
+  <ul>
+    <li><strong>⚠️ Light version </strong>: Preferred for self-hosting; uses one port, works without MongoDB, Redis, or MinIO; utilizes embedded BadgerDB for storage as Anytype on client side; supports a wide range of architectures with low overhead.</li>
+    <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB, Redis, and MinIO built in.</li>
+    <li><strong>✅ Bundle (solo bundle)</strong>: A variant without MongoDB, Redis, and MinIO inside. You can use your own instances</li>
+  </ul>
+  ✅ - Ready; ⚠️ - Under development
+</div>
+
+---
 
 ## TL;DR – How to start a self-hosted Anytype server
 
@@ -100,6 +115,8 @@ git push origin tag $FINAL_VERSION
 ```
 
 > Because I stand on the shoulders of giants, I can see further than they can.
+
+> "Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away" – Antoine de Saint-Exupéry
 
 ## License
 

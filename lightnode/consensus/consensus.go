@@ -20,34 +20,31 @@ import (
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 
-	"github.com/grishy/any-sync-bundle/light"
-	lightDb "github.com/grishy/any-sync-bundle/light/consensus/db"
-	lightRpc "github.com/grishy/any-sync-bundle/light/consensus/rpc"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightconfig"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightconsensusdb"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightconsensusrpc"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightnodeconf"
+	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
-func NewLightConsensusApp(cfg *config.Config) *app.App {
+func NewApp(cfg *config.Config) *app.App {
 	// TODO: Add limiter to server?
 
-	lCfg := &lightConfig{
-		Account:       cfg.Account,
-		Network:       cfg.Network,
-		ListenTCPAddr: cfg.Yamux.ListenAddrs[0],
-		ListenUDPAddr: cfg.Quic.ListenAddrs[0],
-		DBPath:        "consensus.db",
+	lCfg := &lightconfig.LightConfig{
+		Account:         cfg.Account,
+		Network:         cfg.Network,
+		ListenTCPAddr:   cfg.Yamux.ListenAddrs,
+		ListenUDPAddr:   cfg.Quic.ListenAddrs,
+		ConsensusDBPath: "consensus.db",
 	}
-
-	// TODO: Read from config
-	lNodeconf := NewLightNodeconf()
-	lDB := lightDb.New()
-	lRpc := lightRpc.New()
 
 	a := new(app.App).
 		Register(lCfg).
-		Register(account.New()). // Original, to sign messages
-		Register(lNodeconf).
-		Register(lDB).
-		Register(lRpc).
-		// TODO: Remove, when will have all nodes on one port
+		Register(lightnodeconf.New()).
+		Register(lightconsensusdb.New()).
+		Register(lightconsensusrpc.New()).
+		// TODO: Remove pool and peerservice, when will have all nodes on one port?
+		Register(account.New()).       // Original, to sign messages
 		Register(pool.New()).          // Original, provide pool of peers for 'peerservice'
 		Register(peerservice.New()).   // Original, provide accepter for 'yamux' and 'quic'
 		Register(yamux.New()).         // Original, TCP transport
@@ -58,33 +55,8 @@ func NewLightConsensusApp(cfg *config.Config) *app.App {
 	return a
 }
 
-func NewTest(cfg *config.Config) *app.App {
-	light.MustMkdirAll(cfg.NetworkStorePath)
-
-	lDB := lightDb.New()
-	lRpc := lightRpc.New()
-
-	a := new(app.App).
-		Register(cfg).
-		Register(account.New()).
-		Register(nodeconf.New()).
-		Register(nodeconfstore.New()).
-		Register(nodeconfsource.New()).
-		Register(coordinatorclient.New()).
-		Register(pool.New()).
-		Register(peerservice.New()).
-		Register(yamux.New()).
-		Register(quic.New()).
-		Register(secureservice.New()).
-		Register(server.New()).
-		Register(lDB).
-		Register(lRpc)
-
-	return a
-}
-
 func NewConsensusApp(cfg *config.Config) *app.App {
-	light.MustMkdirAll(cfg.NetworkStorePath)
+	lightnode.MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
 		Register(cfg).

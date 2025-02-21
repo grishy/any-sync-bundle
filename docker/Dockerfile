@@ -5,7 +5,7 @@
 # 
 # Stage: Initial bin build
 # 
-FROM --platform=$BUILDPLATFORM golang:1.23.5-alpine AS stage-bin
+FROM --platform=$BUILDPLATFORM golang:1.24.0-alpine AS stage-bin
 WORKDIR /app
 
 # Use mount cache for dependencies
