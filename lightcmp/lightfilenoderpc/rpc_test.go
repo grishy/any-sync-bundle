@@ -135,9 +135,7 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 	t.Run("invalid cid", func(t *testing.T) {
 		fx := newFixture(t)
 		defer fx.Finish(t)
-		var (
-			ctx, storeKey = newRandKey()
-		)
+		ctx, storeKey := newRandKey()
 
 		resp, err := fx.rpcService.BlockGet(ctx, &fileproto.BlockGetRequest{
 			SpaceId: storeKey.SpaceId,
@@ -162,6 +160,18 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 		)
 
 		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+
+		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
+			spaceObj := lightfilenodestore.NewSpaceObj(storeKey.SpaceId)
+			return spaceObj, nil
+		}
+
+		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
+			groupObj := lightfilenodestore.NewGroupObj(storeKey.GroupId).
+				WithLimitBytes(1 << 30) // 1GB - default limit for group
+
+			return groupObj, nil
+		}
 
 		fx.storeService.PushBlockFunc = func(txn *badger.Txn, spaceId string, b blocks.Block) error {
 			require.Equal(t, storeKey.SpaceId, spaceId)
@@ -192,6 +202,18 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 
 		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
+		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
+			spaceObj := lightfilenodestore.NewSpaceObj(storeKey.SpaceId)
+			return spaceObj, nil
+		}
+
+		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
+			groupObj := lightfilenodestore.NewGroupObj(storeKey.GroupId).
+				WithLimitBytes(1 << 30) // 1GB - default limit for group
+
+			return groupObj, nil
+		}
+
 		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
@@ -215,6 +237,18 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 		)
 
 		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+
+		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
+			spaceObj := lightfilenodestore.NewSpaceObj(storeKey.SpaceId)
+			return spaceObj, nil
+		}
+
+		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
+			groupObj := lightfilenodestore.NewGroupObj(storeKey.GroupId).
+				WithLimitBytes(1 << 30) // 1GB - default limit for group
+
+			return groupObj, nil
+		}
 
 		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: storeKey.SpaceId,
@@ -241,6 +275,18 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 
 		fx.aclService.EXPECT().OwnerPubKey(ctx, spaceId).Return(mustPubKey(ctx), nil)
 
+		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
+			spaceObj := lightfilenodestore.NewSpaceObj(spaceId)
+			return spaceObj, nil
+		}
+
+		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
+			groupObj := lightfilenodestore.NewGroupObj(key.GroupId).
+				WithLimitBytes(1 << 20) // 1MB - limit for group
+
+			return groupObj, nil
+		}
+
 		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: spaceId,
 			FileId:  fileId,
@@ -261,6 +307,18 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 		)
 
 		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+
+		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
+			spaceObj := lightfilenodestore.NewSpaceObj(storeKey.SpaceId)
+			return spaceObj, nil
+		}
+
+		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
+			groupObj := lightfilenodestore.NewGroupObj(storeKey.GroupId).
+				WithLimitBytes(1 << 30) // 1GB - default limit for group
+
+			return groupObj, nil
+		}
 
 		fx.storeService.PushBlockFunc = func(txn *badger.Txn, spaceId string, b blocks.Block) error {
 			return fmt.Errorf("store error")

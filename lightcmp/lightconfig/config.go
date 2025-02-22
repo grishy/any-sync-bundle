@@ -26,7 +26,8 @@ type LightConfig struct {
 	// Consensus
 	ConsensusDBPath string
 	// Filenode
-	FilenodeStoreDir string
+	FilenodeStoreDir          string
+	FilenodeDefaultLimitBytes uint64
 }
 
 //
@@ -99,4 +100,10 @@ func (c *LightConfig) GetFilenodeStoreDir() string {
 	log.Info("call GetFilenodeStoreDir")
 
 	return c.FilenodeStoreDir
+}
+
+func (c *LightConfig) GetFilenodeDefaultLimitBytes() uint64 {
+	log.Info("call GetFilenodeDefaultLimitBytes")
+
+	return c.FilenodeDefaultLimitBytes
 }

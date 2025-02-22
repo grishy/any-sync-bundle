@@ -150,6 +150,209 @@ func TestBlockPushParallel(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLightFileNodeStore_HasCIDInSpace(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+	blk := testutil.NewRandBlock(1024)
+
+	// Initially CID should not exist
+	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HasCIDInSpace(txn, spaceId, blk.Cid())
+		require.NoError(t, err)
+		require.False(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Push block
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.PushBlock(txn, spaceId, blk)
+	})
+	require.NoError(t, err)
+
+	// Now CID should exist
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HasCIDInSpace(txn, spaceId, blk.Cid())
+		require.NoError(t, err)
+		require.True(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Check CID doesn't exist in different space
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HasCIDInSpace(txn, testutil.NewRandSpaceId(), blk.Cid())
+		require.NoError(t, err)
+		require.False(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Check non-existent CID
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HasCIDInSpace(txn, spaceId, testutil.NewRandCid())
+		require.NoError(t, err)
+		require.False(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestLightFileNodeStore_HadCID(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+	blk := testutil.NewRandBlock(1024)
+
+	// Initially CID should not exist
+	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HadCID(txn, blk.Cid())
+		require.NoError(t, err)
+		require.False(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Push block
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.PushBlock(txn, spaceId, blk)
+	})
+	require.NoError(t, err)
+
+	// Now CID should exist
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HadCID(txn, blk.Cid())
+		require.NoError(t, err)
+		require.True(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Check non-existent CID
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HadCID(txn, testutil.NewRandCid())
+		require.NoError(t, err)
+		require.False(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestLightFileNodeStore_GetSpace(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+
+	// Initially space should be empty
+	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		space, err := fx.storeSrv.GetSpace(txn, spaceId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(0), space.LimitBytes())
+		require.Equal(t, uint64(0), space.TotalUsageBytes())
+		require.Equal(t, uint64(0), space.CidsCount())
+		require.Equal(t, uint64(0), space.FilesCount())
+		require.Equal(t, uint64(0), space.SpaceUsageBytes())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Create space with some values
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		space := NewSpaceObj(spaceId).
+			WithLimitBytes(1024).
+			WithTotalUsageBytes(512).
+			WithCidsCount(10).
+			WithFilesCount(5).
+			WithSpaceUsageBytes(256)
+		return space.write(txn)
+	})
+	require.NoError(t, err)
+
+	// Verify space values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		space, err := fx.storeSrv.GetSpace(txn, spaceId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(1024), space.LimitBytes())
+		require.Equal(t, uint64(512), space.TotalUsageBytes())
+		require.Equal(t, uint64(10), space.CidsCount())
+		require.Equal(t, uint64(5), space.FilesCount())
+		require.Equal(t, uint64(256), space.SpaceUsageBytes())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Check non-existent space returns empty object
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		space, err := fx.storeSrv.GetSpace(txn, testutil.NewRandSpaceId())
+		require.NoError(t, err)
+		require.Equal(t, uint64(0), space.LimitBytes())
+		require.Equal(t, uint64(0), space.TotalUsageBytes())
+		require.Equal(t, uint64(0), space.CidsCount())
+		require.Equal(t, uint64(0), space.FilesCount())
+		require.Equal(t, uint64(0), space.SpaceUsageBytes())
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestLightFileNodeStore_GetGroup(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	groupId := testutil.NewRandSpaceId()
+
+	// Initially group should have default limit and zero counters
+	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		group, err := fx.storeSrv.GetGroup(txn, groupId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(defaultLimitBytes), group.LimitBytes())
+		require.Equal(t, uint64(0), group.TotalUsageBytes())
+		require.Equal(t, uint64(0), group.TotalCidsCount())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Create group with some values
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		group := NewGroupObj(groupId).
+			WithLimitBytes(1024).
+			WithTotalUsageBytes(512).
+			WithTotalCidsCount(10)
+		return group.write(txn)
+	})
+	require.NoError(t, err)
+
+	// Verify group values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		group, err := fx.storeSrv.GetGroup(txn, groupId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(1024), group.LimitBytes())
+		require.Equal(t, uint64(512), group.TotalUsageBytes())
+		require.Equal(t, uint64(10), group.TotalCidsCount())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Check non-existent group returns object with default limit
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		group, err := fx.storeSrv.GetGroup(txn, testutil.NewRandSpaceId())
+		require.NoError(t, err)
+		require.Equal(t, uint64(defaultLimitBytes), group.LimitBytes())
+		require.Equal(t, uint64(0), group.TotalUsageBytes())
+		require.Equal(t, uint64(0), group.TotalCidsCount())
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+//
+// Fixtures
+//
+
 type fixture struct {
 	a        *app.App
 	cfgSrc   *configServiceMock
@@ -174,6 +377,9 @@ func newFixture(t *testing.T) *fixture {
 			},
 			GetFilenodeStoreDirFunc: func() string {
 				return tempDir
+			},
+			GetFilenodeDefaultLimitBytesFunc: func() uint64 {
+				return defaultLimitBytes
 			},
 		},
 		storeSrv: New().(*lightFileNodeStore),

@@ -21,6 +21,8 @@ import (
 const (
 	CName = "light.filenode.store"
 
+	defaultLimitBytes = 1 << 40 // 1 TiB in bytes
+
 	kPrefixFileNode = "fn"
 	kSeparator      = ":"
 )
@@ -31,6 +33,7 @@ type configService interface {
 	app.Component
 
 	GetFilenodeStoreDir() string
+	GetFilenodeDefaultLimitBytes() uint64
 }
 
 type StoreService interface {
@@ -53,6 +56,12 @@ type StoreService interface {
 
 	// PushBlock stores a block.
 	PushBlock(txn *badger.Txn, spaceId string, block blocks.Block) error
+
+	// GetSpace retrieves a space by ID.
+	GetSpace(txn *badger.Txn, spaceId string) (*SpaceObj, error)
+
+	// GetGroup retrieves a group by ID.
+	GetGroup(txn *badger.Txn, groupId string) (*GroupObj, error)
 }
 
 // lightFileNodeStore implements a block store using BadgerDB.
@@ -62,6 +71,9 @@ type StoreService interface {
 type lightFileNodeStore struct {
 	cfgSrv   configService
 	badgerDB *badger.DB
+
+	// Used to set default limit for user/group
+	defaultLimitBytes uint64
 }
 
 func New() StoreService {
@@ -89,6 +101,11 @@ func (s *lightFileNodeStore) Name() (name string) {
 //
 
 func (s *lightFileNodeStore) Run(ctx context.Context) error {
+	s.defaultLimitBytes = s.cfgSrv.GetFilenodeDefaultLimitBytes()
+	if s.defaultLimitBytes == 0 {
+		s.defaultLimitBytes = defaultLimitBytes
+	}
+
 	storePath := s.cfgSrv.GetFilenodeStoreDir()
 
 	// TODO: Add OnTableRead for block checksum
@@ -176,15 +193,15 @@ func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, er
 		zap.String("cid", k.String()),
 	)
 
-	block := NewBlockObj(k)
-	if err := block.populateData(txn); err != nil {
+	blkObj := NewBlockObj(k)
+	if err := blkObj.populateData(txn); err != nil {
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return nil, fileprotoerr.ErrCIDNotFound
 		}
 		return nil, fmt.Errorf("failed to get block: %w", err)
 	}
 
-	return block, nil
+	return blkObj, nil
 }
 
 func (s *lightFileNodeStore) HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
@@ -232,4 +249,41 @@ func (s *lightFileNodeStore) PushBlock(txn *badger.Txn, spaceId string, blk bloc
 	}
 
 	return nil
+}
+
+func (s *lightFileNodeStore) GetSpace(txn *badger.Txn, spaceId string) (*SpaceObj, error) {
+	log.Debug("GetSpace",
+		zap.String("spaceId", spaceId),
+	)
+
+	spaceObj := NewSpaceObj(spaceId)
+	if err := spaceObj.populateValue(txn); err != nil {
+		// We don't return error if space not found, just return empty space object
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return spaceObj, nil
+		}
+
+		return nil, fmt.Errorf("failed to get space: %w", err)
+	}
+
+	return spaceObj, nil
+}
+
+func (s *lightFileNodeStore) GetGroup(txn *badger.Txn, groupId string) (*GroupObj, error) {
+	log.Debug("GetGroup",
+		zap.String("groupId", groupId),
+	)
+
+	groupObj := NewGroupObj(groupId)
+	if err := groupObj.populateValue(txn); err != nil {
+		// We don't return error if group not found, just return empty group object with default limit
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			groupObj = groupObj.WithLimitBytes(s.defaultLimitBytes)
+			return groupObj, nil
+		}
+
+		return nil, fmt.Errorf("failed to get group: %w", err)
+	}
+
+	return groupObj, nil
 }

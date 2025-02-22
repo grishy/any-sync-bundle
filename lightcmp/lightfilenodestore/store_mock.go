@@ -21,6 +21,9 @@ var _ configService = &configServiceMock{}
 //
 //		// make and configure a mocked configService
 //		mockedconfigService := &configServiceMock{
+//			GetFilenodeDefaultLimitBytesFunc: func() uint64 {
+//				panic("mock out the GetFilenodeDefaultLimitBytes method")
+//			},
 //			GetFilenodeStoreDirFunc: func() string {
 //				panic("mock out the GetFilenodeStoreDir method")
 //			},
@@ -37,6 +40,9 @@ var _ configService = &configServiceMock{}
 //
 //	}
 type configServiceMock struct {
+	// GetFilenodeDefaultLimitBytesFunc mocks the GetFilenodeDefaultLimitBytes method.
+	GetFilenodeDefaultLimitBytesFunc func() uint64
+
 	// GetFilenodeStoreDirFunc mocks the GetFilenodeStoreDir method.
 	GetFilenodeStoreDirFunc func() string
 
@@ -48,6 +54,9 @@ type configServiceMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// GetFilenodeDefaultLimitBytes holds details about calls to the GetFilenodeDefaultLimitBytes method.
+		GetFilenodeDefaultLimitBytes []struct {
+		}
 		// GetFilenodeStoreDir holds details about calls to the GetFilenodeStoreDir method.
 		GetFilenodeStoreDir []struct {
 		}
@@ -60,9 +69,37 @@ type configServiceMock struct {
 		Name []struct {
 		}
 	}
-	lockGetFilenodeStoreDir sync.RWMutex
-	lockInit                sync.RWMutex
-	lockName                sync.RWMutex
+	lockGetFilenodeDefaultLimitBytes sync.RWMutex
+	lockGetFilenodeStoreDir          sync.RWMutex
+	lockInit                         sync.RWMutex
+	lockName                         sync.RWMutex
+}
+
+// GetFilenodeDefaultLimitBytes calls GetFilenodeDefaultLimitBytesFunc.
+func (mock *configServiceMock) GetFilenodeDefaultLimitBytes() uint64 {
+	if mock.GetFilenodeDefaultLimitBytesFunc == nil {
+		panic("configServiceMock.GetFilenodeDefaultLimitBytesFunc: method is nil but configService.GetFilenodeDefaultLimitBytes was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockGetFilenodeDefaultLimitBytes.Lock()
+	mock.calls.GetFilenodeDefaultLimitBytes = append(mock.calls.GetFilenodeDefaultLimitBytes, callInfo)
+	mock.lockGetFilenodeDefaultLimitBytes.Unlock()
+	return mock.GetFilenodeDefaultLimitBytesFunc()
+}
+
+// GetFilenodeDefaultLimitBytesCalls gets all the calls that were made to GetFilenodeDefaultLimitBytes.
+// Check the length with:
+//
+//	len(mockedconfigService.GetFilenodeDefaultLimitBytesCalls())
+func (mock *configServiceMock) GetFilenodeDefaultLimitBytesCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockGetFilenodeDefaultLimitBytes.RLock()
+	calls = mock.calls.GetFilenodeDefaultLimitBytes
+	mock.lockGetFilenodeDefaultLimitBytes.RUnlock()
+	return calls
 }
 
 // GetFilenodeStoreDir calls GetFilenodeStoreDirFunc.
@@ -164,6 +201,12 @@ var _ StoreService = &StoreServiceMock{}
 //			GetBlockFunc: func(txn *badger.Txn, k cid.Cid) (*BlockObj, error) {
 //				panic("mock out the GetBlock method")
 //			},
+//			GetGroupFunc: func(txn *badger.Txn, groupId string) (*GroupObj, error) {
+//				panic("mock out the GetGroup method")
+//			},
+//			GetSpaceFunc: func(txn *badger.Txn, spaceId string) (*SpaceObj, error) {
+//				panic("mock out the GetSpace method")
+//			},
 //			HadCIDFunc: func(txn *badger.Txn, k cid.Cid) (bool, error) {
 //				panic("mock out the HadCID method")
 //			},
@@ -195,6 +238,12 @@ type StoreServiceMock struct {
 	// GetBlockFunc mocks the GetBlock method.
 	GetBlockFunc func(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
 
+	// GetGroupFunc mocks the GetGroup method.
+	GetGroupFunc func(txn *badger.Txn, groupId string) (*GroupObj, error)
+
+	// GetSpaceFunc mocks the GetSpace method.
+	GetSpaceFunc func(txn *badger.Txn, spaceId string) (*SpaceObj, error)
+
 	// HadCIDFunc mocks the HadCID method.
 	HadCIDFunc func(txn *badger.Txn, k cid.Cid) (bool, error)
 
@@ -224,6 +273,20 @@ type StoreServiceMock struct {
 			Txn *badger.Txn
 			// K is the k argument value.
 			K cid.Cid
+		}
+		// GetGroup holds details about calls to the GetGroup method.
+		GetGroup []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// GroupId is the groupId argument value.
+			GroupId string
+		}
+		// GetSpace holds details about calls to the GetSpace method.
+		GetSpace []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// SpaceId is the spaceId argument value.
+			SpaceId string
 		}
 		// HadCID holds details about calls to the HadCID method.
 		HadCID []struct {
@@ -270,6 +333,8 @@ type StoreServiceMock struct {
 		}
 	}
 	lockGetBlock      sync.RWMutex
+	lockGetGroup      sync.RWMutex
+	lockGetSpace      sync.RWMutex
 	lockHadCID        sync.RWMutex
 	lockHasCIDInSpace sync.RWMutex
 	lockInit          sync.RWMutex
@@ -312,6 +377,78 @@ func (mock *StoreServiceMock) GetBlockCalls() []struct {
 	mock.lockGetBlock.RLock()
 	calls = mock.calls.GetBlock
 	mock.lockGetBlock.RUnlock()
+	return calls
+}
+
+// GetGroup calls GetGroupFunc.
+func (mock *StoreServiceMock) GetGroup(txn *badger.Txn, groupId string) (*GroupObj, error) {
+	if mock.GetGroupFunc == nil {
+		panic("StoreServiceMock.GetGroupFunc: method is nil but StoreService.GetGroup was just called")
+	}
+	callInfo := struct {
+		Txn     *badger.Txn
+		GroupId string
+	}{
+		Txn:     txn,
+		GroupId: groupId,
+	}
+	mock.lockGetGroup.Lock()
+	mock.calls.GetGroup = append(mock.calls.GetGroup, callInfo)
+	mock.lockGetGroup.Unlock()
+	return mock.GetGroupFunc(txn, groupId)
+}
+
+// GetGroupCalls gets all the calls that were made to GetGroup.
+// Check the length with:
+//
+//	len(mockedStoreService.GetGroupCalls())
+func (mock *StoreServiceMock) GetGroupCalls() []struct {
+	Txn     *badger.Txn
+	GroupId string
+} {
+	var calls []struct {
+		Txn     *badger.Txn
+		GroupId string
+	}
+	mock.lockGetGroup.RLock()
+	calls = mock.calls.GetGroup
+	mock.lockGetGroup.RUnlock()
+	return calls
+}
+
+// GetSpace calls GetSpaceFunc.
+func (mock *StoreServiceMock) GetSpace(txn *badger.Txn, spaceId string) (*SpaceObj, error) {
+	if mock.GetSpaceFunc == nil {
+		panic("StoreServiceMock.GetSpaceFunc: method is nil but StoreService.GetSpace was just called")
+	}
+	callInfo := struct {
+		Txn     *badger.Txn
+		SpaceId string
+	}{
+		Txn:     txn,
+		SpaceId: spaceId,
+	}
+	mock.lockGetSpace.Lock()
+	mock.calls.GetSpace = append(mock.calls.GetSpace, callInfo)
+	mock.lockGetSpace.Unlock()
+	return mock.GetSpaceFunc(txn, spaceId)
+}
+
+// GetSpaceCalls gets all the calls that were made to GetSpace.
+// Check the length with:
+//
+//	len(mockedStoreService.GetSpaceCalls())
+func (mock *StoreServiceMock) GetSpaceCalls() []struct {
+	Txn     *badger.Txn
+	SpaceId string
+} {
+	var calls []struct {
+		Txn     *badger.Txn
+		SpaceId string
+	}
+	mock.lockGetSpace.RLock()
+	calls = mock.calls.GetSpace
+	mock.lockGetSpace.RUnlock()
 	return calls
 }
 

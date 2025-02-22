@@ -3,7 +3,6 @@ package lightfilenodestore
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
@@ -12,49 +11,28 @@ import (
 const (
 	kPrefixSpace = kPrefixFileNode + kSeparator + "s"
 
-	valueSpaceMetaSize    = 8  // 8 bytes for limit
-	valueSpaceCounterSize = 32 // 8 + 8 + 8 + 8 bytes for counters
+	valueSpaceSize = 40 // 8 bytes for limit + 32 bytes for counters
 )
 
-func keySpaceMeta(spaceID string) []byte {
-	const groupName = "meta"
+func keySpace(spaceID string) []byte {
 	var buf bytes.Buffer
-	buf.Grow(len(kPrefixSpace) + len(kSeparator) + len(spaceID) + len(kSeparator) + len(groupName))
+	buf.Grow(len(kPrefixSpace) + len(kSeparator) + len(spaceID))
 
 	buf.WriteString(kPrefixSpace)
 	buf.WriteString(kSeparator)
 	buf.WriteString(spaceID)
-	buf.WriteString(kSeparator)
-	buf.WriteString(groupName)
-
-	return buf.Bytes()
-}
-
-func keySpaceCounter(spaceID string) []byte {
-	const groupName = "counter"
-	var buf bytes.Buffer
-	buf.Grow(len(kPrefixSpace) + len(kSeparator) + len(spaceID) + len(kSeparator) + len(groupName))
-
-	buf.WriteString(kPrefixSpace)
-	buf.WriteString(kSeparator)
-	buf.WriteString(spaceID)
-	buf.WriteString(kSeparator)
-	buf.WriteString(groupName)
 
 	return buf.Bytes()
 }
 
 type SpaceObj struct {
-	keyMeta     []byte
-	keyCounters []byte
+	key []byte
 
 	// Key parts
 	spaceID string
 
-	// Meta value parts
-	limitBytes uint64 // Space storage limit in bytes
-
-	// Counter value parts
+	// Value parts
+	limitBytes      uint64 // Space storage limit in bytes
 	totalUsageBytes uint64 // Total space usage in bytes
 	cidsCount       uint64 // Number of CIDs in space
 	filesCount      uint64 // Number of files in space
@@ -67,144 +45,99 @@ type SpaceObj struct {
 
 func NewSpaceObj(spaceID string) *SpaceObj {
 	return &SpaceObj{
-		keyMeta:     keySpaceMeta(spaceID),
-		keyCounters: keySpaceCounter(spaceID),
-		spaceID:     spaceID,
+		key:     keySpace(spaceID),
+		spaceID: spaceID,
 	}
 }
 
+func (s *SpaceObj) LimitBytes() uint64 {
+	return s.limitBytes
+}
+
+func (s *SpaceObj) TotalUsageBytes() uint64 {
+	return s.totalUsageBytes
+}
+
+func (s *SpaceObj) CidsCount() uint64 {
+	return s.cidsCount
+}
+
+func (s *SpaceObj) FilesCount() uint64 {
+	return s.filesCount
+}
+
+func (s *SpaceObj) SpaceUsageBytes() uint64 {
+	return s.spaceUsageBytes
+}
+
+func (s *SpaceObj) WithLimitBytes(limitBytes uint64) *SpaceObj {
+	s.limitBytes = limitBytes
+	return s
+}
+
+func (s *SpaceObj) WithTotalUsageBytes(totalUsageBytes uint64) *SpaceObj {
+	s.totalUsageBytes = totalUsageBytes
+	return s
+}
+
+func (s *SpaceObj) WithCidsCount(cidsCount uint64) *SpaceObj {
+	s.cidsCount = cidsCount
+	return s
+}
+
+func (s *SpaceObj) WithFilesCount(filesCount uint64) *SpaceObj {
+	s.filesCount = filesCount
+	return s
+}
+
+func (s *SpaceObj) WithSpaceUsageBytes(spaceUsageBytes uint64) *SpaceObj {
+	s.spaceUsageBytes = spaceUsageBytes
+	return s
+}
+
 //
-// Private methods - Meta operations
+// Private methods - Value operations
 //
 
-func (s *SpaceObj) marshalMetaValue() []byte {
-	buf := make([]byte, valueSpaceMetaSize)
+func (s *SpaceObj) marshalValue() []byte {
+	buf := make([]byte, valueSpaceSize)
 	binary.LittleEndian.PutUint64(buf[0:8], s.limitBytes)
+	binary.LittleEndian.PutUint64(buf[8:16], s.totalUsageBytes)
+	binary.LittleEndian.PutUint64(buf[16:24], s.cidsCount)
+	binary.LittleEndian.PutUint64(buf[24:32], s.filesCount)
+	binary.LittleEndian.PutUint64(buf[32:40], s.spaceUsageBytes)
 	return buf
 }
 
-func (s *SpaceObj) unmarshalMetaValue(val []byte) error {
-	if len(val) < valueSpaceMetaSize {
-		return fmt.Errorf("meta value too short, expected at least %d bytes, got %d", valueSpaceMetaSize, len(val))
+func (s *SpaceObj) unmarshalValue(val []byte) error {
+	if len(val) < valueSpaceSize {
+		return fmt.Errorf("value too short, expected at least %d bytes, got %d", valueSpaceSize, len(val))
 	}
 	s.limitBytes = binary.LittleEndian.Uint64(val[0:8])
+	s.totalUsageBytes = binary.LittleEndian.Uint64(val[8:16])
+	s.cidsCount = binary.LittleEndian.Uint64(val[16:24])
+	s.filesCount = binary.LittleEndian.Uint64(val[24:32])
+	s.spaceUsageBytes = binary.LittleEndian.Uint64(val[32:40])
 	return nil
 }
-
-func (s *SpaceObj) writeMeta(txn *badger.Txn) error {
-	if err := txn.Set(s.keyMeta, s.marshalMetaValue()); err != nil {
-		return fmt.Errorf("failed to write meta: %w", err)
-	}
-	return nil
-}
-
-func (s *SpaceObj) existsMeta(txn *badger.Txn) (bool, error) {
-	_, err := txn.Get(s.keyMeta)
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to get meta item: %w", err)
-	}
-	return true, nil
-}
-
-func (s *SpaceObj) populateMeta(txn *badger.Txn) error {
-	metaItem, err := txn.Get(s.keyMeta)
-	if err != nil {
-		return fmt.Errorf("failed to get meta item: %w", err)
-	}
-
-	if err := metaItem.Value(func(val []byte) error {
-		return s.unmarshalMetaValue(val)
-	}); err != nil {
-		return fmt.Errorf("failed to unmarshal meta value: %w", err)
-	}
-	return nil
-}
-
-//
-// Private methods - Counter operations
-//
-
-func (s *SpaceObj) marshalCounterValue() []byte {
-	buf := make([]byte, valueSpaceCounterSize)
-	binary.LittleEndian.PutUint64(buf[0:8], s.totalUsageBytes)
-	binary.LittleEndian.PutUint64(buf[8:16], s.cidsCount)
-	binary.LittleEndian.PutUint64(buf[16:24], s.filesCount)
-	binary.LittleEndian.PutUint64(buf[24:32], s.spaceUsageBytes)
-	return buf
-}
-
-func (s *SpaceObj) unmarshalCounterValue(val []byte) error {
-	if len(val) < valueSpaceCounterSize {
-		return fmt.Errorf("counter value too short, expected at least %d bytes, got %d", valueSpaceCounterSize, len(val))
-	}
-	s.totalUsageBytes = binary.LittleEndian.Uint64(val[0:8])
-	s.cidsCount = binary.LittleEndian.Uint64(val[8:16])
-	s.filesCount = binary.LittleEndian.Uint64(val[16:24])
-	s.spaceUsageBytes = binary.LittleEndian.Uint64(val[24:32])
-	return nil
-}
-
-func (s *SpaceObj) writeCounter(txn *badger.Txn) error {
-	if err := txn.Set(s.keyCounters, s.marshalCounterValue()); err != nil {
-		return fmt.Errorf("failed to write counters: %w", err)
-	}
-	return nil
-}
-
-func (s *SpaceObj) existsCounter(txn *badger.Txn) (bool, error) {
-	_, err := txn.Get(s.keyCounters)
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to get counter item: %w", err)
-	}
-	return true, nil
-}
-
-func (s *SpaceObj) populateCounter(txn *badger.Txn) error {
-	counterItem, err := txn.Get(s.keyCounters)
-	if err != nil {
-		return fmt.Errorf("failed to get counter item: %w", err)
-	}
-
-	if err := counterItem.Value(func(val []byte) error {
-		return s.unmarshalCounterValue(val)
-	}); err != nil {
-		return fmt.Errorf("failed to unmarshal counter value: %w", err)
-	}
-	return nil
-}
-
-//
-// Private methods - Combined operations
-//
 
 func (s *SpaceObj) write(txn *badger.Txn) error {
-	if err := s.writeMeta(txn); err != nil {
-		return err
+	if err := txn.Set(s.key, s.marshalValue()); err != nil {
+		return fmt.Errorf("failed to write value: %w", err)
 	}
-	return s.writeCounter(txn)
-}
-
-func (s *SpaceObj) exists(txn *badger.Txn) (bool, error) {
-	existsMeta, err := s.existsMeta(txn)
-	if err != nil {
-		return false, err
-	}
-	existsCounter, err := s.existsCounter(txn)
-	if err != nil {
-		return false, err
-	}
-	return existsMeta && existsCounter, nil
+	return nil
 }
 
 func (s *SpaceObj) populateValue(txn *badger.Txn) error {
-	if err := s.populateMeta(txn); err != nil {
-		return err
+	item, err := txn.Get(s.key)
+	if err != nil {
+		return fmt.Errorf("failed to get item: %w", err)
 	}
-	return s.populateCounter(txn)
+
+	if err := item.Value(func(val []byte) error {
+		return s.unmarshalValue(val)
+	}); err != nil {
+		return fmt.Errorf("failed to unmarshal value: %w", err)
+	}
+	return nil
 }

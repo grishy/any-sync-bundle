@@ -126,6 +126,7 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		zap.Int("dataSize", len(req.Data)),
 	)
 
+	// TODO: Check permissions inside transaction
 	// Verify that we have access to store and enough space
 	if ok, err := r.canWrite(ctx, req.SpaceId); err != nil {
 		return nil, fmt.Errorf("failed to check write access: %w", err)
