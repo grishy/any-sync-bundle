@@ -81,9 +81,6 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 		zap.Bool("wait", req.Wait),
 	)
 
-	// TODO: Check permissions to read blocks?
-	// Related issue: https://github.com/anyproto/any-sync-filenode/issues/140
-
 	c, err := cid.Cast(req.Cid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cast CID='%s': %w", string(req.Cid), err)
@@ -185,6 +182,9 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("cids", cidsToStrings(request.Cids...)),
 	)
+
+	// TODO: Check permissions?
+	// Related issue: https://github.com/anyproto/any-sync-filenode/issues/140
 
 	availability := make([]*fileproto.BlockAvailability, 0, len(request.Cids))
 	seen := make(map[cid.Cid]struct{}, len(request.Cids))

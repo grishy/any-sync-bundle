@@ -42,14 +42,14 @@ type StoreService interface {
 	// TxUpdate executes a read-write function within a transaction.
 	TxUpdate(f func(txn *badger.Txn) error) error
 
-	// GetBlock retrieves a block by CID.
-	GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
-
 	// HadCID checks if the given CID exists in the store.
 	HadCID(txn *badger.Txn, k cid.Cid) (bool, error)
 
 	// HasCIDInSpace checks if the given CIDs exist in the store.
 	HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error)
+
+	// GetBlock retrieves a block by CID.
+	GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
 
 	// PushBlock stores a block.
 	PushBlock(txn *badger.Txn, spaceId string, block blocks.Block) error

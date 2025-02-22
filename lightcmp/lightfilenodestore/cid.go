@@ -84,7 +84,7 @@ func (c *CidObj) marshalValue() []byte {
 
 func (c *CidObj) unmarshalValue(val []byte) error {
 	if len(val) < valueCidSize {
-		return fmt.Errorf("value too short, expected at least 16 bytes, got %d", len(val))
+		return fmt.Errorf("value too short, expected at least %d bytes, got %d", valueCidSize, len(val))
 	}
 	c.refCount = binary.LittleEndian.Uint32(val[0:4])
 	c.sizeByte = binary.LittleEndian.Uint32(val[4:8])
@@ -102,7 +102,7 @@ func (c *CidObj) exists(txn *badger.Txn) (bool, error) {
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return false, nil
 		}
-		
+
 		return false, fmt.Errorf("failed to get item: %w", err)
 	}
 
