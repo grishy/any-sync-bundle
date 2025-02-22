@@ -164,6 +164,9 @@ var _ StoreService = &StoreServiceMock{}
 //			GetBlockFunc: func(txn *badger.Txn, k cid.Cid) (*BlockObj, error) {
 //				panic("mock out the GetBlock method")
 //			},
+//			HadCIDFunc: func(txn *badger.Txn, k cid.Cid) (bool, error) {
+//				panic("mock out the HadCID method")
+//			},
 //			HasCIDInSpaceFunc: func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
 //				panic("mock out the HasCIDInSpace method")
 //			},
@@ -192,6 +195,9 @@ type StoreServiceMock struct {
 	// GetBlockFunc mocks the GetBlock method.
 	GetBlockFunc func(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
 
+	// HadCIDFunc mocks the HadCID method.
+	HadCIDFunc func(txn *badger.Txn, k cid.Cid) (bool, error)
+
 	// HasCIDInSpaceFunc mocks the HasCIDInSpace method.
 	HasCIDInSpaceFunc func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error)
 
@@ -214,6 +220,13 @@ type StoreServiceMock struct {
 	calls struct {
 		// GetBlock holds details about calls to the GetBlock method.
 		GetBlock []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// K is the k argument value.
+			K cid.Cid
+		}
+		// HadCID holds details about calls to the HadCID method.
+		HadCID []struct {
 			// Txn is the txn argument value.
 			Txn *badger.Txn
 			// K is the k argument value.
@@ -257,6 +270,7 @@ type StoreServiceMock struct {
 		}
 	}
 	lockGetBlock      sync.RWMutex
+	lockHadCID        sync.RWMutex
 	lockHasCIDInSpace sync.RWMutex
 	lockInit          sync.RWMutex
 	lockName          sync.RWMutex
@@ -298,6 +312,42 @@ func (mock *StoreServiceMock) GetBlockCalls() []struct {
 	mock.lockGetBlock.RLock()
 	calls = mock.calls.GetBlock
 	mock.lockGetBlock.RUnlock()
+	return calls
+}
+
+// HadCID calls HadCIDFunc.
+func (mock *StoreServiceMock) HadCID(txn *badger.Txn, k cid.Cid) (bool, error) {
+	if mock.HadCIDFunc == nil {
+		panic("StoreServiceMock.HadCIDFunc: method is nil but StoreService.HadCID was just called")
+	}
+	callInfo := struct {
+		Txn *badger.Txn
+		K   cid.Cid
+	}{
+		Txn: txn,
+		K:   k,
+	}
+	mock.lockHadCID.Lock()
+	mock.calls.HadCID = append(mock.calls.HadCID, callInfo)
+	mock.lockHadCID.Unlock()
+	return mock.HadCIDFunc(txn, k)
+}
+
+// HadCIDCalls gets all the calls that were made to HadCID.
+// Check the length with:
+//
+//	len(mockedStoreService.HadCIDCalls())
+func (mock *StoreServiceMock) HadCIDCalls() []struct {
+	Txn *badger.Txn
+	K   cid.Cid
+} {
+	var calls []struct {
+		Txn *badger.Txn
+		K   cid.Cid
+	}
+	mock.lockHadCID.RLock()
+	calls = mock.calls.HadCID
+	mock.lockHadCID.RUnlock()
 	return calls
 }
 

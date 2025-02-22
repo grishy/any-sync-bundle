@@ -45,7 +45,10 @@ type StoreService interface {
 	// GetBlock retrieves a block by CID.
 	GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
 
-	// CheckCID checks if the given CIDs exist in the store.
+	// HadCID checks if the given CID exists in the store.
+	HadCID(txn *badger.Txn, k cid.Cid) (bool, error)
+
+	// HasCIDInSpace checks if the given CIDs exist in the store.
 	HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error)
 
 	// PushBlock stores a block.

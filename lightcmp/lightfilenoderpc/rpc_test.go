@@ -2,6 +2,7 @@ package lightfilenoderpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -84,8 +85,6 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 		)
 
 		fx.storeService.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) (*lightfilenodestore.BlockObj, error) {
-			t.Logf("GetBlock attempt %d", attempts)
-
 			attempts++
 			if attempts < 3 {
 				return nil, fileprotoerr.ErrCIDNotFound
@@ -132,6 +131,24 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 		require.Contains(t, err.Error(), "context deadline exceeded")
 		require.Nil(t, resp)
 	})
+
+	t.Run("invalid cid", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+		)
+
+		resp, err := fx.rpcService.BlockGet(ctx, &fileproto.BlockGetRequest{
+			SpaceId: storeKey.SpaceId,
+			Cid:     []byte("invalid"),
+			Wait:    true,
+		})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to cast CID")
+		require.Nil(t, resp)
+	})
 }
 
 func TestLightFileNodeRpc_BlockPush(t *testing.T) {
@@ -165,6 +182,29 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 	})
 
 	t.Run("invalid cid", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			fileId        = testutil.NewRandCid().String()
+			b             = testutil.NewRandBlock(1024)
+		)
+
+		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+
+		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
+			SpaceId: storeKey.SpaceId,
+			FileId:  fileId,
+			Cid:     []byte("invalid"),
+			Data:    b.RawData(),
+		})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to cast CID")
+		require.Nil(t, resp)
+	})
+
+	t.Run("invalid cid checksum to data", func(t *testing.T) {
 		fx := newFixture(t)
 		defer fx.Finish(t)
 		var (
@@ -236,6 +276,155 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to push block: store error")
 		require.Nil(t, resp)
+	})
+}
+
+func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			bs            = testutil.NewRandBlocks(3)
+		)
+
+		fx.storeService.HasCIDInSpaceFunc = func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
+			require.Equal(t, storeKey.SpaceId, spaceId)
+			if k.Equals(bs[0].Cid()) {
+				return true, nil
+			}
+			return false, nil
+		}
+
+		fx.storeService.HadCIDFunc = func(txn *badger.Txn, k cid.Cid) (bool, error) {
+			if k.Equals(bs[1].Cid()) {
+				return true, nil
+			}
+			return false, nil
+		}
+
+		cids := make([][]byte, len(bs))
+		for i, b := range bs {
+			cids[i] = b.Cid().Bytes()
+		}
+
+		resp, err := fx.rpcService.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+			SpaceId: storeKey.SpaceId,
+			Cids:    cids,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Len(t, resp.BlocksAvailability, len(bs))
+
+		// First block exists in space
+		require.Equal(t, fileproto.AvailabilityStatus_ExistsInSpace, resp.BlocksAvailability[0].Status)
+		require.Equal(t, bs[0].Cid().Bytes(), resp.BlocksAvailability[0].Cid)
+
+		// Second block exists but not in space
+		require.Equal(t, fileproto.AvailabilityStatus_Exists, resp.BlocksAvailability[1].Status)
+		require.Equal(t, bs[1].Cid().Bytes(), resp.BlocksAvailability[1].Cid)
+
+		// Third block does not exist
+		require.Equal(t, fileproto.AvailabilityStatus_NotExists, resp.BlocksAvailability[2].Status)
+		require.Equal(t, bs[2].Cid().Bytes(), resp.BlocksAvailability[2].Cid)
+	})
+
+	t.Run("invalid cid", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		ctx, storeKey := newRandKey()
+
+		resp, err := fx.rpcService.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+			SpaceId: storeKey.SpaceId,
+			Cids:    [][]byte{[]byte("invalid")},
+		})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to cast CID")
+		require.Nil(t, resp)
+	})
+
+	t.Run("store error in space", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			b             = testutil.NewRandBlock(1024)
+		)
+
+		storeErr := errors.New("HasCIDInSpaceFunc: store error")
+		fx.storeService.HasCIDInSpaceFunc = func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
+			return false, storeErr
+		}
+
+		fx.storeService.HadCIDFunc = func(txn *badger.Txn, k cid.Cid) (bool, error) {
+			return false, nil
+		}
+
+		resp, err := fx.rpcService.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+			SpaceId: storeKey.SpaceId,
+			Cids:    [][]byte{b.Cid().Bytes()},
+		})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, storeErr)
+		require.Nil(t, resp)
+	})
+
+	t.Run("store error not in space", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		var (
+			ctx, storeKey = newRandKey()
+			b             = testutil.NewRandBlock(1024)
+		)
+
+		fx.storeService.HasCIDInSpaceFunc = func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
+			return false, nil
+		}
+
+		storeErr := errors.New("HadCIDFunc: store error")
+		fx.storeService.HadCIDFunc = func(txn *badger.Txn, k cid.Cid) (bool, error) {
+			return false, storeErr
+		}
+
+		resp, err := fx.rpcService.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+			SpaceId: storeKey.SpaceId,
+			Cids:    [][]byte{b.Cid().Bytes()},
+		})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, storeErr)
+		require.Nil(t, resp)
+	})
+
+	t.Run("skip duplicate cids", func(t *testing.T) {
+		fx := newFixture(t)
+		defer fx.Finish(t)
+		ctx, storeKey := newRandKey()
+		b := testutil.NewRandBlock(1024)
+
+		// Mock store service to return exists for the block
+		fx.storeService.HasCIDInSpaceFunc = func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
+			return true, nil
+		}
+
+		fx.storeService.HadCIDFunc = func(txn *badger.Txn, k cid.Cid) (bool, error) {
+			return true, nil
+		}
+
+		resp, err := fx.rpcService.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+			SpaceId: storeKey.SpaceId,
+			// Send same CID twice
+			Cids: [][]byte{b.Cid().Bytes(), b.Cid().Bytes()},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Len(t, resp.BlocksAvailability, 1) // Should only return one result
+		require.Equal(t, fileproto.AvailabilityStatus_ExistsInSpace, resp.BlocksAvailability[0].Status)
+		require.Equal(t, b.Cid().Bytes(), resp.BlocksAvailability[0].Cid)
 	})
 }
 

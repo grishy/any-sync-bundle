@@ -86,7 +86,7 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 
 	c, err := cid.Cast(req.Cid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to cast CID: %w", err)
+		return nil, fmt.Errorf("failed to cast CID='%s': %w", string(req.Cid), err)
 	}
 
 	var blockObj *lightfilenodestore.BlockObj
@@ -151,6 +151,7 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		return nil, fileprotoerr.ErrQuerySizeExceeded
 	}
 
+	// Check that the block data checksum matches the provided checksum as implemented in debug mode of blocks pkg.
 	chkc, err := c.Prefix().Sum(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate block data checksum: %w", err)
@@ -185,18 +186,43 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 		zap.Strings("cids", cidsToStrings(request.Cids...)),
 	)
 
-	cids := convertCids(request.Cids)
-	_ = cids
+	availability := make([]*fileproto.BlockAvailability, 0, len(request.Cids))
+	seen := make(map[cid.Cid]struct{}, len(request.Cids))
 
-	// TODO: Implement logic to check block availability in the datastore
+	errTx := r.store.TxView(func(txn *badger.Txn) error {
+		for _, rawCid := range request.Cids {
+			c, err := cid.Cast(rawCid)
+			if err != nil {
+				return fmt.Errorf("failed to cast CID='%s': %w", string(rawCid), err)
+			}
+
+			// Skip duplicates
+			if _, exists := seen[c]; exists {
+				continue
+			}
+			seen[c] = struct{}{}
+
+			availabilityStatus, err := r.checkCIDFn(txn, request.SpaceId, c)
+			if err != nil {
+				return fmt.Errorf("failed to check CID='%s': %w", c.String(), err)
+			}
+
+			status := &fileproto.BlockAvailability{
+				Cid:    rawCid,
+				Status: availabilityStatus,
+			}
+
+			availability = append(availability, status)
+		}
+		return nil
+	})
+
+	if errTx != nil {
+		return nil, fmt.Errorf("transaction view failed: %w", errTx)
+	}
 
 	return &fileproto.BlocksCheckResponse{
-		BlocksAvailability: []*fileproto.BlockAvailability{
-			{
-				Cid:    request.Cids[0],
-				Status: fileproto.AvailabilityStatus_NotExists,
-			},
-		},
+		BlocksAvailability: availability,
 	}, nil
 }
 
