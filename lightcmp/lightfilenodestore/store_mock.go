@@ -198,6 +198,12 @@ var _ StoreService = &StoreServiceMock{}
 //
 //		// make and configure a mocked StoreService
 //		mockedStoreService := &StoreServiceMock{
+//			CreateLinkFileBlockFunc: func(txn *badger.Txn, spaceId string, fileId string, blk blocks.Block) error {
+//				panic("mock out the CreateLinkFileBlock method")
+//			},
+//			CreateLinkGroupSpaceFunc: func(txn *badger.Txn, groupId string, spaceId string) error {
+//				panic("mock out the CreateLinkGroupSpace method")
+//			},
 //			GetBlockFunc: func(txn *badger.Txn, k cid.Cid) (*BlockObj, error) {
 //				panic("mock out the GetBlock method")
 //			},
@@ -238,6 +244,12 @@ var _ StoreService = &StoreServiceMock{}
 //
 //	}
 type StoreServiceMock struct {
+	// CreateLinkFileBlockFunc mocks the CreateLinkFileBlock method.
+	CreateLinkFileBlockFunc func(txn *badger.Txn, spaceId string, fileId string, blk blocks.Block) error
+
+	// CreateLinkGroupSpaceFunc mocks the CreateLinkGroupSpace method.
+	CreateLinkGroupSpaceFunc func(txn *badger.Txn, groupId string, spaceId string) error
+
 	// GetBlockFunc mocks the GetBlock method.
 	GetBlockFunc func(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
 
@@ -273,6 +285,26 @@ type StoreServiceMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// CreateLinkFileBlock holds details about calls to the CreateLinkFileBlock method.
+		CreateLinkFileBlock []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// SpaceId is the spaceId argument value.
+			SpaceId string
+			// FileId is the fileId argument value.
+			FileId string
+			// Blk is the blk argument value.
+			Blk blocks.Block
+		}
+		// CreateLinkGroupSpace holds details about calls to the CreateLinkGroupSpace method.
+		CreateLinkGroupSpace []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// GroupId is the groupId argument value.
+			GroupId string
+			// SpaceId is the spaceId argument value.
+			SpaceId string
+		}
 		// GetBlock holds details about calls to the GetBlock method.
 		GetBlock []struct {
 			// Txn is the txn argument value.
@@ -347,17 +379,103 @@ type StoreServiceMock struct {
 			F func(txn *badger.Txn) error
 		}
 	}
-	lockGetBlock      sync.RWMutex
-	lockGetFile       sync.RWMutex
-	lockGetGroup      sync.RWMutex
-	lockGetSpace      sync.RWMutex
-	lockHadCID        sync.RWMutex
-	lockHasCIDInSpace sync.RWMutex
-	lockInit          sync.RWMutex
-	lockName          sync.RWMutex
-	lockPushBlock     sync.RWMutex
-	lockTxUpdate      sync.RWMutex
-	lockTxView        sync.RWMutex
+	lockCreateLinkFileBlock  sync.RWMutex
+	lockCreateLinkGroupSpace sync.RWMutex
+	lockGetBlock             sync.RWMutex
+	lockGetFile              sync.RWMutex
+	lockGetGroup             sync.RWMutex
+	lockGetSpace             sync.RWMutex
+	lockHadCID               sync.RWMutex
+	lockHasCIDInSpace        sync.RWMutex
+	lockInit                 sync.RWMutex
+	lockName                 sync.RWMutex
+	lockPushBlock            sync.RWMutex
+	lockTxUpdate             sync.RWMutex
+	lockTxView               sync.RWMutex
+}
+
+// CreateLinkFileBlock calls CreateLinkFileBlockFunc.
+func (mock *StoreServiceMock) CreateLinkFileBlock(txn *badger.Txn, spaceId string, fileId string, blk blocks.Block) error {
+	if mock.CreateLinkFileBlockFunc == nil {
+		panic("StoreServiceMock.CreateLinkFileBlockFunc: method is nil but StoreService.CreateLinkFileBlock was just called")
+	}
+	callInfo := struct {
+		Txn     *badger.Txn
+		SpaceId string
+		FileId  string
+		Blk     blocks.Block
+	}{
+		Txn:     txn,
+		SpaceId: spaceId,
+		FileId:  fileId,
+		Blk:     blk,
+	}
+	mock.lockCreateLinkFileBlock.Lock()
+	mock.calls.CreateLinkFileBlock = append(mock.calls.CreateLinkFileBlock, callInfo)
+	mock.lockCreateLinkFileBlock.Unlock()
+	return mock.CreateLinkFileBlockFunc(txn, spaceId, fileId, blk)
+}
+
+// CreateLinkFileBlockCalls gets all the calls that were made to CreateLinkFileBlock.
+// Check the length with:
+//
+//	len(mockedStoreService.CreateLinkFileBlockCalls())
+func (mock *StoreServiceMock) CreateLinkFileBlockCalls() []struct {
+	Txn     *badger.Txn
+	SpaceId string
+	FileId  string
+	Blk     blocks.Block
+} {
+	var calls []struct {
+		Txn     *badger.Txn
+		SpaceId string
+		FileId  string
+		Blk     blocks.Block
+	}
+	mock.lockCreateLinkFileBlock.RLock()
+	calls = mock.calls.CreateLinkFileBlock
+	mock.lockCreateLinkFileBlock.RUnlock()
+	return calls
+}
+
+// CreateLinkGroupSpace calls CreateLinkGroupSpaceFunc.
+func (mock *StoreServiceMock) CreateLinkGroupSpace(txn *badger.Txn, groupId string, spaceId string) error {
+	if mock.CreateLinkGroupSpaceFunc == nil {
+		panic("StoreServiceMock.CreateLinkGroupSpaceFunc: method is nil but StoreService.CreateLinkGroupSpace was just called")
+	}
+	callInfo := struct {
+		Txn     *badger.Txn
+		GroupId string
+		SpaceId string
+	}{
+		Txn:     txn,
+		GroupId: groupId,
+		SpaceId: spaceId,
+	}
+	mock.lockCreateLinkGroupSpace.Lock()
+	mock.calls.CreateLinkGroupSpace = append(mock.calls.CreateLinkGroupSpace, callInfo)
+	mock.lockCreateLinkGroupSpace.Unlock()
+	return mock.CreateLinkGroupSpaceFunc(txn, groupId, spaceId)
+}
+
+// CreateLinkGroupSpaceCalls gets all the calls that were made to CreateLinkGroupSpace.
+// Check the length with:
+//
+//	len(mockedStoreService.CreateLinkGroupSpaceCalls())
+func (mock *StoreServiceMock) CreateLinkGroupSpaceCalls() []struct {
+	Txn     *badger.Txn
+	GroupId string
+	SpaceId string
+} {
+	var calls []struct {
+		Txn     *badger.Txn
+		GroupId string
+		SpaceId string
+	}
+	mock.lockCreateLinkGroupSpace.RLock()
+	calls = mock.calls.CreateLinkGroupSpace
+	mock.lockCreateLinkGroupSpace.RUnlock()
+	return calls
 }
 
 // GetBlock calls GetBlockFunc.

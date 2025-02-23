@@ -396,6 +396,62 @@ func TestLightFileNodeStore_GetFile(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLightFileNodeStore_CreateLinks(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+	fileId := testutil.NewRandSpaceId()
+	groupId := testutil.NewRandSpaceId()
+	blk := testutil.NewRandBlock(1024)
+
+	// Initially links should not exist
+	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		// Check file-block link
+		linkFB := NewLinkFileBlockObj(spaceId, fileId, blk.Cid())
+		exists, err := linkFB.exists(txn)
+		require.NoError(t, err)
+		require.False(t, exists)
+
+		// Check group-space link
+		linkGS := NewLinkGroupSpaceObj(groupId, spaceId)
+		exists, err = linkGS.exists(txn)
+		require.NoError(t, err)
+		require.False(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Create file-block link
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.CreateLinkFileBlock(txn, spaceId, fileId, blk)
+	})
+	require.NoError(t, err)
+
+	// Create group-space link
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.CreateLinkGroupSpace(txn, groupId, spaceId)
+	})
+	require.NoError(t, err)
+
+	// Verify links exist
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		// Check file-block link
+		linkFB := NewLinkFileBlockObj(spaceId, fileId, blk.Cid())
+		exists, err := linkFB.exists(txn)
+		require.NoError(t, err)
+		require.True(t, exists)
+
+		// Check group-space link
+		linkGS := NewLinkGroupSpaceObj(groupId, spaceId)
+		exists, err = linkGS.exists(txn)
+		require.NoError(t, err)
+		require.True(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 //
 // Fixtures
 //

@@ -65,6 +65,12 @@ type StoreService interface {
 
 	// GetFile retrieves a file by ID.
 	GetFile(txn *badger.Txn, spaceId, fileId string) (*FileObj, error)
+
+	// CreateLinkFileBlock creates a link between a file and a block.
+	CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, blk blocks.Block) error
+
+	// CreateLinkGroupSpace creates a link between a group and a space.
+	CreateLinkGroupSpace(txn *badger.Txn, groupId, spaceId string) error
 }
 
 // lightFileNodeStore implements a block store using BadgerDB.
@@ -307,4 +313,33 @@ func (s *lightFileNodeStore) GetFile(txn *badger.Txn, spaceId, fileId string) (*
 	}
 
 	return fileObj, nil
+}
+
+func (s *lightFileNodeStore) CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, blk blocks.Block) error {
+	log.Debug("CreateLinkFileBlock",
+		zap.String("spaceId", spaceId),
+		zap.String("fileId", fileId),
+		zap.String("cid", blk.Cid().String()),
+	)
+
+	linkObj := NewLinkFileBlockObj(spaceId, fileId, blk.Cid())
+	if err := linkObj.write(txn); err != nil {
+		return fmt.Errorf("failed to create link file block: %w", err)
+	}
+
+	return nil
+}
+
+func (s *lightFileNodeStore) CreateLinkGroupSpace(txn *badger.Txn, groupId, spaceId string) error {
+	log.Debug("CreateLinkGroupSpace",
+		zap.String("groupId", groupId),
+		zap.String("spaceId", spaceId),
+	)
+
+	linkObj := NewLinkGroupSpaceObj(groupId, spaceId)
+	if err := linkObj.write(txn); err != nil {
+		return fmt.Errorf("failed to create link group space: %w", err)
+	}
+
+	return nil
 }
