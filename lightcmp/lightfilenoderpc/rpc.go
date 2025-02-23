@@ -126,14 +126,6 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		zap.Int("dataSize", len(req.Data)),
 	)
 
-	// TODO: Check permissions inside transaction
-	// Verify that we have access to store and enough space
-	if ok, err := r.canWrite(ctx, req.SpaceId); err != nil {
-		return nil, fmt.Errorf("failed to check write access: %w", err)
-	} else if !ok {
-		return nil, err
-	}
-
 	// Check that CID is valid for the data
 	c, err := cid.Cast(req.Cid)
 	if err != nil {
@@ -161,8 +153,13 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 
 	// Finally, save the block and update all necessary counters
 	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
-		if err := r.store.PushBlock(txn, req.SpaceId, b); err != nil {
-			return fmt.Errorf("failed to push block: %w", err)
+		// Verify that we have access to store and enough space
+		if errPerm := r.canWriteWithLimit(ctx, txn, req.SpaceId); errPerm != nil {
+			return errPerm
+		}
+
+		if errPush := r.store.PushBlock(txn, req.SpaceId, b); errPush != nil {
+			return fmt.Errorf("failed to push block: %w", errPush)
 		}
 
 		// And connect the block to the file
@@ -172,10 +169,10 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	})
 
 	if errTx != nil {
-		return nil, fmt.Errorf("transaction view failed: %w", errTx)
+		return nil, errTx
 	}
 
-	return &fileproto.Ok{}, errTx
+	return &fileproto.Ok{}, nil
 }
 
 func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
@@ -219,7 +216,7 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 	})
 
 	if errTx != nil {
-		return nil, fmt.Errorf("transaction view failed: %w", errTx)
+		return nil, errTx
 	}
 
 	return &fileproto.BlocksCheckResponse{

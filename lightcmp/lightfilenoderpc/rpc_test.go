@@ -200,8 +200,6 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
-
 		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
 			spaceObj := lightfilenodestore.NewSpaceObj(storeKey.SpaceId)
 			return spaceObj, nil
@@ -235,8 +233,6 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 			b2            = testutil.NewRandBlock(10)
 		)
-
-		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
 		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
 			spaceObj := lightfilenodestore.NewSpaceObj(storeKey.SpaceId)
@@ -272,8 +268,6 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			fileId   = testutil.NewRandCid().String()
 			b        = testutil.NewRandBlock(3 << 20)
 		)
-
-		fx.aclService.EXPECT().OwnerPubKey(ctx, spaceId).Return(mustPubKey(ctx), nil)
 
 		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
 			spaceObj := lightfilenodestore.NewSpaceObj(spaceId)
