@@ -9,9 +9,7 @@ import (
 )
 
 const (
-	kPrefixFile = kPrefixFileNode + kSeparator + "f"
-
-	// TODO: Do I need padding here?
+	kPrefixFile   = kPrefixFileNode + kSeparator + "f"
 	valueFileSize = 12 // 8 bytes for usageBytes + 4 bytes for cidsCount
 )
 

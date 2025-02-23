@@ -2,6 +2,7 @@ package lightfilenodestore
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
@@ -41,7 +42,7 @@ func NewLinkGroupSpaceObj(groupID, spaceID string) *LinkGroupSpaceObj {
 func (l *LinkGroupSpaceObj) exists(txn *badger.Txn) (bool, error) {
 	_, err := txn.Get(l.key)
 	if err != nil {
-		if err == badger.ErrKeyNotFound {
+		if errors.Is(err, badger.ErrKeyNotFound) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to get item: %w", err)

@@ -2,13 +2,14 @@ package lightfilenodestore
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/ipfs/go-cid"
 )
 
-const kPrefixLinkFileBlock = kPrefixFileNode + kSeparator + "lb"
+const kPrefixLinkFileBlock = kPrefixFileNode + kSeparator + "fb"
 
 func keyLinkFileBlock(spaceId string, fileId string, k cid.Cid) []byte {
 	var buf bytes.Buffer
@@ -46,7 +47,7 @@ func NewLinkFileBlockObj(spaceID, fileID string, k cid.Cid) *LinkFileBlockObj {
 func (l *LinkFileBlockObj) exists(txn *badger.Txn) (bool, error) {
 	_, err := txn.Get(l.key)
 	if err != nil {
-		if err == badger.ErrKeyNotFound {
+		if errors.Is(err, badger.ErrKeyNotFound) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to get item: %w", err)
