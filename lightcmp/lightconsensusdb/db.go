@@ -153,7 +153,12 @@ func (d *lightConsensusDB) AddLog(ctx context.Context, l consensus.Log) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
-	defer tx.Rollback()
+	defer func(tx *sql.Tx) {
+		errRb := tx.Rollback()
+		if errRb != nil {
+			log.Warn("rollback transaction failed", zap.Error(errRb))
+		}
+	}(tx)
 
 	// Check if log already exists
 	var exists bool
@@ -208,7 +213,12 @@ func (d *lightConsensusDB) DeleteLog(ctx context.Context, logId string) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
-	defer tx.Rollback()
+	defer func(tx *sql.Tx) {
+		errRb := tx.Rollback()
+		if errRb != nil {
+			log.Warn("rollback transaction failed", zap.Error(errRb))
+		}
+	}(tx)
 
 	// Check if log exists before deletion
 	var exists bool
@@ -247,7 +257,12 @@ func (d *lightConsensusDB) AddRecord(ctx context.Context, logId string, record c
 	if err != nil {
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
-	defer tx.Rollback()
+	defer func(tx *sql.Tx) {
+		errRb := tx.Rollback()
+		if errRb != nil {
+			log.Warn("rollback transaction failed", zap.Error(errRb))
+		}
+	}(tx)
 
 	// Check if log exists
 	var exists bool
@@ -314,7 +329,12 @@ func (d *lightConsensusDB) FetchLog(ctx context.Context, logId string) (consensu
 	if err != nil {
 		return consensus.Log{}, fmt.Errorf("begin transaction failed: %w", err)
 	}
-	defer tx.Rollback()
+	defer func(tx *sql.Tx) {
+		errRb := tx.Rollback()
+		if errRb != nil {
+			log.Warn("rollback transaction failed", zap.Error(errRb))
+		}
+	}(tx)
 
 	// First check if log exists and get its details
 	var l consensus.Log
