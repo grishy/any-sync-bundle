@@ -321,11 +321,18 @@ func (r *lightFileNodeRpc) FilesInfo(ctx context.Context, request *fileproto.Fil
 			return errPerm
 		}
 
-		// TODO: Implement logic to bind blocks to the file in the datastore
+		for _, fileID := range request.FileIds {
+			fileObj, errGetFile := r.store.GetFile(txn, request.SpaceId, fileID)
+			if errGetFile != nil {
+				return fmt.Errorf("failed to get file: %w", errGetFile)
+			}
 
-		// Store usage and CID count in the same key
-		// Because we always update both values together
-		// Key format: f:<spaceId>.<fileId> -> [<usageBytes> uint64][<cidsCount> uint32}
+			infoResp.FilesInfo = append(infoResp.FilesInfo, &fileproto.FileInfo{
+				FileId:     fileID,
+				UsageBytes: fileObj.UsageBytes(),
+				CidsCount:  fileObj.CidsCount(),
+			})
+		}
 
 		return nil
 	})
@@ -347,11 +354,12 @@ func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 			return err
 		}
 
-		// TODO: Temporary test data - replace with actual file listing
+		// TODO: Read all files in space
 		files = make([]string, 10)
 		for i := 0; i < 10; i++ {
 			files[i] = "test"
 		}
+
 		return nil
 	})
 	if errTx != nil {
