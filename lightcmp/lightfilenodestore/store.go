@@ -62,6 +62,9 @@ type StoreService interface {
 
 	// GetGroup retrieves a group by ID.
 	GetGroup(txn *badger.Txn, groupId string) (*GroupObj, error)
+
+	// GetFile retrieves a file by ID.
+	GetFile(txn *badger.Txn, spaceId, fileId string) (*FileObj, error)
 }
 
 // lightFileNodeStore implements a block store using BadgerDB.
@@ -286,4 +289,22 @@ func (s *lightFileNodeStore) GetGroup(txn *badger.Txn, groupId string) (*GroupOb
 	}
 
 	return groupObj, nil
+}
+
+func (s *lightFileNodeStore) GetFile(txn *badger.Txn, spaceId, fileId string) (*FileObj, error) {
+	log.Debug("GetFile",
+		zap.String("fileId", fileId),
+	)
+
+	fileObj := NewFileObj(spaceId, fileId)
+	if err := fileObj.populateValue(txn); err != nil {
+		// We don't return error if file not found, just return empty file object
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return fileObj, nil
+		}
+
+		return nil, fmt.Errorf("failed to get file: %w", err)
+	}
+
+	return fileObj, nil
 }

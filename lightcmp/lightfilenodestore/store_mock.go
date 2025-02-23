@@ -201,6 +201,9 @@ var _ StoreService = &StoreServiceMock{}
 //			GetBlockFunc: func(txn *badger.Txn, k cid.Cid) (*BlockObj, error) {
 //				panic("mock out the GetBlock method")
 //			},
+//			GetFileFunc: func(txn *badger.Txn, spaceId string, fileId string) (*FileObj, error) {
+//				panic("mock out the GetFile method")
+//			},
 //			GetGroupFunc: func(txn *badger.Txn, groupId string) (*GroupObj, error) {
 //				panic("mock out the GetGroup method")
 //			},
@@ -238,6 +241,9 @@ type StoreServiceMock struct {
 	// GetBlockFunc mocks the GetBlock method.
 	GetBlockFunc func(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
 
+	// GetFileFunc mocks the GetFile method.
+	GetFileFunc func(txn *badger.Txn, spaceId string, fileId string) (*FileObj, error)
+
 	// GetGroupFunc mocks the GetGroup method.
 	GetGroupFunc func(txn *badger.Txn, groupId string) (*GroupObj, error)
 
@@ -273,6 +279,15 @@ type StoreServiceMock struct {
 			Txn *badger.Txn
 			// K is the k argument value.
 			K cid.Cid
+		}
+		// GetFile holds details about calls to the GetFile method.
+		GetFile []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// SpaceId is the spaceId argument value.
+			SpaceId string
+			// FileId is the fileId argument value.
+			FileId string
 		}
 		// GetGroup holds details about calls to the GetGroup method.
 		GetGroup []struct {
@@ -333,6 +348,7 @@ type StoreServiceMock struct {
 		}
 	}
 	lockGetBlock      sync.RWMutex
+	lockGetFile       sync.RWMutex
 	lockGetGroup      sync.RWMutex
 	lockGetSpace      sync.RWMutex
 	lockHadCID        sync.RWMutex
@@ -377,6 +393,46 @@ func (mock *StoreServiceMock) GetBlockCalls() []struct {
 	mock.lockGetBlock.RLock()
 	calls = mock.calls.GetBlock
 	mock.lockGetBlock.RUnlock()
+	return calls
+}
+
+// GetFile calls GetFileFunc.
+func (mock *StoreServiceMock) GetFile(txn *badger.Txn, spaceId string, fileId string) (*FileObj, error) {
+	if mock.GetFileFunc == nil {
+		panic("StoreServiceMock.GetFileFunc: method is nil but StoreService.GetFile was just called")
+	}
+	callInfo := struct {
+		Txn     *badger.Txn
+		SpaceId string
+		FileId  string
+	}{
+		Txn:     txn,
+		SpaceId: spaceId,
+		FileId:  fileId,
+	}
+	mock.lockGetFile.Lock()
+	mock.calls.GetFile = append(mock.calls.GetFile, callInfo)
+	mock.lockGetFile.Unlock()
+	return mock.GetFileFunc(txn, spaceId, fileId)
+}
+
+// GetFileCalls gets all the calls that were made to GetFile.
+// Check the length with:
+//
+//	len(mockedStoreService.GetFileCalls())
+func (mock *StoreServiceMock) GetFileCalls() []struct {
+	Txn     *badger.Txn
+	SpaceId string
+	FileId  string
+} {
+	var calls []struct {
+		Txn     *badger.Txn
+		SpaceId string
+		FileId  string
+	}
+	mock.lockGetFile.RLock()
+	calls = mock.calls.GetFile
+	mock.lockGetFile.RUnlock()
 	return calls
 }
 

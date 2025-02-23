@@ -349,6 +349,53 @@ func TestLightFileNodeStore_GetGroup(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLightFileNodeStore_GetFile(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+	fileId := testutil.NewRandSpaceId()
+
+	// Initially file should have zero counters
+	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		file, err := fx.storeSrv.GetFile(txn, spaceId, fileId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(0), file.UsageBytes())
+		require.Equal(t, uint32(0), file.CidsCount())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Create file with some values
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		file := NewFileObj(spaceId, fileId).
+			WithUsageBytes(512).
+			WithCidsCount(10)
+		return file.write(txn)
+	})
+	require.NoError(t, err)
+
+	// Verify file values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		file, err := fx.storeSrv.GetFile(txn, spaceId, fileId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(512), file.UsageBytes())
+		require.Equal(t, uint32(10), file.CidsCount())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Check non-existent file returns empty object
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		file, err := fx.storeSrv.GetFile(txn, spaceId, testutil.NewRandSpaceId())
+		require.NoError(t, err)
+		require.Equal(t, uint64(0), file.UsageBytes())
+		require.Equal(t, uint32(0), file.CidsCount())
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 //
 // Fixtures
 //

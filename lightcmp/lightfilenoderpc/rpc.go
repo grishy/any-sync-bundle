@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	CName        = "light.filenode.rpc"
-	cidSizeLimit = 2 << 20 // 2 Mb
+	CName             = "light.filenode.rpc"
+	cidSizeLimit      = 2 << 20                // 2 Mb
+	blockGetRetryTime = 100 * time.Millisecond // How often to retry block get if it's not available
 )
 
 var log = logger.NewNamed(CName)
@@ -107,7 +108,7 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(blockGetRetryTime):
 			continue
 		}
 	}
@@ -168,6 +169,9 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		// And connect the block to the file
 
 		// TODO: Implement logic to connect the block to the file in the datastore
+		// Update file info, space info, and account info
+		// Create a link between the block and the file
+		// Create a link between the space and account?
 
 		return nil
 	})
@@ -251,55 +255,6 @@ func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, request *fileproto.Bl
 	return &fileproto.Ok{}, nil
 }
 
-func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.FilesDeleteRequest) (*fileproto.FilesDeleteResponse, error) {
-	log.InfoCtx(ctx, "FilesDelete",
-		zap.String("spaceId", request.SpaceId),
-		zap.Strings("fileIds", request.FileIds),
-	)
-
-	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
-		if errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
-			return errPerm
-		}
-
-		return nil
-	})
-
-	if errTx != nil {
-		return nil, errTx
-	}
-	// TODO: Implement logic to bind blocks to the file in the datastore
-
-	// r.badgerDB.NewWriteBatch()
-
-	// err := r.badgerDB.Update(func(txn *badger.Txn) error {
-	// 	// For each file, decrement reference counter and delete the key
-	// 	prefix := []byte(fmt.Sprintf("l:%s.%s:", request.SpaceId, request.FileIds[0]))
-	// 	opts := badger.IteratorOptions{PrefetchSize: 1000}
-
-	// 	it := txn.NewIterator(opts)
-	// 	defer it.Close()
-
-	// 	batch := txn.NewBatch()
-	// 	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-	// 		cid := extractCID(it.Item().Key())
-
-	// 		batch.Merge(rcKey(cid), uint64ToBytes(^uint64(0))) // Decrement
-	// 		batch.Delete(it.Item().Key())
-
-	// 		if batch.Len() >= 1000 {
-	// 			if err := batch.Flush(); err != nil {
-	// 				return err
-	// 			}
-	// 			batch = txn.NewBatch()
-	// 		}
-	// 	}
-	// 	return batch.Flush()
-	// })
-
-	return &fileproto.FilesDeleteResponse{}, nil
-}
-
 func (r *lightFileNodeRpc) FilesInfo(ctx context.Context, request *fileproto.FilesInfoRequest) (*fileproto.FilesInfoResponse, error) {
 	log.InfoCtx(ctx, "FilesInfo",
 		zap.String("spaceId", request.SpaceId),
@@ -367,6 +322,55 @@ func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 	}
 
 	return nil
+}
+
+func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.FilesDeleteRequest) (*fileproto.FilesDeleteResponse, error) {
+	log.InfoCtx(ctx, "FilesDelete",
+		zap.String("spaceId", request.SpaceId),
+		zap.Strings("fileIds", request.FileIds),
+	)
+
+	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
+		if errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
+			return errPerm
+		}
+
+		return nil
+	})
+
+	if errTx != nil {
+		return nil, errTx
+	}
+	// TODO: Implement logic to bind blocks to the file in the datastore
+
+	// r.badgerDB.NewWriteBatch()
+
+	// err := r.badgerDB.Update(func(txn *badger.Txn) error {
+	// 	// For each file, decrement reference counter and delete the key
+	// 	prefix := []byte(fmt.Sprintf("l:%s.%s:", request.SpaceId, request.FileIds[0]))
+	// 	opts := badger.IteratorOptions{PrefetchSize: 1000}
+
+	// 	it := txn.NewIterator(opts)
+	// 	defer it.Close()
+
+	// 	batch := txn.NewBatch()
+	// 	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+	// 		cid := extractCID(it.Item().Key())
+
+	// 		batch.Merge(rcKey(cid), uint64ToBytes(^uint64(0))) // Decrement
+	// 		batch.Delete(it.Item().Key())
+
+	// 		if batch.Len() >= 1000 {
+	// 			if err := batch.Flush(); err != nil {
+	// 				return err
+	// 			}
+	// 			batch = txn.NewBatch()
+	// 		}
+	// 	}
+	// 	return batch.Flush()
+	// })
+
+	return &fileproto.FilesDeleteResponse{}, nil
 }
 
 func (r *lightFileNodeRpc) Check(ctx context.Context, request *fileproto.CheckRequest) (*fileproto.CheckResponse, error) {
