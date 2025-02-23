@@ -161,23 +161,59 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 
 		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
+		fx.storeService.HadCIDFunc = func(txn *badger.Txn, k cid.Cid) (bool, error) {
+			require.Equal(t, b.Cid(), k)
+			return false, nil
+		}
+
+		fx.storeService.PushBlockFunc = func(txn *badger.Txn, spaceId string, blk blocks.Block) error {
+			require.Equal(t, storeKey.SpaceId, spaceId)
+			require.Equal(t, b.Cid(), blk.Cid())
+			require.Equal(t, b.RawData(), blk.RawData())
+			return nil
+		}
+
+		fx.storeService.HasLinkFileBlockFunc = func(txn *badger.Txn, spaceId, fileId string, k cid.Cid) (bool, error) {
+			require.Equal(t, storeKey.SpaceId, spaceId)
+			require.Equal(t, fileId, fileId)
+			require.Equal(t, b.Cid(), k)
+			return false, nil
+		}
+
+		fx.storeService.GetFileFunc = func(txn *badger.Txn, spaceId, fileId string) (*lightfilenodestore.FileObj, error) {
+			require.Equal(t, storeKey.SpaceId, spaceId)
+			require.Equal(t, fileId, fileId)
+			return lightfilenodestore.NewFileObj(spaceId, fileId), nil
+		}
+
+		fx.storeService.WriteFileFunc = func(txn *badger.Txn, f *lightfilenodestore.FileObj) error {
+			require.NotNil(t, f)
+			require.Equal(t, storeKey.SpaceId, f.SpaceID())
+			require.Equal(t, fileId, f.FileID())
+			require.Equal(t, uint64(1024), f.UsageBytes()) // Block size
+			require.Equal(t, uint32(1), f.CidsCount())     // One CID added
+			return nil
+		}
+
 		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
+			require.Equal(t, storeKey.SpaceId, spaceId)
 			spaceObj := lightfilenodestore.NewSpaceObj(storeKey.SpaceId)
 			return spaceObj, nil
 		}
 
-		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
-			groupObj := lightfilenodestore.NewGroupObj(storeKey.GroupId).
-				WithLimitBytes(1 << 30) // 1GB - default limit for group
-
-			return groupObj, nil
+		fx.storeService.WriteSpaceFunc = func(txn *badger.Txn, spaceObj *lightfilenodestore.SpaceObj) error {
+			require.NotNil(t, spaceObj)
+			require.Equal(t, storeKey.SpaceId, spaceObj.SpaceID())
+			require.Equal(t, uint64(1024), spaceObj.SpaceUsageBytes()) // Block size
+			require.Equal(t, uint64(1), spaceObj.CidsCount())          // One CID added
+			return nil
 		}
 
-		fx.storeService.PushBlockFunc = func(txn *badger.Txn, spaceId string, b blocks.Block) error {
-			require.Equal(t, storeKey.SpaceId, spaceId)
-			require.Equal(t, b.Cid().Bytes(), b.Cid().Bytes())
-			require.Equal(t, b.RawData(), b.RawData())
-			return nil
+		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
+			require.Equal(t, storeKey.GroupId, groupId)
+			groupObj := lightfilenodestore.NewGroupObj(storeKey.GroupId).
+				WithLimitBytes(1 << 30) // 1GB - default limit for group
+			return groupObj, nil
 		}
 
 		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
@@ -301,6 +337,10 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 		)
 
 		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+
+		fx.storeService.HadCIDFunc = func(txn *badger.Txn, k cid.Cid) (bool, error) {
+			return false, nil
+		}
 
 		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
 			spaceObj := lightfilenodestore.NewSpaceObj(storeKey.SpaceId)

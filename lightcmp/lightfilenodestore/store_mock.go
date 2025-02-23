@@ -222,6 +222,9 @@ var _ StoreService = &StoreServiceMock{}
 //			HasCIDInSpaceFunc: func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
 //				panic("mock out the HasCIDInSpace method")
 //			},
+//			HasLinkFileBlockFunc: func(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) (bool, error) {
+//				panic("mock out the HasLinkFileBlock method")
+//			},
 //			InitFunc: func(a *app.App) error {
 //				panic("mock out the Init method")
 //			},
@@ -236,6 +239,12 @@ var _ StoreService = &StoreServiceMock{}
 //			},
 //			TxViewFunc: func(f func(txn *badger.Txn) error) error {
 //				panic("mock out the TxView method")
+//			},
+//			WriteFileFunc: func(txn *badger.Txn, file *FileObj) error {
+//				panic("mock out the WriteFile method")
+//			},
+//			WriteSpaceFunc: func(txn *badger.Txn, spaceObj *SpaceObj) error {
+//				panic("mock out the WriteSpace method")
 //			},
 //		}
 //
@@ -268,6 +277,9 @@ type StoreServiceMock struct {
 	// HasCIDInSpaceFunc mocks the HasCIDInSpace method.
 	HasCIDInSpaceFunc func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error)
 
+	// HasLinkFileBlockFunc mocks the HasLinkFileBlock method.
+	HasLinkFileBlockFunc func(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) (bool, error)
+
 	// InitFunc mocks the Init method.
 	InitFunc func(a *app.App) error
 
@@ -282,6 +294,12 @@ type StoreServiceMock struct {
 
 	// TxViewFunc mocks the TxView method.
 	TxViewFunc func(f func(txn *badger.Txn) error) error
+
+	// WriteFileFunc mocks the WriteFile method.
+	WriteFileFunc func(txn *badger.Txn, file *FileObj) error
+
+	// WriteSpaceFunc mocks the WriteSpace method.
+	WriteSpaceFunc func(txn *badger.Txn, spaceObj *SpaceObj) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -351,6 +369,17 @@ type StoreServiceMock struct {
 			// K is the k argument value.
 			K cid.Cid
 		}
+		// HasLinkFileBlock holds details about calls to the HasLinkFileBlock method.
+		HasLinkFileBlock []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// SpaceId is the spaceId argument value.
+			SpaceId string
+			// FileId is the fileId argument value.
+			FileId string
+			// K is the k argument value.
+			K cid.Cid
+		}
 		// Init holds details about calls to the Init method.
 		Init []struct {
 			// A is the a argument value.
@@ -378,6 +407,20 @@ type StoreServiceMock struct {
 			// F is the f argument value.
 			F func(txn *badger.Txn) error
 		}
+		// WriteFile holds details about calls to the WriteFile method.
+		WriteFile []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// File is the file argument value.
+			File *FileObj
+		}
+		// WriteSpace holds details about calls to the WriteSpace method.
+		WriteSpace []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// SpaceObj is the spaceObj argument value.
+			SpaceObj *SpaceObj
+		}
 	}
 	lockCreateLinkFileBlock  sync.RWMutex
 	lockCreateLinkGroupSpace sync.RWMutex
@@ -387,11 +430,14 @@ type StoreServiceMock struct {
 	lockGetSpace             sync.RWMutex
 	lockHadCID               sync.RWMutex
 	lockHasCIDInSpace        sync.RWMutex
+	lockHasLinkFileBlock     sync.RWMutex
 	lockInit                 sync.RWMutex
 	lockName                 sync.RWMutex
 	lockPushBlock            sync.RWMutex
 	lockTxUpdate             sync.RWMutex
 	lockTxView               sync.RWMutex
+	lockWriteFile            sync.RWMutex
+	lockWriteSpace           sync.RWMutex
 }
 
 // CreateLinkFileBlock calls CreateLinkFileBlockFunc.
@@ -702,6 +748,50 @@ func (mock *StoreServiceMock) HasCIDInSpaceCalls() []struct {
 	return calls
 }
 
+// HasLinkFileBlock calls HasLinkFileBlockFunc.
+func (mock *StoreServiceMock) HasLinkFileBlock(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) (bool, error) {
+	if mock.HasLinkFileBlockFunc == nil {
+		panic("StoreServiceMock.HasLinkFileBlockFunc: method is nil but StoreService.HasLinkFileBlock was just called")
+	}
+	callInfo := struct {
+		Txn     *badger.Txn
+		SpaceId string
+		FileId  string
+		K       cid.Cid
+	}{
+		Txn:     txn,
+		SpaceId: spaceId,
+		FileId:  fileId,
+		K:       k,
+	}
+	mock.lockHasLinkFileBlock.Lock()
+	mock.calls.HasLinkFileBlock = append(mock.calls.HasLinkFileBlock, callInfo)
+	mock.lockHasLinkFileBlock.Unlock()
+	return mock.HasLinkFileBlockFunc(txn, spaceId, fileId, k)
+}
+
+// HasLinkFileBlockCalls gets all the calls that were made to HasLinkFileBlock.
+// Check the length with:
+//
+//	len(mockedStoreService.HasLinkFileBlockCalls())
+func (mock *StoreServiceMock) HasLinkFileBlockCalls() []struct {
+	Txn     *badger.Txn
+	SpaceId string
+	FileId  string
+	K       cid.Cid
+} {
+	var calls []struct {
+		Txn     *badger.Txn
+		SpaceId string
+		FileId  string
+		K       cid.Cid
+	}
+	mock.lockHasLinkFileBlock.RLock()
+	calls = mock.calls.HasLinkFileBlock
+	mock.lockHasLinkFileBlock.RUnlock()
+	return calls
+}
+
 // Init calls InitFunc.
 func (mock *StoreServiceMock) Init(a *app.App) error {
 	if mock.InitFunc == nil {
@@ -862,5 +952,77 @@ func (mock *StoreServiceMock) TxViewCalls() []struct {
 	mock.lockTxView.RLock()
 	calls = mock.calls.TxView
 	mock.lockTxView.RUnlock()
+	return calls
+}
+
+// WriteFile calls WriteFileFunc.
+func (mock *StoreServiceMock) WriteFile(txn *badger.Txn, file *FileObj) error {
+	if mock.WriteFileFunc == nil {
+		panic("StoreServiceMock.WriteFileFunc: method is nil but StoreService.WriteFile was just called")
+	}
+	callInfo := struct {
+		Txn  *badger.Txn
+		File *FileObj
+	}{
+		Txn:  txn,
+		File: file,
+	}
+	mock.lockWriteFile.Lock()
+	mock.calls.WriteFile = append(mock.calls.WriteFile, callInfo)
+	mock.lockWriteFile.Unlock()
+	return mock.WriteFileFunc(txn, file)
+}
+
+// WriteFileCalls gets all the calls that were made to WriteFile.
+// Check the length with:
+//
+//	len(mockedStoreService.WriteFileCalls())
+func (mock *StoreServiceMock) WriteFileCalls() []struct {
+	Txn  *badger.Txn
+	File *FileObj
+} {
+	var calls []struct {
+		Txn  *badger.Txn
+		File *FileObj
+	}
+	mock.lockWriteFile.RLock()
+	calls = mock.calls.WriteFile
+	mock.lockWriteFile.RUnlock()
+	return calls
+}
+
+// WriteSpace calls WriteSpaceFunc.
+func (mock *StoreServiceMock) WriteSpace(txn *badger.Txn, spaceObj *SpaceObj) error {
+	if mock.WriteSpaceFunc == nil {
+		panic("StoreServiceMock.WriteSpaceFunc: method is nil but StoreService.WriteSpace was just called")
+	}
+	callInfo := struct {
+		Txn      *badger.Txn
+		SpaceObj *SpaceObj
+	}{
+		Txn:      txn,
+		SpaceObj: spaceObj,
+	}
+	mock.lockWriteSpace.Lock()
+	mock.calls.WriteSpace = append(mock.calls.WriteSpace, callInfo)
+	mock.lockWriteSpace.Unlock()
+	return mock.WriteSpaceFunc(txn, spaceObj)
+}
+
+// WriteSpaceCalls gets all the calls that were made to WriteSpace.
+// Check the length with:
+//
+//	len(mockedStoreService.WriteSpaceCalls())
+func (mock *StoreServiceMock) WriteSpaceCalls() []struct {
+	Txn      *badger.Txn
+	SpaceObj *SpaceObj
+} {
+	var calls []struct {
+		Txn      *badger.Txn
+		SpaceObj *SpaceObj
+	}
+	mock.lockWriteSpace.RLock()
+	calls = mock.calls.WriteSpace
+	mock.lockWriteSpace.RUnlock()
 	return calls
 }

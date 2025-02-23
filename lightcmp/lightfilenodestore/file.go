@@ -54,6 +54,14 @@ func (f *FileObj) CidsCount() uint32 {
 	return f.cidsCount
 }
 
+func (f *FileObj) FileID() string {
+	return f.fileID
+}
+
+func (f *FileObj) SpaceID() string {
+	return f.spaceID
+}
+
 func (f *FileObj) WithUsageBytes(usageBytes uint64) *FileObj {
 	f.usageBytes = usageBytes
 	return f
@@ -63,6 +71,18 @@ func (f *FileObj) WithCidsCount(cidsCount uint32) *FileObj {
 	f.cidsCount = cidsCount
 	return f
 }
+
+func (f *FileObj) IncCidsCount() {
+	f.cidsCount++
+}
+
+func (f *FileObj) IncUsageBytes(u uint64) {
+	f.usageBytes += u
+}
+
+//
+// Private methods
+//
 
 func (f *FileObj) marshalValue() []byte {
 	buf := make([]byte, valueFileSize)

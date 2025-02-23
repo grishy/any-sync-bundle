@@ -96,19 +96,20 @@ func (r *lightFileNodeRpc) hasEnoughSpace(txn *badger.Txn, storageKey *index.Key
 		return fmt.Errorf("failed to get space: %w", err)
 	}
 
+	group, err := r.store.GetGroup(txn, storageKey.GroupId)
+	if err != nil {
+		return fmt.Errorf("failed to get group: %w", err)
+	}
+
 	// For non-isolated spaces, check space-specific limit first
 	if spaceLimit := space.LimitBytes(); spaceLimit > 0 {
-		if space.TotalUsageBytes() >= spaceLimit {
+		if group.TotalUsageBytes() >= spaceLimit {
 			return fileprotoerr.ErrSpaceLimitExceeded
 		}
 		return nil
 	}
 
 	// For isolated spaces, check group limit
-	group, err := r.store.GetGroup(txn, storageKey.GroupId)
-	if err != nil {
-		return fmt.Errorf("failed to get group: %w", err)
-	}
 
 	if group.TotalUsageBytes() >= group.LimitBytes() {
 		return fileprotoerr.ErrSpaceLimitExceeded

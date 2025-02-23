@@ -131,18 +131,20 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		zap.Int("dataSize", len(req.Data)),
 	)
 
+	dataLen := len(req.Data)
+
 	// Check that CID is valid for the data
 	c, err := cid.Cast(req.Cid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cast CID: %w", err)
 	}
 
-	b, err := blocks.NewBlockWithCid(req.Data, c)
+	blk, err := blocks.NewBlockWithCid(req.Data, c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create block: %w", err)
 	}
 
-	if len(req.Data) > cidSizeLimit {
+	if dataLen > cidSizeLimit {
 		return nil, fileprotoerr.ErrQuerySizeExceeded
 	}
 
@@ -162,16 +164,65 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 			return errPerm
 		}
 
-		if errPush := r.store.PushBlock(txn, req.SpaceId, b); errPush != nil {
-			return fmt.Errorf("failed to push block: %w", errPush)
+		// Check existing block before, to avoid overwriting
+		isBlkExist, errBlock := r.store.HadCID(txn, c)
+		if errBlock != nil {
+			return fmt.Errorf("failed to check if CID exists: %w", errBlock)
 		}
 
+		if !isBlkExist {
+			if errPush := r.store.PushBlock(txn, req.SpaceId, blk); errPush != nil {
+				return fmt.Errorf("failed to push block: %w", errPush)
+			}
+		}
+
+		// Logic of BlockBind below
 		// And connect the block to the file
 
 		// TODO: Implement logic to connect the block to the file in the datastore
 		// Update file info, space info, and account info
 		// Create a link between the block and the file
 		// Create a link between the space and account?
+
+		// Update file info, if link exists we don't need to update counters
+		isLinkExist, errLink := r.store.HasLinkFileBlock(txn, req.SpaceId, req.FileId, c)
+		if errLink != nil {
+			return fmt.Errorf("failed to check if link exists: %w", errLink)
+		}
+
+		if isLinkExist {
+			// If the link exists, we don't need to update counters
+			return nil
+		}
+
+		fileObj, errGetFile := r.store.GetFile(txn, req.SpaceId, req.FileId)
+		if errGetFile != nil {
+			return fmt.Errorf("failed to get file: %w", errGetFile)
+		}
+
+		// Update file info
+		fileObj.IncCidsCount()
+		fileObj.IncUsageBytes(uint64(dataLen))
+
+		if errWrite := r.store.WriteFile(txn, fileObj); errWrite != nil {
+			return fmt.Errorf("failed to write file: %w", errWrite)
+		}
+
+		// Update space info
+		spaceObj, errGetSpace := r.store.GetSpace(txn, req.SpaceId)
+		if errGetSpace != nil {
+			return fmt.Errorf("failed to get space: %w", errGetSpace)
+		}
+
+		spaceObj.IncCidsCount()
+		spaceObj.IncFilesCount()
+		spaceObj.IncUsageBytes(uint64(dataLen))
+
+		if errWrite := r.store.WriteSpace(txn, spaceObj); errWrite != nil {
+			return fmt.Errorf("failed to write space: %w", errWrite)
+		}
+
+		// TODO: Update account info
 
 		return nil
 	})

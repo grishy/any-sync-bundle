@@ -16,7 +16,6 @@ func TestKeySpace(t *testing.T) {
 func TestSpaceMarshalAndUnmarshalValue(t *testing.T) {
 	spaceId := "space1"
 	limitBytes := uint64(123456789)
-	totalUsageBytes := uint64(987654321)
 	cidsCount := uint64(42)
 	filesCount := uint64(10)
 	spaceUsageBytes := uint64(1024)
@@ -24,10 +23,10 @@ func TestSpaceMarshalAndUnmarshalValue(t *testing.T) {
 	// Create and marshal space object
 	space := NewSpaceObj(spaceId).
 		WithLimitBytes(limitBytes).
-		WithTotalUsageBytes(totalUsageBytes).
+		WithSpaceUsageBytes(spaceUsageBytes).
 		WithCidsCount(cidsCount).
-		WithFilesCount(filesCount).
-		WithSpaceUsageBytes(spaceUsageBytes)
+		WithFilesCount(filesCount)
+
 	marshaled := space.marshalValue()
 
 	// Verify marshaled length
@@ -37,10 +36,9 @@ func TestSpaceMarshalAndUnmarshalValue(t *testing.T) {
 	newSpace := NewSpaceObj(spaceId)
 	require.NoError(t, newSpace.unmarshalValue(marshaled))
 	require.Equal(t, limitBytes, newSpace.LimitBytes())
-	require.Equal(t, totalUsageBytes, newSpace.TotalUsageBytes())
+	require.Equal(t, spaceUsageBytes, newSpace.SpaceUsageBytes())
 	require.Equal(t, cidsCount, newSpace.CidsCount())
 	require.Equal(t, filesCount, newSpace.FilesCount())
-	require.Equal(t, spaceUsageBytes, newSpace.SpaceUsageBytes())
 }
 
 func TestSpaceUnmarshalValueShortInput(t *testing.T) {

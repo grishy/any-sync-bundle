@@ -252,7 +252,6 @@ func TestLightFileNodeStore_GetSpace(t *testing.T) {
 		space, err := fx.storeSrv.GetSpace(txn, spaceId)
 		require.NoError(t, err)
 		require.Equal(t, uint64(0), space.LimitBytes())
-		require.Equal(t, uint64(0), space.TotalUsageBytes())
 		require.Equal(t, uint64(0), space.CidsCount())
 		require.Equal(t, uint64(0), space.FilesCount())
 		require.Equal(t, uint64(0), space.SpaceUsageBytes())
@@ -264,10 +263,9 @@ func TestLightFileNodeStore_GetSpace(t *testing.T) {
 	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
 		space := NewSpaceObj(spaceId).
 			WithLimitBytes(1024).
-			WithTotalUsageBytes(512).
+			WithSpaceUsageBytes(256).
 			WithCidsCount(10).
-			WithFilesCount(5).
-			WithSpaceUsageBytes(256)
+			WithFilesCount(5)
 		return space.write(txn)
 	})
 	require.NoError(t, err)
@@ -277,10 +275,9 @@ func TestLightFileNodeStore_GetSpace(t *testing.T) {
 		space, err := fx.storeSrv.GetSpace(txn, spaceId)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1024), space.LimitBytes())
-		require.Equal(t, uint64(512), space.TotalUsageBytes())
+		require.Equal(t, uint64(256), space.SpaceUsageBytes())
 		require.Equal(t, uint64(10), space.CidsCount())
 		require.Equal(t, uint64(5), space.FilesCount())
-		require.Equal(t, uint64(256), space.SpaceUsageBytes())
 		return nil
 	})
 	require.NoError(t, err)
@@ -290,10 +287,9 @@ func TestLightFileNodeStore_GetSpace(t *testing.T) {
 		space, err := fx.storeSrv.GetSpace(txn, testutil.NewRandSpaceId())
 		require.NoError(t, err)
 		require.Equal(t, uint64(0), space.LimitBytes())
-		require.Equal(t, uint64(0), space.TotalUsageBytes())
+		require.Equal(t, uint64(0), space.SpaceUsageBytes())
 		require.Equal(t, uint64(0), space.CidsCount())
 		require.Equal(t, uint64(0), space.FilesCount())
-		require.Equal(t, uint64(0), space.SpaceUsageBytes())
 		return nil
 	})
 	require.NoError(t, err)
