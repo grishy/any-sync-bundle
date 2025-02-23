@@ -8,8 +8,8 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-// checkCIDFn if the CID exists in space or in general in storage or not
-func (r *lightFileNodeRpc) checkCIDFn(txn *badger.Txn, spaceId string, k cid.Cid) (status fileproto.AvailabilityStatus, err error) {
+// checkCIDExists if the CID exists in space or in general in storage or not
+func (r *lightFileNodeRpc) checkCIDExists(txn *badger.Txn, spaceId string, k cid.Cid) (status fileproto.AvailabilityStatus, err error) {
 	// Check if the CID exists in space
 	exist, err := r.store.HasCIDInSpace(txn, spaceId, k)
 	if err != nil {
