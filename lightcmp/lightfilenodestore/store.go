@@ -45,8 +45,7 @@ type StoreService interface {
 
 	// TxView executes a read-only function within a transaction.
 	TxView(f func(txn *badger.Txn) error) error
-
-	// TxUpdate executes a read-write function within a transaction.
+	// TxUpdate executes a read-write function within a transaction. Used when we need update data.
 	TxUpdate(f func(txn *badger.Txn) error) error
 
 	//
@@ -55,7 +54,6 @@ type StoreService interface {
 
 	// GetBlock retrieves a block by CID.
 	GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
-
 	// PushBlock stores a block.
 	PushBlock(txn *badger.Txn, spaceId string, block blocks.Block) error
 
@@ -65,7 +63,6 @@ type StoreService interface {
 
 	// HadCID checks if the given CID exists in the store.
 	HadCID(txn *badger.Txn, k cid.Cid) (bool, error)
-
 	// HasCIDInSpace checks if the given CIDs exist in the store.
 	HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error)
 
@@ -75,7 +72,6 @@ type StoreService interface {
 
 	// GetFile retrieves a file by ID.
 	GetFile(txn *badger.Txn, spaceId, fileId string) (*FileObj, error)
-
 	// WriteFile writes a file to the store.
 	WriteFile(txn *badger.Txn, file *FileObj) error
 
@@ -85,7 +81,6 @@ type StoreService interface {
 
 	// GetSpace retrieves a space by ID.
 	GetSpace(txn *badger.Txn, spaceId string) (*SpaceObj, error)
-
 	// WriteSpace writes a space to the store.
 	WriteSpace(txn *badger.Txn, spaceObj *SpaceObj) error
 
@@ -95,6 +90,8 @@ type StoreService interface {
 
 	// GetGroup retrieves a group by ID.
 	GetGroup(txn *badger.Txn, groupId string) (*GroupObj, error)
+	// WriteGroup writes a group to the store.
+	WriteGroup(txn *badger.Txn, obj *GroupObj) error
 
 	//
 	// Links methods
@@ -102,10 +99,8 @@ type StoreService interface {
 
 	// HasLinkFileBlock checks if the given link between a file and a block exists.
 	HasLinkFileBlock(txn *badger.Txn, spaceId, fileId string, k cid.Cid) (bool, error)
-
 	// CreateLinkFileBlock creates a link between a file and a block.
 	CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, blk blocks.Block) error
-
 	// CreateLinkGroupSpace creates a link between a group and a space.
 	CreateLinkGroupSpace(txn *badger.Txn, groupId, spaceId string) error
 }
@@ -346,6 +341,21 @@ func (s *lightFileNodeStore) GetGroup(txn *badger.Txn, groupId string) (*GroupOb
 	}
 
 	return groupObj, nil
+}
+
+func (s *lightFileNodeStore) WriteGroup(txn *badger.Txn, obj *GroupObj) error {
+	log.Debug("WriteGroup",
+		zap.String("groupId", obj.groupID),
+		zap.Uint64("limitBytes", obj.LimitBytes()),
+		zap.Uint64("totalUsageBytes", obj.TotalUsageBytes()),
+		zap.Uint64("totalCidsCount", obj.TotalCidsCount()),
+	)
+
+	if err := obj.write(txn); err != nil {
+		return fmt.Errorf("failed to write group: %w", err)
+	}
+
+	return nil
 }
 
 func (s *lightFileNodeStore) GetFile(txn *badger.Txn, spaceId, fileId string) (*FileObj, error) {

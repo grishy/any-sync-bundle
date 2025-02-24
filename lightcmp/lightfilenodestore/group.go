@@ -48,6 +48,10 @@ func NewGroupObj(groupID string) *GroupObj {
 	}
 }
 
+func (g *GroupObj) GroupID() string {
+	return g.groupID
+}
+
 func (g *GroupObj) LimitBytes() uint64 {
 	return g.limitBytes
 }
@@ -73,6 +77,14 @@ func (g *GroupObj) WithTotalUsageBytes(totalUsageBytes uint64) *GroupObj {
 func (g *GroupObj) WithTotalCidsCount(totalCidsCount uint64) *GroupObj {
 	g.totalCidsCount = totalCidsCount
 	return g
+}
+
+func (g *GroupObj) IncCidsCount() {
+	g.totalCidsCount++
+}
+
+func (g *GroupObj) IncUsageBytes(u uint64) {
+	g.totalUsageBytes += u
 }
 
 //

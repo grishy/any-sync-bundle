@@ -243,6 +243,9 @@ var _ StoreService = &StoreServiceMock{}
 //			WriteFileFunc: func(txn *badger.Txn, file *FileObj) error {
 //				panic("mock out the WriteFile method")
 //			},
+//			WriteGroupFunc: func(txn *badger.Txn, obj *GroupObj) error {
+//				panic("mock out the WriteGroup method")
+//			},
 //			WriteSpaceFunc: func(txn *badger.Txn, spaceObj *SpaceObj) error {
 //				panic("mock out the WriteSpace method")
 //			},
@@ -297,6 +300,9 @@ type StoreServiceMock struct {
 
 	// WriteFileFunc mocks the WriteFile method.
 	WriteFileFunc func(txn *badger.Txn, file *FileObj) error
+
+	// WriteGroupFunc mocks the WriteGroup method.
+	WriteGroupFunc func(txn *badger.Txn, obj *GroupObj) error
 
 	// WriteSpaceFunc mocks the WriteSpace method.
 	WriteSpaceFunc func(txn *badger.Txn, spaceObj *SpaceObj) error
@@ -414,6 +420,13 @@ type StoreServiceMock struct {
 			// File is the file argument value.
 			File *FileObj
 		}
+		// WriteGroup holds details about calls to the WriteGroup method.
+		WriteGroup []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// Obj is the obj argument value.
+			Obj *GroupObj
+		}
 		// WriteSpace holds details about calls to the WriteSpace method.
 		WriteSpace []struct {
 			// Txn is the txn argument value.
@@ -437,6 +450,7 @@ type StoreServiceMock struct {
 	lockTxUpdate             sync.RWMutex
 	lockTxView               sync.RWMutex
 	lockWriteFile            sync.RWMutex
+	lockWriteGroup           sync.RWMutex
 	lockWriteSpace           sync.RWMutex
 }
 
@@ -988,6 +1002,42 @@ func (mock *StoreServiceMock) WriteFileCalls() []struct {
 	mock.lockWriteFile.RLock()
 	calls = mock.calls.WriteFile
 	mock.lockWriteFile.RUnlock()
+	return calls
+}
+
+// WriteGroup calls WriteGroupFunc.
+func (mock *StoreServiceMock) WriteGroup(txn *badger.Txn, obj *GroupObj) error {
+	if mock.WriteGroupFunc == nil {
+		panic("StoreServiceMock.WriteGroupFunc: method is nil but StoreService.WriteGroup was just called")
+	}
+	callInfo := struct {
+		Txn *badger.Txn
+		Obj *GroupObj
+	}{
+		Txn: txn,
+		Obj: obj,
+	}
+	mock.lockWriteGroup.Lock()
+	mock.calls.WriteGroup = append(mock.calls.WriteGroup, callInfo)
+	mock.lockWriteGroup.Unlock()
+	return mock.WriteGroupFunc(txn, obj)
+}
+
+// WriteGroupCalls gets all the calls that were made to WriteGroup.
+// Check the length with:
+//
+//	len(mockedStoreService.WriteGroupCalls())
+func (mock *StoreServiceMock) WriteGroupCalls() []struct {
+	Txn *badger.Txn
+	Obj *GroupObj
+} {
+	var calls []struct {
+		Txn *badger.Txn
+		Obj *GroupObj
+	}
+	mock.lockWriteGroup.RLock()
+	calls = mock.calls.WriteGroup
+	mock.lockWriteGroup.RUnlock()
 	return calls
 }
 

@@ -29,25 +29,25 @@ func (r *lightFileNodeRpc) resolveStoreKey(ctx context.Context, spaceID string) 
 	}, nil
 }
 
-func (r *lightFileNodeRpc) canRead(ctx context.Context, spaceID string) error {
+func (r *lightFileNodeRpc) canRead(ctx context.Context, spaceID string) (index.Key, error) {
 	storageKey, err := r.resolveStoreKey(ctx, spaceID)
 	if err != nil {
-		return err
+		return storageKey, err
 	}
 
 	identity, err := peer.CtxPubKey(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get identity: %w", err)
+		return storageKey, fmt.Errorf("failed to get identity: %w", err)
 	}
 
 	// Owner has full permissions
 	if identity.Account() == storageKey.GroupId {
-		return nil
+		return storageKey, nil
 	}
 
 	permissions, err := r.acl.Permissions(ctx, identity, storageKey.SpaceId)
 	if err != nil {
-		return fmt.Errorf("failed to get permissions: %w", err)
+		return storageKey, fmt.Errorf("failed to get permissions: %w", err)
 	}
 
 	// TODO: Create a PR to add CanRead to any-sync
@@ -56,38 +56,38 @@ func (r *lightFileNodeRpc) canRead(ctx context.Context, spaceID string) error {
 		aclrecordproto.AclUserPermissions_Writer,
 		aclrecordproto.AclUserPermissions_Admin,
 		aclrecordproto.AclUserPermissions_Owner:
-		return nil
+		return storageKey, nil
 	default:
-		return fileprotoerr.ErrForbidden
+		return storageKey, fileprotoerr.ErrForbidden
 	}
 }
 
-func (r *lightFileNodeRpc) canWrite(ctx context.Context, txn *badger.Txn, spaceID string) error {
+func (r *lightFileNodeRpc) canWrite(ctx context.Context, txn *badger.Txn, spaceID string) (index.Key, error) {
 	storageKey, err := r.resolveStoreKey(ctx, spaceID)
 	if err != nil {
-		return err
+		return storageKey, err
 	}
 
 	identity, err := peer.CtxPubKey(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get identity: %w", err)
+		return storageKey, fmt.Errorf("failed to get identity: %w", err)
 	}
 
 	// Owner has full permissions
 	if identity.Account() == storageKey.GroupId {
-		return nil
+		return storageKey, nil
 	}
 
 	permissions, err := r.acl.Permissions(ctx, identity, storageKey.SpaceId)
 	if err != nil {
-		return fmt.Errorf("failed to get permissions: %w", err)
+		return storageKey, fmt.Errorf("failed to get permissions: %w", err)
 	}
 
 	if !permissions.CanWrite() {
-		return fileprotoerr.ErrForbidden
+		return storageKey, fileprotoerr.ErrForbidden
 	}
 
-	return r.hasEnoughSpace(txn, &storageKey)
+	return storageKey, r.hasEnoughSpace(txn, &storageKey)
 }
 
 func (r *lightFileNodeRpc) hasEnoughSpace(txn *badger.Txn, storageKey *index.Key) error {
@@ -110,7 +110,6 @@ func (r *lightFileNodeRpc) hasEnoughSpace(txn *badger.Txn, storageKey *index.Key
 	}
 
 	// For isolated spaces, check group limit
-
 	if group.TotalUsageBytes() >= group.LimitBytes() {
 		return fileprotoerr.ErrSpaceLimitExceeded
 	}

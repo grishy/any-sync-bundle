@@ -160,7 +160,8 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 
 	// Finally, save the block and update all necessary counters
 	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
-		if errPerm := r.canWrite(ctx, txn, req.SpaceId); errPerm != nil {
+		storageKey, errPerm := r.canWrite(ctx, txn, req.SpaceId)
+		if errPerm != nil {
 			return errPerm
 		}
 
@@ -176,13 +177,7 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 			}
 		}
 
-		// Logic of BlockBind below
-		// And connect the block to the file
-
-		// TODO: Implement logic to connect the block to the file in the datastore
-		// Update file info, space info, and account info
-		// Create a link between the block and the file
-		// Create a link between the space and account?
+		// TODO: Move logic to BlockBind below
 
 		// Update file info, if link exists we don't need to update counters
 		isLinkExist, errLink := r.store.HasLinkFileBlock(txn, req.SpaceId, req.FileId, c)
@@ -222,7 +217,18 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 			return fmt.Errorf("failed to write space: %w", errWrite)
 		}
 
-		// TODO: Update account info
+		// Update group info
+		groupObj, errGetGroup := r.store.GetGroup(txn, storageKey.GroupId)
+		if errGetGroup != nil {
+			return fmt.Errorf("failed to get group: %w", errGetGroup)
+		}
+
+		groupObj.IncCidsCount()
+		groupObj.IncUsageBytes(uint64(dataLen))
+
+		if errWrite := r.store.WriteGroup(txn, groupObj); errWrite != nil {
+			return fmt.Errorf("failed to write group: %w", errWrite)
+		}
 
 		return nil
 	})
@@ -291,7 +297,7 @@ func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, request *fileproto.Bl
 	)
 
 	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
-		if errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
+		if _, errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
 			return errPerm
 		}
 
@@ -317,7 +323,7 @@ func (r *lightFileNodeRpc) FilesInfo(ctx context.Context, request *fileproto.Fil
 	}
 
 	errTx := r.store.TxView(func(txn *badger.Txn) error {
-		if errPerm := r.canRead(ctx, request.SpaceId); errPerm != nil {
+		if _, errPerm := r.canRead(ctx, request.SpaceId); errPerm != nil {
 			return errPerm
 		}
 
@@ -350,7 +356,7 @@ func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 
 	var files []string
 	errTx := r.store.TxView(func(txn *badger.Txn) error {
-		if err := r.canRead(ctx, request.SpaceId); err != nil {
+		if _, err := r.canRead(ctx, request.SpaceId); err != nil {
 			return err
 		}
 
@@ -390,7 +396,7 @@ func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.F
 	)
 
 	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
-		if errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
+		if _, errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
 			return errPerm
 		}
 

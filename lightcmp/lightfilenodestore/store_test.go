@@ -448,6 +448,220 @@ func TestLightFileNodeStore_CreateLinks(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLightFileNodeStore_HasLinkFileBlock(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+	fileId := testutil.NewRandSpaceId()
+	blk := testutil.NewRandBlock(1024)
+
+	// Initially link should not exist
+	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HasLinkFileBlock(txn, spaceId, fileId, blk.Cid())
+		require.NoError(t, err)
+		require.False(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Create file-block link
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.CreateLinkFileBlock(txn, spaceId, fileId, blk)
+	})
+	require.NoError(t, err)
+
+	// Now link should exist
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		exists, err := fx.storeSrv.HasLinkFileBlock(txn, spaceId, fileId, blk.Cid())
+		require.NoError(t, err)
+		require.True(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Check link doesn't exist for different space/file/block
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		// Different space
+		exists, err := fx.storeSrv.HasLinkFileBlock(txn, testutil.NewRandSpaceId(), fileId, blk.Cid())
+		require.NoError(t, err)
+		require.False(t, exists)
+
+		// Different file
+		exists, err = fx.storeSrv.HasLinkFileBlock(txn, spaceId, testutil.NewRandSpaceId(), blk.Cid())
+		require.NoError(t, err)
+		require.False(t, exists)
+
+		// Different block
+		exists, err = fx.storeSrv.HasLinkFileBlock(txn, spaceId, fileId, testutil.NewRandCid())
+		require.NoError(t, err)
+		require.False(t, exists)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestLightFileNodeStore_WriteFile(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+	fileId := testutil.NewRandSpaceId()
+
+	// Create file with some values
+	file := NewFileObj(spaceId, fileId).
+		WithUsageBytes(512).
+		WithCidsCount(10)
+
+	// Write file
+	err := fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.WriteFile(txn, file)
+	})
+	require.NoError(t, err)
+
+	// Verify file values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		// Get file and check values match
+		storedFile, err := fx.storeSrv.GetFile(txn, spaceId, fileId)
+		require.NoError(t, err)
+		require.Equal(t, file.UsageBytes(), storedFile.UsageBytes())
+		require.Equal(t, file.CidsCount(), storedFile.CidsCount())
+		require.Equal(t, file.SpaceID(), storedFile.SpaceID())
+		require.Equal(t, file.FileID(), storedFile.FileID())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Update file values
+	file.WithUsageBytes(1024).WithCidsCount(20)
+
+	// Write updated file
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.WriteFile(txn, file)
+	})
+	require.NoError(t, err)
+
+	// Verify updated values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		storedFile, err := fx.storeSrv.GetFile(txn, spaceId, fileId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(1024), storedFile.UsageBytes())
+		require.Equal(t, uint32(20), storedFile.CidsCount())
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestLightFileNodeStore_WriteSpace(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	spaceId := testutil.NewRandSpaceId()
+
+	// Create space with some values
+	space := NewSpaceObj(spaceId).
+		WithLimitBytes(1024).
+		WithSpaceUsageBytes(256).
+		WithCidsCount(10).
+		WithFilesCount(5)
+
+	// Write space
+	err := fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.WriteSpace(txn, space)
+	})
+	require.NoError(t, err)
+
+	// Verify space values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		storedSpace, err := fx.storeSrv.GetSpace(txn, spaceId)
+		require.NoError(t, err)
+		require.Equal(t, space.LimitBytes(), storedSpace.LimitBytes())
+		require.Equal(t, space.SpaceUsageBytes(), storedSpace.SpaceUsageBytes())
+		require.Equal(t, space.CidsCount(), storedSpace.CidsCount())
+		require.Equal(t, space.FilesCount(), storedSpace.FilesCount())
+		require.Equal(t, space.SpaceID(), storedSpace.SpaceID())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Update space values
+	space.WithLimitBytes(2048).
+		WithSpaceUsageBytes(512).
+		WithCidsCount(20).
+		WithFilesCount(10)
+
+	// Write updated space
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.WriteSpace(txn, space)
+	})
+	require.NoError(t, err)
+
+	// Verify updated values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		storedSpace, err := fx.storeSrv.GetSpace(txn, spaceId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(2048), storedSpace.LimitBytes())
+		require.Equal(t, uint64(512), storedSpace.SpaceUsageBytes())
+		require.Equal(t, uint64(20), storedSpace.CidsCount())
+		require.Equal(t, uint64(10), storedSpace.FilesCount())
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestLightFileNodeStore_WriteGroup(t *testing.T) {
+	fx := newFixture(t)
+	defer fx.Finish(t)
+
+	groupId := testutil.NewRandSpaceId()
+
+	// Create group with some values
+	group := NewGroupObj(groupId).
+		WithLimitBytes(1024).
+		WithTotalUsageBytes(512).
+		WithTotalCidsCount(10)
+
+	// Write group
+	err := fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.WriteGroup(txn, group)
+	})
+	require.NoError(t, err)
+
+	// Verify group values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		storedGroup, err := fx.storeSrv.GetGroup(txn, groupId)
+		require.NoError(t, err)
+		require.Equal(t, group.LimitBytes(), storedGroup.LimitBytes())
+		require.Equal(t, group.TotalUsageBytes(), storedGroup.TotalUsageBytes())
+		require.Equal(t, group.TotalCidsCount(), storedGroup.TotalCidsCount())
+		require.Equal(t, group.GroupID(), storedGroup.GroupID())
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Update group values
+	group.WithLimitBytes(2048).
+		WithTotalUsageBytes(1024).
+		WithTotalCidsCount(20)
+
+	// Write updated group
+	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
+		return fx.storeSrv.WriteGroup(txn, group)
+	})
+	require.NoError(t, err)
+
+	// Verify updated values
+	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
+		storedGroup, err := fx.storeSrv.GetGroup(txn, groupId)
+		require.NoError(t, err)
+		require.Equal(t, uint64(2048), storedGroup.LimitBytes())
+		require.Equal(t, uint64(1024), storedGroup.TotalUsageBytes())
+		require.Equal(t, uint64(20), storedGroup.TotalCidsCount())
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 //
 // Fixtures
 //

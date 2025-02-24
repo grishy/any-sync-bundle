@@ -27,6 +27,8 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
+// TODO: Write test with real database
+
 func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		fx := newFixture(t)
@@ -214,6 +216,13 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			groupObj := lightfilenodestore.NewGroupObj(storeKey.GroupId).
 				WithLimitBytes(1 << 30) // 1GB - default limit for group
 			return groupObj, nil
+		}
+
+		fx.storeService.WriteGroupFunc = func(txn *badger.Txn, groupObj *lightfilenodestore.GroupObj) error {
+			require.NotNil(t, groupObj)
+			require.Equal(t, storeKey.GroupId, groupObj.GroupID())
+			require.Equal(t, uint64(1024), groupObj.TotalUsageBytes()) // Block size
+			return nil
 		}
 
 		resp, err := fx.rpcService.BlockPush(ctx, &fileproto.BlockPushRequest{
