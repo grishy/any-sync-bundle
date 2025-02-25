@@ -420,7 +420,7 @@ func TestLightFileNodeStore_CreateLinks(t *testing.T) {
 
 	// Create file-block link
 	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.CreateLinkFileBlock(txn, spaceId, fileId, blk)
+		return fx.storeSrv.CreateLinkFileBlock(txn, spaceId, fileId, blk.Cid())
 	})
 	require.NoError(t, err)
 
@@ -467,7 +467,7 @@ func TestLightFileNodeStore_HasLinkFileBlock(t *testing.T) {
 
 	// Create file-block link
 	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.CreateLinkFileBlock(txn, spaceId, fileId, blk)
+		return fx.storeSrv.CreateLinkFileBlock(txn, spaceId, fileId, blk.Cid())
 	})
 	require.NoError(t, err)
 

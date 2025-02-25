@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
@@ -131,7 +132,7 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		zap.Int("dataSize", len(req.Data)),
 	)
 
-	dataLen := len(req.Data)
+	dataSize := len(req.Data)
 
 	// Check that CID is valid for the data
 	c, err := cid.Cast(req.Cid)
@@ -144,7 +145,7 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		return nil, fmt.Errorf("failed to create block: %w", err)
 	}
 
-	if dataLen > cidSizeLimit {
+	if len(req.Data) > cidSizeLimit {
 		return nil, fileprotoerr.ErrQuerySizeExceeded
 	}
 
@@ -177,57 +178,9 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 			}
 		}
 
-		// TODO: Move logic to BlockBind below
-
-		// Update file info, if link exists we don't need to update counters
-		isLinkExist, errLink := r.store.HasLinkFileBlock(txn, req.SpaceId, req.FileId, c)
-		if errLink != nil {
-			return fmt.Errorf("failed to check if link exists: %w", errLink)
-		}
-
-		if isLinkExist {
-			// If the link exists, we don't need to update counters
-			return nil
-		}
-
-		fileObj, errGetFile := r.store.GetFile(txn, req.SpaceId, req.FileId)
-		if errGetFile != nil {
-			return fmt.Errorf("failed to get file: %w", errGetFile)
-		}
-
-		// Update file info
-		fileObj.IncCidsCount()
-		fileObj.IncUsageBytes(uint64(dataLen))
-
-		if errWrite := r.store.WriteFile(txn, fileObj); errWrite != nil {
-			return fmt.Errorf("failed to write file: %w", errWrite)
-		}
-
-		// Update space info
-		spaceObj, errGetSpace := r.store.GetSpace(txn, req.SpaceId)
-		if errGetSpace != nil {
-			return fmt.Errorf("failed to get space: %w", errGetSpace)
-		}
-
-		spaceObj.IncCidsCount()
-		spaceObj.IncFilesCount()
-		spaceObj.IncUsageBytes(uint64(dataLen))
-
-		if errWrite := r.store.WriteSpace(txn, spaceObj); errWrite != nil {
-			return fmt.Errorf("failed to write space: %w", errWrite)
-		}
-
-		// Update group info
-		groupObj, errGetGroup := r.store.GetGroup(txn, storageKey.GroupId)
-		if errGetGroup != nil {
-			return fmt.Errorf("failed to get group: %w", errGetGroup)
-		}
-
-		groupObj.IncCidsCount()
-		groupObj.IncUsageBytes(uint64(dataLen))
-
-		if errWrite := r.store.WriteGroup(txn, groupObj); errWrite != nil {
-			return fmt.Errorf("failed to write group: %w", errWrite)
+		errBind := r.bindBlock(txn, storageKey, req.SpaceId, req.FileId, c, dataSize)
+		if errBind != nil {
+			return fmt.Errorf("failed to bind block: %w", errBind)
 		}
 
 		return nil
@@ -238,6 +191,72 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	}
 
 	return &fileproto.Ok{}, nil
+}
+
+func (r *lightFileNodeRpc) bindBlock(txn *badger.Txn, storageKey index.Key, spaceId, fileId string, c cid.Cid, dataSize int) error {
+	// Update file info, if link exists we don't need to update counters
+	isLinkExist, errLink := r.store.HasLinkFileBlock(txn, spaceId, fileId, c)
+	if errLink != nil {
+		return fmt.Errorf("failed to check if link exists: %w", errLink)
+	}
+
+	if isLinkExist {
+		// If the link exists, we don't need to update counters
+		return nil
+	}
+
+	// TODO: Update ref counter on CID from file
+
+	if errLink := r.store.CreateLinkFileBlock(txn, spaceId, fileId, c); errLink != nil {
+		return fmt.Errorf("failed to create link: %w", errLink)
+	}
+
+	fileObj, errGetFile := r.store.GetFile(txn, spaceId, fileId)
+	if errGetFile != nil {
+		return fmt.Errorf("failed to get file: %w", errGetFile)
+	}
+
+	// Check if this is a new file (no CIDs yet)
+	isNewFile := fileObj.CidsCount() == 0
+
+	// Update file info
+	fileObj.IncCidsCount()
+	fileObj.IncUsageBytes(uint64(dataSize))
+
+	if errWrite := r.store.WriteFile(txn, fileObj); errWrite != nil {
+		return fmt.Errorf("failed to write file: %w", errWrite)
+	}
+
+	// Update space info
+	spaceObj, errGetSpace := r.store.GetSpace(txn, spaceId)
+	if errGetSpace != nil {
+		return fmt.Errorf("failed to get space: %w", errGetSpace)
+	}
+
+	spaceObj.IncCidsCount()
+	if isNewFile {
+		spaceObj.IncFilesCount() // Only increment for new files
+	}
+	spaceObj.IncUsageBytes(uint64(dataSize))
+
+	if errWrite := r.store.WriteSpace(txn, spaceObj); errWrite != nil {
+		return fmt.Errorf("failed to write space: %w", errWrite)
+	}
+
+	// Update group info
+	groupObj, errGetGroup := r.store.GetGroup(txn, storageKey.GroupId)
+	if errGetGroup != nil {
+		return fmt.Errorf("failed to get group: %w", errGetGroup)
+	}
+
+	groupObj.IncCidsCount()
+	groupObj.IncUsageBytes(uint64(dataSize))
+
+	if errWrite := r.store.WriteGroup(txn, groupObj); errWrite != nil {
+		return fmt.Errorf("failed to write group: %w", errWrite)
+	}
+
+	return nil
 }
 
 func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
@@ -289,19 +308,30 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 	}, nil
 }
 
-func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, request *fileproto.BlocksBindRequest) (*fileproto.Ok, error) {
+func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, req *fileproto.BlocksBindRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "BlocksBind",
-		zap.String("spaceId", request.SpaceId),
-		zap.String("fileId", request.FileId),
-		zap.Strings("cids", cidsToStrings(request.Cids...)),
+		zap.String("spaceId", req.SpaceId),
+		zap.String("fileId", req.FileId),
+		zap.Strings("cids", cidsToStrings(req.Cids...)),
 	)
 
 	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
-		if _, errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
+		storageKey, errPerm := r.canWrite(ctx, txn, req.SpaceId)
+		if errPerm != nil {
 			return errPerm
 		}
 
-		// TODO: Implement logic to bind blocks to the file in the datastore
+		for _, rawCid := range req.Cids {
+			c, err := cid.Cast(rawCid)
+			if err != nil {
+				return fmt.Errorf("failed to cast CID='%s': %w", string(rawCid), err)
+			}
+
+			if errBind := r.bindBlock(txn, storageKey, req.SpaceId, req.FileId, c, 0); errBind != nil {
+				return fmt.Errorf("failed to bind block: %w", errBind)
+			}
+		}
+
 		return nil
 	})
 

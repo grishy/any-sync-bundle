@@ -100,7 +100,7 @@ type StoreService interface {
 	// HasLinkFileBlock checks if the given link between a file and a block exists.
 	HasLinkFileBlock(txn *badger.Txn, spaceId, fileId string, k cid.Cid) (bool, error)
 	// CreateLinkFileBlock creates a link between a file and a block.
-	CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, blk blocks.Block) error
+	CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, k cid.Cid) error
 	// CreateLinkGroupSpace creates a link between a group and a space.
 	CreateLinkGroupSpace(txn *badger.Txn, groupId, spaceId string) error
 }
@@ -407,14 +407,14 @@ func (s *lightFileNodeStore) HasLinkFileBlock(txn *badger.Txn, spaceId, fileId s
 	return exists, nil
 }
 
-func (s *lightFileNodeStore) CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, blk blocks.Block) error {
+func (s *lightFileNodeStore) CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, k cid.Cid) error {
 	log.Debug("CreateLinkFileBlock",
 		zap.String("spaceId", spaceId),
 		zap.String("fileId", fileId),
-		zap.String("cid", blk.Cid().String()),
+		zap.String("cid", k.String()),
 	)
 
-	linkObj := NewLinkFileBlockObj(spaceId, fileId, blk.Cid())
+	linkObj := NewLinkFileBlockObj(spaceId, fileId, k)
 	if err := linkObj.write(txn); err != nil {
 		return fmt.Errorf("failed to create link file block: %w", err)
 	}

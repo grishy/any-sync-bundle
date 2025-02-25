@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: Remove this?
 func cidsToStrings(cids ...[]byte) []string {
 	strs := make([]string, len(cids))
 	for i, b := range cids {

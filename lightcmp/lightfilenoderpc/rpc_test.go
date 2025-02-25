@@ -188,6 +188,13 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			return lightfilenodestore.NewFileObj(spaceId, fileId), nil
 		}
 
+		fx.storeService.CreateLinkFileBlockFunc = func(txn *badger.Txn, spaceId, fileId string, k cid.Cid) error {
+			require.Equal(t, storeKey.SpaceId, spaceId)
+			require.Equal(t, fileId, fileId)
+			require.Equal(t, b.Cid(), k)
+			return nil
+		}
+
 		fx.storeService.WriteFileFunc = func(txn *badger.Txn, f *lightfilenodestore.FileObj) error {
 			require.NotNil(t, f)
 			require.Equal(t, storeKey.SpaceId, f.SpaceID())
