@@ -53,6 +53,9 @@ docker run -d \
   ghcr.io/grishy/any-sync-bundle:latest
 ```
 
+### NixOS module
+_Coming soon_
+
 ## Version
 
 ### Bundle version
