@@ -1,4 +1,4 @@
-//go:generate moq -fmt gofumpt -out store_mock.go . configService StoreService
+//go:generate moq -fmt gofumpt -rm -out store_mock.go . configService StoreService
 
 package lightfilenodestore
 
@@ -21,6 +21,8 @@ import (
 const (
 	CName = "light.filenode.store"
 
+	defaultLimitBytes = 1 << 40 // 1 TiB in bytes
+
 	kPrefixFileNode = "fn"
 	kSeparator      = ":"
 )
@@ -31,31 +33,88 @@ type configService interface {
 	app.Component
 
 	GetFilenodeStoreDir() string
+	GetFilenodeDefaultLimitBytes() uint64
 }
 
 type StoreService interface {
 	app.Component
 
+	//
+	// Transaction methods
+	//
+
 	// TxView executes a read-only function within a transaction.
 	TxView(f func(txn *badger.Txn) error) error
-
-	// TxUpdate executes a read-write function within a transaction.
+	// TxUpdate executes a read-write function within a transaction. Used when we need update data.
 	TxUpdate(f func(txn *badger.Txn) error) error
 
-	// GetBlock retrieves a block by CID.
-	GetBlock(txn *badger.Txn, k cid.Cid, spaceId string, wait bool) (*BlockObj, error)
+	//
+	// Block methods
+	//
 
+	// GetBlock retrieves a block by CID.
+	GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
 	// PushBlock stores a block.
 	PushBlock(txn *badger.Txn, spaceId string, block blocks.Block) error
+
+	//
+	// CID methods
+	//
+
+	// HadCID checks if the given CID exists in the store.
+	HadCID(txn *badger.Txn, k cid.Cid) (bool, error)
+	// HasCIDInSpace checks if the given CIDs exist in the store.
+	HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error)
+
+	//
+	// File methods
+	//
+
+	// GetFile retrieves a file by ID.
+	GetFile(txn *badger.Txn, spaceId, fileId string) (*FileObj, error)
+	// WriteFile writes a file to the store.
+	WriteFile(txn *badger.Txn, file *FileObj) error
+
+	//
+	// Space methods
+	//
+
+	// GetSpace retrieves a space by ID.
+	GetSpace(txn *badger.Txn, spaceId string) (*SpaceObj, error)
+	// WriteSpace writes a space to the store.
+	WriteSpace(txn *badger.Txn, spaceObj *SpaceObj) error
+
+	//
+	// Group/Account methods
+	//
+
+	// GetGroup retrieves a group by ID.
+	GetGroup(txn *badger.Txn, groupId string) (*GroupObj, error)
+	// WriteGroup writes a group to the store.
+	WriteGroup(txn *badger.Txn, obj *GroupObj) error
+
+	//
+	// Links methods
+	//
+
+	// HasLinkFileBlock checks if the given link between a file and a block exists.
+	HasLinkFileBlock(txn *badger.Txn, spaceId, fileId string, k cid.Cid) (bool, error)
+	// CreateLinkFileBlock creates a link between a file and a block.
+	CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, k cid.Cid) error
+	// CreateLinkGroupSpace creates a link between a group and a space.
+	CreateLinkGroupSpace(txn *badger.Txn, groupId, spaceId string) error
 }
 
 // lightFileNodeStore implements a block store using BadgerDB.
 // It provides persistent storage of content-addressed blocks with indexing support.
-// Was thinking about sqlite, but it may hard to backup and restore one big file.
+// Was thinking about sqlite, but it may hard to back up and restore one big file.
 // A few drawbacks - no concurrent writes, not sure that needed.
 type lightFileNodeStore struct {
 	cfgSrv   configService
 	badgerDB *badger.DB
+
+	// Used to set default limit for user/group
+	defaultLimitBytes uint64
 }
 
 func New() StoreService {
@@ -83,9 +142,14 @@ func (s *lightFileNodeStore) Name() (name string) {
 //
 
 func (s *lightFileNodeStore) Run(ctx context.Context) error {
+	s.defaultLimitBytes = s.cfgSrv.GetFilenodeDefaultLimitBytes()
+	if s.defaultLimitBytes == 0 {
+		s.defaultLimitBytes = defaultLimitBytes
+	}
+
 	storePath := s.cfgSrv.GetFilenodeStoreDir()
 
-	// TODO: Add OnTableRead for block checskum
+	// TODO: Add OnTableRead for block checksum
 	opts := badger.DefaultOptions(storePath).
 		// Core settings
 		WithLogger(badgerLogger{}).
@@ -106,7 +170,7 @@ func (s *lightFileNodeStore) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *lightFileNodeStore) Close(ctx context.Context) error {
+func (s *lightFileNodeStore) Close(_ context.Context) error {
 	return s.badgerDB.Close()
 }
 
@@ -165,37 +229,52 @@ func (s *lightFileNodeStore) TxUpdate(f func(txn *badger.Txn) error) error {
 }
 
 // GetBlock retrieves a block by CID. Read-only transaction is used.
-func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid, spaceId string, wait bool) (*BlockObj, error) {
+func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error) {
 	log.Info("GetBlock",
 		zap.String("cid", k.String()),
-		zap.String("spaceId", spaceId),
-		zap.Bool("wait", wait),
 	)
 
-	if wait {
-		// TODO: Implement simple for loop with sleep for waiting
-		// NOTE: 2025-02-15: Wait is not used on client side...So for now just panic.
-		panic("wait parameter is not supported")
-	}
-
-	block := NewBlockObj(spaceId, k)
-	if err := block.populateData(txn); err != nil {
+	blkObj := NewBlockObj(k)
+	if err := blkObj.populateData(txn); err != nil {
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return nil, fileprotoerr.ErrCIDNotFound
 		}
 		return nil, fmt.Errorf("failed to get block: %w", err)
 	}
 
-	return block, nil
+	return blkObj, nil
 }
 
+func (s *lightFileNodeStore) HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
+	log.Info("HasCIDInSpace",
+		zap.String("cid", k.String()),
+		zap.String("spaceId", spaceId),
+	)
+
+	blkObj := NewCidObj(spaceId, k)
+	return blkObj.exists(txn)
+}
+
+func (s *lightFileNodeStore) HadCID(txn *badger.Txn, k cid.Cid) (bool, error) {
+	log.Info("HadCID",
+		zap.String("cid", k.String()),
+	)
+
+	blkObj := NewBlockObj(k)
+	return blkObj.exists(txn)
+}
+
+// PushBlock stores a block. Read-write transaction is used.
+// We store the block data and CID metadata in separate keys.
+// Block data is stored only by CID separations and CID metadata is stored by spaceId and CID.
+// This allows us to easily check is CID just exists or exists in the specific space.
 func (s *lightFileNodeStore) PushBlock(txn *badger.Txn, spaceId string, blk blocks.Block) error {
 	log.Debug("PushBlock",
 		zap.String("spaceId", spaceId),
 		zap.String("cid", blk.Cid().String()),
 	)
 
-	blkObj := NewBlockObj(spaceId, blk.Cid()).WithData(blk.RawData())
+	blkObj := NewBlockObj(blk.Cid()).WithData(blk.RawData())
 	if err := blkObj.write(txn); err != nil {
 		return fmt.Errorf("failed to save block: %w", err)
 	}
@@ -208,6 +287,150 @@ func (s *lightFileNodeStore) PushBlock(txn *badger.Txn, spaceId string, blk bloc
 
 	if err := cidObj.write(txn); err != nil {
 		return fmt.Errorf("failed to save CID: %w", err)
+	}
+
+	return nil
+}
+
+func (s *lightFileNodeStore) GetSpace(txn *badger.Txn, spaceId string) (*SpaceObj, error) {
+	log.Debug("GetSpace",
+		zap.String("spaceId", spaceId),
+	)
+
+	spaceObj := NewSpaceObj(spaceId)
+	if err := spaceObj.populateValue(txn); err != nil {
+		// We don't return error if space not found, just return empty space object
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return spaceObj, nil
+		}
+
+		return nil, fmt.Errorf("failed to get space: %w", err)
+	}
+
+	return spaceObj, nil
+}
+
+func (s *lightFileNodeStore) WriteSpace(txn *badger.Txn, spaceObj *SpaceObj) error {
+	log.Debug("WriteSpace",
+		zap.String("spaceId", spaceObj.SpaceID()),
+		zap.Uint64("usageBytes", spaceObj.SpaceUsageBytes()),
+		zap.Uint64("cidsCount", spaceObj.CidsCount()),
+	)
+
+	if err := spaceObj.write(txn); err != nil {
+		return fmt.Errorf("failed to write space: %w", err)
+	}
+
+	return nil
+}
+
+func (s *lightFileNodeStore) GetGroup(txn *badger.Txn, groupId string) (*GroupObj, error) {
+	log.Debug("GetGroup",
+		zap.String("groupId", groupId),
+	)
+
+	groupObj := NewGroupObj(groupId)
+	if err := groupObj.populateValue(txn); err != nil {
+		// We don't return error if group not found, just return empty group object with default limit
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			groupObj = groupObj.WithLimitBytes(s.defaultLimitBytes)
+			return groupObj, nil
+		}
+
+		return nil, fmt.Errorf("failed to get group: %w", err)
+	}
+
+	return groupObj, nil
+}
+
+func (s *lightFileNodeStore) WriteGroup(txn *badger.Txn, obj *GroupObj) error {
+	log.Debug("WriteGroup",
+		zap.String("groupId", obj.groupID),
+		zap.Uint64("limitBytes", obj.LimitBytes()),
+		zap.Uint64("totalUsageBytes", obj.TotalUsageBytes()),
+		zap.Uint64("totalCidsCount", obj.TotalCidsCount()),
+	)
+
+	if err := obj.write(txn); err != nil {
+		return fmt.Errorf("failed to write group: %w", err)
+	}
+
+	return nil
+}
+
+func (s *lightFileNodeStore) GetFile(txn *badger.Txn, spaceId, fileId string) (*FileObj, error) {
+	log.Debug("GetFile",
+		zap.String("fileId", fileId),
+	)
+
+	fileObj := NewFileObj(spaceId, fileId)
+	if err := fileObj.populateValue(txn); err != nil {
+		// We don't return error if file not found, just return empty file object
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return fileObj, nil
+		}
+
+		return nil, fmt.Errorf("failed to get file: %w", err)
+	}
+
+	return fileObj, nil
+}
+
+func (s *lightFileNodeStore) WriteFile(txn *badger.Txn, file *FileObj) error {
+	log.Debug("WriteFile",
+		zap.String("spaceId", file.spaceID),
+		zap.String("fileId", file.fileID),
+		zap.Uint64("usageBytes", file.usageBytes),
+		zap.Uint32("cidsCount", file.cidsCount),
+	)
+
+	if err := file.write(txn); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+}
+
+func (s *lightFileNodeStore) HasLinkFileBlock(txn *badger.Txn, spaceId, fileId string, k cid.Cid) (bool, error) {
+	log.Debug("HasLinkFileBlock",
+		zap.String("spaceId", spaceId),
+		zap.String("fileId", fileId),
+		zap.String("cid", k.String()),
+	)
+
+	linkObj := NewLinkFileBlockObj(spaceId, fileId, k)
+	exists, err := linkObj.exists(txn)
+	if err != nil {
+		return false, fmt.Errorf("failed to check link file block exists: %w", err)
+	}
+
+	return exists, nil
+}
+
+func (s *lightFileNodeStore) CreateLinkFileBlock(txn *badger.Txn, spaceId, fileId string, k cid.Cid) error {
+	log.Debug("CreateLinkFileBlock",
+		zap.String("spaceId", spaceId),
+		zap.String("fileId", fileId),
+		zap.String("cid", k.String()),
+	)
+
+	linkObj := NewLinkFileBlockObj(spaceId, fileId, k)
+	if err := linkObj.write(txn); err != nil {
+		return fmt.Errorf("failed to create link file block: %w", err)
+	}
+
+	return nil
+}
+
+func (s *lightFileNodeStore) CreateLinkGroupSpace(txn *badger.Txn, groupId, spaceId string) error {
+	log.Debug("CreateLinkGroupSpace",
+		zap.String("groupId", groupId),
+		zap.String("spaceId", spaceId),
+	)
+
+	linkObj := NewLinkGroupSpaceObj(groupId, spaceId)
+	if err := linkObj.write(txn); err != nil {
+		return fmt.Errorf("failed to create link group space: %w", err)
 	}
 
 	return nil

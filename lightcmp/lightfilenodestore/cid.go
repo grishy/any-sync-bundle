@@ -3,6 +3,7 @@ package lightfilenodestore
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
@@ -83,7 +84,7 @@ func (c *CidObj) marshalValue() []byte {
 
 func (c *CidObj) unmarshalValue(val []byte) error {
 	if len(val) < valueCidSize {
-		return fmt.Errorf("value too short, expected at least 16 bytes, got %d", len(val))
+		return fmt.Errorf("value too short, expected at least %d bytes, got %d", valueCidSize, len(val))
 	}
 	c.refCount = binary.LittleEndian.Uint32(val[0:4])
 	c.sizeByte = binary.LittleEndian.Uint32(val[4:8])
@@ -93,6 +94,19 @@ func (c *CidObj) unmarshalValue(val []byte) error {
 
 func (c *CidObj) write(txn *badger.Txn) error {
 	return txn.Set(c.key, c.marshalValue())
+}
+
+func (c *CidObj) exists(txn *badger.Txn) (bool, error) {
+	_, err := txn.Get(c.key)
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	return true, nil
 }
 
 func (c *CidObj) populateValue(txn *badger.Txn) error {

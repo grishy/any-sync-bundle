@@ -1,6 +1,7 @@
 package lightfilenodestore
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
@@ -13,8 +14,7 @@ type BlockObj struct {
 	key []byte
 
 	// Key parts
-	spaceId string
-	cid     cid.Cid
+	cid cid.Cid
 	// Value
 	data []byte
 }
@@ -23,12 +23,11 @@ type BlockObj struct {
 // Public methods
 //
 
-func NewBlockObj(spaceId string, k cid.Cid) *BlockObj {
+func NewBlockObj(k cid.Cid) *BlockObj {
 	return &BlockObj{
-		key:     []byte(kPrefixBlock + spaceId + kSeparator + k.String()),
-		spaceId: spaceId,
-		cid:     k,
-		data:    nil,
+		key:  []byte(kPrefixBlock + kSeparator + k.String()),
+		cid:  k,
+		data: nil,
 	}
 }
 
@@ -57,6 +56,19 @@ func (b *BlockObj) populateData(txn *badger.Txn) error {
 	}
 
 	return nil
+}
+
+func (b *BlockObj) exists(txn *badger.Txn) (bool, error) {
+	_, err := txn.Get(b.key)
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("failed to get item: %w", err)
+	}
+
+	return true, nil
 }
 
 func (b *BlockObj) write(txn *badger.Txn) error {
