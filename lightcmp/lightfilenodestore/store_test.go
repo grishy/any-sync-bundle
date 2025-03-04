@@ -1,687 +1,309 @@
 package lightfilenodestore
 
 import (
+	"bytes"
 	"context"
-	"math/rand/v2"
+	"errors"
 	"testing"
+	"time"
 
-	"github.com/anyproto/any-sync-filenode/testutil"
 	"github.com/anyproto/any-sync/app"
-	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/dgraph-io/badger/v4"
 	blocks "github.com/ipfs/go-block-format"
+	"github.com/ipfs/go-cid"
+	mh "github.com/multiformats/go-multihash"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 )
 
-func TestBlockPushAndGet(t *testing.T) {
+func TestLightFileNodeStore_BlockOperations(t *testing.T) {
 	fx := newFixture(t)
-	defer fx.Finish(t)
+	defer fx.cleanup(t)
 
-	spaceId := testutil.NewRandSpaceId()
-	blk := testutil.NewRandBlock(1024)
+	testData := []byte("test block data")
+	testBlock, testCID := createTestBlock(t, testData)
 
-	// Push block
-	err := fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.PushBlock(txn, spaceId, blk)
+	// Test block storage and retrieval
+	err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+		return fx.store.PutBlock(txn, testBlock)
 	})
 	require.NoError(t, err)
 
-	// Get block and verify
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		// Check block data
-		block, err := fx.storeSrv.GetBlock(txn, blk.Cid())
-		require.NoError(t, err)
-		require.Equal(t, blk.RawData(), block.Data())
+	var retrievedData []byte
+	err = fx.store.TxView(func(txn *badger.Txn) error {
+		var readErr error
+		retrievedData, readErr = fx.store.GetBlock(txn, testCID)
+		return readErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, testData, retrievedData)
 
-		// Check CID metadata
-		cid := NewCidObj(spaceId, blk.Cid())
-		err = cid.populateValue(txn)
-		require.NoError(t, err)
-		require.Equal(t, uint32(1), cid.refCount)
-		require.Equal(t, uint32(len(blk.RawData())), cid.sizeByte)
-		return nil
+	// Test block deletion
+	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+		return fx.store.DeleteBlock(txn, testCID)
 	})
 	require.NoError(t, err)
 
-	// Try to get non-existent block
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		_, err := fx.storeSrv.GetBlock(txn, testutil.NewRandCid())
-		require.ErrorIs(t, err, fileprotoerr.ErrCIDNotFound)
-		return nil
+	err = fx.store.TxView(func(txn *badger.Txn) error {
+		_, err = fx.store.GetBlock(txn, testCID)
+		return err
 	})
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBlockNotFound)
 }
 
-func TestBlockPushTwice(t *testing.T) {
+func TestLightFileNodeStore_IndexSnapshotOperations(t *testing.T) {
 	fx := newFixture(t)
-	defer fx.Finish(t)
+	defer fx.cleanup(t)
 
-	spaceId := testutil.NewRandSpaceId()
-	blk1 := testutil.NewRandBlock(1024)
-	// Only to get a different block data
-	blk2Data := testutil.NewRandBlock(2048)
-	blk2, err := blocks.NewBlockWithCid(blk2Data.RawData(), blk1.Cid())
-	require.Nil(t, err)
+	// Verify no snapshot initially exists
+	var snapshot []byte
+	err := fx.store.TxView(func(txn *badger.Txn) error {
+		var readErr error
+		snapshot, readErr = fx.store.GetIndexSnapshot(txn)
+		return readErr
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNoSnapshot)
 
-	// First push
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.PushBlock(txn, spaceId, blk1)
+	// Test storing and retrieving snapshot
+	snapshotData := []byte("index snapshot data")
+	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+		return fx.store.SaveIndexSnapshot(txn, snapshotData)
 	})
 	require.NoError(t, err)
 
-	// Verify block exists and CID metadata
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		// Check block data
-		block, err := fx.storeSrv.GetBlock(txn, blk1.Cid())
-		require.NoError(t, err)
-		require.Equal(t, blk1.RawData(), block.Data())
-
-		// Check CID metadata
-		cid := NewCidObj(spaceId, blk1.Cid())
-		err = cid.populateValue(txn)
-		require.NoError(t, err)
-		require.Equal(t, uint32(1), cid.refCount)
-		require.Equal(t, uint32(len(blk1.RawData())), cid.sizeByte)
-		return nil
+	err = fx.store.TxView(func(txn *badger.Txn) error {
+		var readErr error
+		snapshot, readErr = fx.store.GetIndexSnapshot(txn)
+		return readErr
 	})
 	require.NoError(t, err)
-
-	// Push same block again
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.PushBlock(txn, spaceId, blk2)
-	})
-	require.NoError(t, err)
-
-	// Verify block data and CID metadata remain unchanged
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		// Check block data
-		block, err := fx.storeSrv.GetBlock(txn, blk2.Cid())
-		require.NoError(t, err)
-		require.Equal(t, blk2.RawData(), block.Data())
-
-		// Check CID metadata
-		cid := NewCidObj(spaceId, blk2.Cid())
-		err = cid.populateValue(txn)
-		require.NoError(t, err)
-		require.Equal(t, uint32(1), cid.refCount)
-		require.Equal(t, uint32(len(blk2.RawData())), cid.sizeByte)
-		return nil
-	})
-	require.NoError(t, err)
+	assert.Equal(t, snapshotData, snapshot)
 }
 
-func TestBlockPushParallel(t *testing.T) {
+func TestLightFileNodeStore_IndexLogOperations(t *testing.T) {
 	fx := newFixture(t)
-	defer fx.Finish(t)
+	defer fx.cleanup(t)
 
-	spaceId := testutil.NewRandSpaceId()
+	// Verify no logs initially exist
+	logs, err := getIndexLogs(t, fx.store)
+	require.NoError(t, err)
+	assert.Empty(t, logs)
 
-	// Generate different blocks
-	const numBlocks = 100
-	blks := make([]blocks.Block, numBlocks)
-	for i := 0; i < numBlocks; i++ {
-		blks[i] = testutil.NewRandBlock(rand.IntN(1024) + 1)
-	}
+	// Test adding logs
+	logData1 := []byte("log entry 1")
+	logData2 := []byte("log entry 2")
+	var idx1, idx2 uint64
 
-	// Push blocks concurrently
-	var g errgroup.Group
-
-	for i := 0; i < numBlocks; i++ {
-		blk := blks[i] // Capture block for goroutine
-		g.Go(func() error {
-			return fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-				return fx.storeSrv.PushBlock(txn, spaceId, blk)
-			})
-		})
-	}
-
-	require.NoError(t, g.Wait())
-
-	// Verify all blocks exist and have correct data
-	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		for _, blk := range blks {
-			block, err := fx.storeSrv.GetBlock(txn, blk.Cid())
-			require.NoError(t, err)
-			require.Equal(t, blk.RawData(), block.Data())
+	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+		var err error
+		idx1, err = fx.store.PushIndexLog(txn, logData1)
+		if err != nil {
+			return err
 		}
-		return nil
+		idx2, err = fx.store.PushIndexLog(txn, logData2)
+		return err
 	})
 	require.NoError(t, err)
+	assert.Equal(t, uint64(1), idx1)
+	assert.Equal(t, uint64(2), idx2)
+
+	// Verify logs were stored correctly
+	logs, err = getIndexLogs(t, fx.store)
+	require.NoError(t, err)
+	require.Len(t, logs, 2)
+	assert.Equal(t, uint64(1), logs[0].Idx)
+	assert.Equal(t, uint64(2), logs[1].Idx)
+	assert.Equal(t, logData1, logs[0].Data)
+	assert.Equal(t, logData2, logs[1].Data)
+
+	// Test log deletion
+	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+		return fx.store.DeleteIndexLogs(txn, []uint64{idx1})
+	})
+	require.NoError(t, err)
+
+	logs, err = getIndexLogs(t, fx.store)
+	require.NoError(t, err)
+	require.Len(t, logs, 1)
+	assert.Equal(t, uint64(2), logs[0].Idx)
+	assert.Equal(t, logData2, logs[0].Data)
+
+	// Verify empty deletion doesn't affect anything
+	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+		return fx.store.DeleteIndexLogs(txn, []uint64{})
+	})
+	require.NoError(t, err)
+
+	logs, err = getIndexLogs(t, fx.store)
+	require.NoError(t, err)
+	assert.Len(t, logs, 1)
 }
 
-func TestLightFileNodeStore_HasCIDInSpace(t *testing.T) {
+func TestLightFileNodeStore_KeyManagement(t *testing.T) {
+	testCases := []struct {
+		name     string
+		testFunc func(*testing.T)
+	}{
+		{
+			name: "blockKey",
+			testFunc: func(t *testing.T) {
+				testData := []byte("test block data")
+				_, testCID := createTestBlock(t, testData)
+
+				key := blockKey(testCID)
+				assert.True(t, bytes.HasPrefix(key, []byte(prefixFileNode+separator+blockType+separator)))
+				assert.Contains(t, string(key), testCID.String())
+			},
+		},
+		{
+			name: "snapshotKey",
+			testFunc: func(t *testing.T) {
+				key := snapshotKey()
+				assert.Equal(t, prefixFileNode+separator+snapshotType+separator+currentSnapshotSuffix, string(key))
+			},
+		},
+		{
+			name: "logKey",
+			testFunc: func(t *testing.T) {
+				key := logKey(123)
+				assert.Equal(t, prefixFileNode+separator+logType+separator+"123", string(key))
+			},
+		},
+		{
+			name: "parseIdxFromKey",
+			testFunc: func(t *testing.T) {
+				key := logKey(456)
+				idx, err := parseIdxFromKey(key)
+				require.NoError(t, err)
+				assert.Equal(t, uint64(456), idx)
+
+				_, err = parseIdxFromKey([]byte("malformed:key"))
+				assert.Error(t, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, tc.testFunc)
+	}
+}
+
+func TestLightFileNodeStore_TransactionOperations(t *testing.T) {
 	fx := newFixture(t)
-	defer fx.Finish(t)
+	defer fx.cleanup(t)
 
-	spaceId := testutil.NewRandSpaceId()
-	blk := testutil.NewRandBlock(1024)
-
-	// Initially CID should not exist
-	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HasCIDInSpace(txn, spaceId, blk.Cid())
+	t.Run("TxView success", func(t *testing.T) {
+		viewCalled := false
+		err := fx.store.TxView(func(txn *badger.Txn) error {
+			viewCalled = true
+			return nil
+		})
 		require.NoError(t, err)
-		require.False(t, exists)
-		return nil
+		assert.True(t, viewCalled)
 	})
-	require.NoError(t, err)
 
-	// Push block
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.PushBlock(txn, spaceId, blk)
+	t.Run("TxView error", func(t *testing.T) {
+		expectedErr := errors.New("view error")
+		err := fx.store.TxView(func(txn *badger.Txn) error {
+			return expectedErr
+		})
+		assert.ErrorIs(t, err, expectedErr)
 	})
-	require.NoError(t, err)
 
-	// Now CID should exist
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HasCIDInSpace(txn, spaceId, blk.Cid())
+	t.Run("TxUpdate success", func(t *testing.T) {
+		updateCalled := false
+		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+			updateCalled = true
+			return nil
+		})
 		require.NoError(t, err)
-		require.True(t, exists)
-		return nil
+		assert.True(t, updateCalled)
 	})
-	require.NoError(t, err)
 
-	// Check CID doesn't exist in different space
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HasCIDInSpace(txn, testutil.NewRandSpaceId(), blk.Cid())
-		require.NoError(t, err)
-		require.False(t, exists)
-		return nil
+	t.Run("TxUpdate error", func(t *testing.T) {
+		expectedErr := errors.New("update error")
+		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+			return expectedErr
+		})
+		assert.ErrorIs(t, err, expectedErr)
 	})
-	require.NoError(t, err)
-
-	// Check non-existent CID
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HasCIDInSpace(txn, spaceId, testutil.NewRandCid())
-		require.NoError(t, err)
-		require.False(t, exists)
-		return nil
-	})
-	require.NoError(t, err)
 }
 
-func TestLightFileNodeStore_HadCID(t *testing.T) {
+func TestLightFileNodeStore_GetNextIdx(t *testing.T) {
 	fx := newFixture(t)
-	defer fx.Finish(t)
+	defer fx.cleanup(t)
 
-	spaceId := testutil.NewRandSpaceId()
-	blk := testutil.NewRandBlock(1024)
+	// Test initial index
+	var idx uint64
+	err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+		var err error
+		idx, err = fx.store.getNextIdx(txn, logKeyPrefix())
+		return err
+	})
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), idx)
 
-	// Initially CID should not exist
-	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HadCID(txn, blk.Cid())
-		require.NoError(t, err)
-		require.False(t, exists)
-		return nil
+	// Test index increment after adding an entry
+	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+		_, err := fx.store.PushIndexLog(txn, []byte("test log"))
+		return err
 	})
 	require.NoError(t, err)
 
-	// Push block
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.PushBlock(txn, spaceId, blk)
+	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+		var err error
+		idx, err = fx.store.getNextIdx(txn, logKeyPrefix())
+		return err
 	})
 	require.NoError(t, err)
-
-	// Now CID should exist
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HadCID(txn, blk.Cid())
-		require.NoError(t, err)
-		require.True(t, exists)
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Check non-existent CID
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HadCID(txn, testutil.NewRandCid())
-		require.NoError(t, err)
-		require.False(t, exists)
-		return nil
-	})
-	require.NoError(t, err)
+	assert.Equal(t, uint64(2), idx)
 }
 
-func TestLightFileNodeStore_GetSpace(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
+// Helper functions
 
-	spaceId := testutil.NewRandSpaceId()
-
-	// Initially space should be empty
-	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		space, err := fx.storeSrv.GetSpace(txn, spaceId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(0), space.LimitBytes())
-		require.Equal(t, uint64(0), space.CidsCount())
-		require.Equal(t, uint64(0), space.FilesCount())
-		require.Equal(t, uint64(0), space.SpaceUsageBytes())
-		return nil
-	})
+func createTestBlock(t *testing.T, data []byte) (blocks.Block, cid.Cid) {
+	t.Helper()
+	mhash, err := mh.Sum(data, mh.SHA2_256, -1)
 	require.NoError(t, err)
 
-	// Create space with some values
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		space := NewSpaceObj(spaceId).
-			WithLimitBytes(1024).
-			WithSpaceUsageBytes(256).
-			WithCidsCount(10).
-			WithFilesCount(5)
-		return space.write(txn)
-	})
+	c := cid.NewCidV1(cid.Raw, mhash)
+	block, err := blocks.NewBlockWithCid(data, c)
 	require.NoError(t, err)
 
-	// Verify space values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		space, err := fx.storeSrv.GetSpace(txn, spaceId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(1024), space.LimitBytes())
-		require.Equal(t, uint64(256), space.SpaceUsageBytes())
-		require.Equal(t, uint64(10), space.CidsCount())
-		require.Equal(t, uint64(5), space.FilesCount())
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Check non-existent space returns empty object
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		space, err := fx.storeSrv.GetSpace(txn, testutil.NewRandSpaceId())
-		require.NoError(t, err)
-		require.Equal(t, uint64(0), space.LimitBytes())
-		require.Equal(t, uint64(0), space.SpaceUsageBytes())
-		require.Equal(t, uint64(0), space.CidsCount())
-		require.Equal(t, uint64(0), space.FilesCount())
-		return nil
-	})
-	require.NoError(t, err)
+	return block, c
 }
 
-func TestLightFileNodeStore_GetGroup(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
-
-	groupId := testutil.NewRandSpaceId()
-
-	// Initially group should have default limit and zero counters
-	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		group, err := fx.storeSrv.GetGroup(txn, groupId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(defaultLimitBytes), group.LimitBytes())
-		require.Equal(t, uint64(0), group.TotalUsageBytes())
-		require.Equal(t, uint64(0), group.TotalCidsCount())
-		return nil
+func getIndexLogs(t *testing.T, store *lightFileNodeStore) ([]IndexLog, error) {
+	t.Helper()
+	var logs []IndexLog
+	err := store.TxView(func(txn *badger.Txn) error {
+		var readErr error
+		logs, readErr = store.GetIndexLogs(txn)
+		return readErr
 	})
-	require.NoError(t, err)
-
-	// Create group with some values
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		group := NewGroupObj(groupId).
-			WithLimitBytes(1024).
-			WithTotalUsageBytes(512).
-			WithTotalCidsCount(10)
-		return group.write(txn)
-	})
-	require.NoError(t, err)
-
-	// Verify group values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		group, err := fx.storeSrv.GetGroup(txn, groupId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(1024), group.LimitBytes())
-		require.Equal(t, uint64(512), group.TotalUsageBytes())
-		require.Equal(t, uint64(10), group.TotalCidsCount())
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Check non-existent group returns object with default limit
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		group, err := fx.storeSrv.GetGroup(txn, testutil.NewRandSpaceId())
-		require.NoError(t, err)
-		require.Equal(t, uint64(defaultLimitBytes), group.LimitBytes())
-		require.Equal(t, uint64(0), group.TotalUsageBytes())
-		require.Equal(t, uint64(0), group.TotalCidsCount())
-		return nil
-	})
-	require.NoError(t, err)
+	return logs, err
 }
-
-func TestLightFileNodeStore_GetFile(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
-
-	spaceId := testutil.NewRandSpaceId()
-	fileId := testutil.NewRandSpaceId()
-
-	// Initially file should have zero counters
-	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		file, err := fx.storeSrv.GetFile(txn, spaceId, fileId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(0), file.UsageBytes())
-		require.Equal(t, uint32(0), file.CidsCount())
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Create file with some values
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		file := NewFileObj(spaceId, fileId).
-			WithUsageBytes(512).
-			WithCidsCount(10)
-		return file.write(txn)
-	})
-	require.NoError(t, err)
-
-	// Verify file values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		file, err := fx.storeSrv.GetFile(txn, spaceId, fileId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(512), file.UsageBytes())
-		require.Equal(t, uint32(10), file.CidsCount())
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Check non-existent file returns empty object
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		file, err := fx.storeSrv.GetFile(txn, spaceId, testutil.NewRandSpaceId())
-		require.NoError(t, err)
-		require.Equal(t, uint64(0), file.UsageBytes())
-		require.Equal(t, uint32(0), file.CidsCount())
-		return nil
-	})
-	require.NoError(t, err)
-}
-
-func TestLightFileNodeStore_CreateLinks(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
-
-	spaceId := testutil.NewRandSpaceId()
-	fileId := testutil.NewRandSpaceId()
-	groupId := testutil.NewRandSpaceId()
-	blk := testutil.NewRandBlock(1024)
-
-	// Initially links should not exist
-	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		// Check file-block link
-		linkFB := NewLinkFileBlockObj(spaceId, fileId, blk.Cid())
-		exists, err := linkFB.exists(txn)
-		require.NoError(t, err)
-		require.False(t, exists)
-
-		// Check group-space link
-		linkGS := NewLinkGroupSpaceObj(groupId, spaceId)
-		exists, err = linkGS.exists(txn)
-		require.NoError(t, err)
-		require.False(t, exists)
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Create file-block link
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.CreateLinkFileBlock(txn, spaceId, fileId, blk.Cid())
-	})
-	require.NoError(t, err)
-
-	// Create group-space link
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.CreateLinkGroupSpace(txn, groupId, spaceId)
-	})
-	require.NoError(t, err)
-
-	// Verify links exist
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		// Check file-block link
-		linkFB := NewLinkFileBlockObj(spaceId, fileId, blk.Cid())
-		exists, err := linkFB.exists(txn)
-		require.NoError(t, err)
-		require.True(t, exists)
-
-		// Check group-space link
-		linkGS := NewLinkGroupSpaceObj(groupId, spaceId)
-		exists, err = linkGS.exists(txn)
-		require.NoError(t, err)
-		require.True(t, exists)
-		return nil
-	})
-	require.NoError(t, err)
-}
-
-func TestLightFileNodeStore_HasLinkFileBlock(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
-
-	spaceId := testutil.NewRandSpaceId()
-	fileId := testutil.NewRandSpaceId()
-	blk := testutil.NewRandBlock(1024)
-
-	// Initially link should not exist
-	err := fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HasLinkFileBlock(txn, spaceId, fileId, blk.Cid())
-		require.NoError(t, err)
-		require.False(t, exists)
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Create file-block link
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.CreateLinkFileBlock(txn, spaceId, fileId, blk.Cid())
-	})
-	require.NoError(t, err)
-
-	// Now link should exist
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		exists, err := fx.storeSrv.HasLinkFileBlock(txn, spaceId, fileId, blk.Cid())
-		require.NoError(t, err)
-		require.True(t, exists)
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Check link doesn't exist for different space/file/block
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		// Different space
-		exists, err := fx.storeSrv.HasLinkFileBlock(txn, testutil.NewRandSpaceId(), fileId, blk.Cid())
-		require.NoError(t, err)
-		require.False(t, exists)
-
-		// Different file
-		exists, err = fx.storeSrv.HasLinkFileBlock(txn, spaceId, testutil.NewRandSpaceId(), blk.Cid())
-		require.NoError(t, err)
-		require.False(t, exists)
-
-		// Different block
-		exists, err = fx.storeSrv.HasLinkFileBlock(txn, spaceId, fileId, testutil.NewRandCid())
-		require.NoError(t, err)
-		require.False(t, exists)
-		return nil
-	})
-	require.NoError(t, err)
-}
-
-func TestLightFileNodeStore_WriteFile(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
-
-	spaceId := testutil.NewRandSpaceId()
-	fileId := testutil.NewRandSpaceId()
-
-	// Create file with some values
-	file := NewFileObj(spaceId, fileId).
-		WithUsageBytes(512).
-		WithCidsCount(10)
-
-	// Write file
-	err := fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.WriteFile(txn, file)
-	})
-	require.NoError(t, err)
-
-	// Verify file values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		// Get file and check values match
-		storedFile, err := fx.storeSrv.GetFile(txn, spaceId, fileId)
-		require.NoError(t, err)
-		require.Equal(t, file.UsageBytes(), storedFile.UsageBytes())
-		require.Equal(t, file.CidsCount(), storedFile.CidsCount())
-		require.Equal(t, file.SpaceID(), storedFile.SpaceID())
-		require.Equal(t, file.FileID(), storedFile.FileID())
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Update file values
-	file.WithUsageBytes(1024).WithCidsCount(20)
-
-	// Write updated file
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.WriteFile(txn, file)
-	})
-	require.NoError(t, err)
-
-	// Verify updated values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		storedFile, err := fx.storeSrv.GetFile(txn, spaceId, fileId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(1024), storedFile.UsageBytes())
-		require.Equal(t, uint32(20), storedFile.CidsCount())
-		return nil
-	})
-	require.NoError(t, err)
-}
-
-func TestLightFileNodeStore_WriteSpace(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
-
-	spaceId := testutil.NewRandSpaceId()
-
-	// Create space with some values
-	space := NewSpaceObj(spaceId).
-		WithLimitBytes(1024).
-		WithSpaceUsageBytes(256).
-		WithCidsCount(10).
-		WithFilesCount(5)
-
-	// Write space
-	err := fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.WriteSpace(txn, space)
-	})
-	require.NoError(t, err)
-
-	// Verify space values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		storedSpace, err := fx.storeSrv.GetSpace(txn, spaceId)
-		require.NoError(t, err)
-		require.Equal(t, space.LimitBytes(), storedSpace.LimitBytes())
-		require.Equal(t, space.SpaceUsageBytes(), storedSpace.SpaceUsageBytes())
-		require.Equal(t, space.CidsCount(), storedSpace.CidsCount())
-		require.Equal(t, space.FilesCount(), storedSpace.FilesCount())
-		require.Equal(t, space.SpaceID(), storedSpace.SpaceID())
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Update space values
-	space.WithLimitBytes(2048).
-		WithSpaceUsageBytes(512).
-		WithCidsCount(20).
-		WithFilesCount(10)
-
-	// Write updated space
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.WriteSpace(txn, space)
-	})
-	require.NoError(t, err)
-
-	// Verify updated values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		storedSpace, err := fx.storeSrv.GetSpace(txn, spaceId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(2048), storedSpace.LimitBytes())
-		require.Equal(t, uint64(512), storedSpace.SpaceUsageBytes())
-		require.Equal(t, uint64(20), storedSpace.CidsCount())
-		require.Equal(t, uint64(10), storedSpace.FilesCount())
-		return nil
-	})
-	require.NoError(t, err)
-}
-
-func TestLightFileNodeStore_WriteGroup(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.Finish(t)
-
-	groupId := testutil.NewRandSpaceId()
-
-	// Create group with some values
-	group := NewGroupObj(groupId).
-		WithLimitBytes(1024).
-		WithTotalUsageBytes(512).
-		WithTotalCidsCount(10)
-
-	// Write group
-	err := fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.WriteGroup(txn, group)
-	})
-	require.NoError(t, err)
-
-	// Verify group values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		storedGroup, err := fx.storeSrv.GetGroup(txn, groupId)
-		require.NoError(t, err)
-		require.Equal(t, group.LimitBytes(), storedGroup.LimitBytes())
-		require.Equal(t, group.TotalUsageBytes(), storedGroup.TotalUsageBytes())
-		require.Equal(t, group.TotalCidsCount(), storedGroup.TotalCidsCount())
-		require.Equal(t, group.GroupID(), storedGroup.GroupID())
-		return nil
-	})
-	require.NoError(t, err)
-
-	// Update group values
-	group.WithLimitBytes(2048).
-		WithTotalUsageBytes(1024).
-		WithTotalCidsCount(20)
-
-	// Write updated group
-	err = fx.storeSrv.TxUpdate(func(txn *badger.Txn) error {
-		return fx.storeSrv.WriteGroup(txn, group)
-	})
-	require.NoError(t, err)
-
-	// Verify updated values
-	err = fx.storeSrv.TxView(func(txn *badger.Txn) error {
-		storedGroup, err := fx.storeSrv.GetGroup(txn, groupId)
-		require.NoError(t, err)
-		require.Equal(t, uint64(2048), storedGroup.LimitBytes())
-		require.Equal(t, uint64(1024), storedGroup.TotalUsageBytes())
-		require.Equal(t, uint64(20), storedGroup.TotalCidsCount())
-		return nil
-	})
-	require.NoError(t, err)
-}
-
-//
-// Fixtures
-//
 
 type fixture struct {
-	a        *app.App
-	cfgSrc   *configServiceMock
-	storeSrv *lightFileNodeStore
+	app           *app.App
+	configService *configServiceMock
+	store         *lightFileNodeStore
 }
 
-func (fx *fixture) Finish(t *testing.T) {
-	require.NoError(t, fx.a.Close(context.Background()))
+func (f *fixture) cleanup(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, f.app.Close(ctx))
 }
 
 func newFixture(t *testing.T) *fixture {
 	tempDir := t.TempDir()
 
-	fx := &fixture{
-		a: new(app.App),
-		cfgSrc: &configServiceMock{
+	f := &fixture{
+		app: new(app.App),
+		configService: &configServiceMock{
 			InitFunc: func(a *app.App) error {
 				return nil
 			},
@@ -691,18 +313,15 @@ func newFixture(t *testing.T) *fixture {
 			GetFilenodeStoreDirFunc: func() string {
 				return tempDir
 			},
-			GetFilenodeDefaultLimitBytesFunc: func() uint64 {
-				return defaultLimitBytes
-			},
 		},
-		storeSrv: New().(*lightFileNodeStore),
+		store: New().(*lightFileNodeStore),
 	}
 
-	fx.a.
-		Register(fx.cfgSrc).
-		Register(fx.storeSrv)
+	f.app.
+		Register(f.configService).
+		Register(f.store)
 
-	t.Logf("start app with temp dir: %s", tempDir)
-	require.NoError(t, fx.a.Start(context.Background()))
-	return fx
+	t.Logf("Starting test app with temp dir: %s", tempDir)
+	require.NoError(t, f.app.Start(context.Background()))
+	return f
 }

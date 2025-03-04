@@ -559,9 +559,6 @@ func newFixture(t *testing.T) *fixture {
 			TxUpdateFunc: func(f func(txn *badger.Txn) error) error {
 				return f(nil)
 			},
-			// Implement the test
-			GetBlockFunc:  nil,
-			PushBlockFunc: nil,
 		},
 	}
 

@@ -1,0 +1,40 @@
+edition = "2023";  // successor to proto2 and proto3
+
+package indexpb;
+
+option go_package = "index/indexpb";
+
+
+// Composite key for identifying the space within a group.
+message Key {
+  string group_id = 1;
+  string space_id = 2;
+}
+
+// Define parameters for binding a file.
+message FileBindOperation {
+  string file_id = 1;
+  // List of block CIDs associated with this file.
+  repeated string block_cids = 2;
+}
+
+// Define parameters for unbinding a file.
+message FileUnbindOperation {
+  string file_id = 1;
+}
+
+// Operation encapsulates all possible index modification operations.
+message Operation {
+  oneof op {
+    FileBindOperation bind_file = 1;
+    FileUnbindOperation unbind_file = 2;
+    // TODO: Add other operations here as needed.
+  }
+}
+
+// AOFRecord represents a single write-ahead log record.
+message AOFRecord {
+  Key key = 1;            // Which group/space is affected.
+  Operation operation = 2; // Operation parameters, varying by type.
+  int64 timestamp = 3;     // Unix timestamp of the operation.
+}

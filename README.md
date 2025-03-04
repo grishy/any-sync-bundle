@@ -36,7 +36,10 @@
 
 ---
 
+
 ## TL;DR – How to start a self-hosted Anytype server
+
+This is a zero config version of official Anytype server. Base on original modules, that are used in official Anytype server, but merged into one binary.
 
 Replace the external address (e.g., `192.168.100.9`) with a local IP address or domain.  
 Multiple addresses can be added, separated by commas.  

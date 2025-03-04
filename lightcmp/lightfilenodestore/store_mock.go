@@ -4,6 +4,7 @@
 package lightfilenodestore
 
 import (
+	"context"
 	"github.com/anyproto/any-sync/app"
 	"github.com/dgraph-io/badger/v4"
 	blocks "github.com/ipfs/go-block-format"
@@ -21,9 +22,6 @@ var _ configService = &configServiceMock{}
 //
 //		// make and configure a mocked configService
 //		mockedconfigService := &configServiceMock{
-//			GetFilenodeDefaultLimitBytesFunc: func() uint64 {
-//				panic("mock out the GetFilenodeDefaultLimitBytes method")
-//			},
 //			GetFilenodeStoreDirFunc: func() string {
 //				panic("mock out the GetFilenodeStoreDir method")
 //			},
@@ -40,9 +38,6 @@ var _ configService = &configServiceMock{}
 //
 //	}
 type configServiceMock struct {
-	// GetFilenodeDefaultLimitBytesFunc mocks the GetFilenodeDefaultLimitBytes method.
-	GetFilenodeDefaultLimitBytesFunc func() uint64
-
 	// GetFilenodeStoreDirFunc mocks the GetFilenodeStoreDir method.
 	GetFilenodeStoreDirFunc func() string
 
@@ -54,9 +49,6 @@ type configServiceMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// GetFilenodeDefaultLimitBytes holds details about calls to the GetFilenodeDefaultLimitBytes method.
-		GetFilenodeDefaultLimitBytes []struct {
-		}
 		// GetFilenodeStoreDir holds details about calls to the GetFilenodeStoreDir method.
 		GetFilenodeStoreDir []struct {
 		}
@@ -69,37 +61,9 @@ type configServiceMock struct {
 		Name []struct {
 		}
 	}
-	lockGetFilenodeDefaultLimitBytes sync.RWMutex
-	lockGetFilenodeStoreDir          sync.RWMutex
-	lockInit                         sync.RWMutex
-	lockName                         sync.RWMutex
-}
-
-// GetFilenodeDefaultLimitBytes calls GetFilenodeDefaultLimitBytesFunc.
-func (mock *configServiceMock) GetFilenodeDefaultLimitBytes() uint64 {
-	if mock.GetFilenodeDefaultLimitBytesFunc == nil {
-		panic("configServiceMock.GetFilenodeDefaultLimitBytesFunc: method is nil but configService.GetFilenodeDefaultLimitBytes was just called")
-	}
-	callInfo := struct {
-	}{}
-	mock.lockGetFilenodeDefaultLimitBytes.Lock()
-	mock.calls.GetFilenodeDefaultLimitBytes = append(mock.calls.GetFilenodeDefaultLimitBytes, callInfo)
-	mock.lockGetFilenodeDefaultLimitBytes.Unlock()
-	return mock.GetFilenodeDefaultLimitBytesFunc()
-}
-
-// GetFilenodeDefaultLimitBytesCalls gets all the calls that were made to GetFilenodeDefaultLimitBytes.
-// Check the length with:
-//
-//	len(mockedconfigService.GetFilenodeDefaultLimitBytesCalls())
-func (mock *configServiceMock) GetFilenodeDefaultLimitBytesCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockGetFilenodeDefaultLimitBytes.RLock()
-	calls = mock.calls.GetFilenodeDefaultLimitBytes
-	mock.lockGetFilenodeDefaultLimitBytes.RUnlock()
-	return calls
+	lockGetFilenodeStoreDir sync.RWMutex
+	lockInit                sync.RWMutex
+	lockName                sync.RWMutex
 }
 
 // GetFilenodeStoreDir calls GetFilenodeStoreDirFunc.
@@ -198,32 +162,23 @@ var _ StoreService = &StoreServiceMock{}
 //
 //		// make and configure a mocked StoreService
 //		mockedStoreService := &StoreServiceMock{
-//			CreateLinkFileBlockFunc: func(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) error {
-//				panic("mock out the CreateLinkFileBlock method")
+//			CloseFunc: func(ctx context.Context) error {
+//				panic("mock out the Close method")
 //			},
-//			CreateLinkGroupSpaceFunc: func(txn *badger.Txn, groupId string, spaceId string) error {
-//				panic("mock out the CreateLinkGroupSpace method")
+//			DeleteBlockFunc: func(txn *badger.Txn, c cid.Cid) error {
+//				panic("mock out the DeleteBlock method")
 //			},
-//			GetBlockFunc: func(txn *badger.Txn, k cid.Cid) (*BlockObj, error) {
+//			DeleteIndexLogsFunc: func(txn *badger.Txn, idxs []uint64) error {
+//				panic("mock out the DeleteIndexLogs method")
+//			},
+//			GetBlockFunc: func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 //				panic("mock out the GetBlock method")
 //			},
-//			GetFileFunc: func(txn *badger.Txn, spaceId string, fileId string) (*FileObj, error) {
-//				panic("mock out the GetFile method")
+//			GetIndexLogsFunc: func(txn *badger.Txn) ([]IndexLog, error) {
+//				panic("mock out the GetIndexLogs method")
 //			},
-//			GetGroupFunc: func(txn *badger.Txn, groupId string) (*GroupObj, error) {
-//				panic("mock out the GetGroup method")
-//			},
-//			GetSpaceFunc: func(txn *badger.Txn, spaceId string) (*SpaceObj, error) {
-//				panic("mock out the GetSpace method")
-//			},
-//			HadCIDFunc: func(txn *badger.Txn, k cid.Cid) (bool, error) {
-//				panic("mock out the HadCID method")
-//			},
-//			HasCIDInSpaceFunc: func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
-//				panic("mock out the HasCIDInSpace method")
-//			},
-//			HasLinkFileBlockFunc: func(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) (bool, error) {
-//				panic("mock out the HasLinkFileBlock method")
+//			GetIndexSnapshotFunc: func(txn *badger.Txn) ([]byte, error) {
+//				panic("mock out the GetIndexSnapshot method")
 //			},
 //			InitFunc: func(a *app.App) error {
 //				panic("mock out the Init method")
@@ -231,23 +186,23 @@ var _ StoreService = &StoreServiceMock{}
 //			NameFunc: func() string {
 //				panic("mock out the Name method")
 //			},
-//			PushBlockFunc: func(txn *badger.Txn, spaceId string, block blocks.Block) error {
-//				panic("mock out the PushBlock method")
+//			PushIndexLogFunc: func(txn *badger.Txn, logData []byte) (uint64, error) {
+//				panic("mock out the PushIndexLog method")
+//			},
+//			PutBlockFunc: func(txn *badger.Txn, block blocks.Block) error {
+//				panic("mock out the PutBlock method")
+//			},
+//			RunFunc: func(ctx context.Context) error {
+//				panic("mock out the Run method")
+//			},
+//			SaveIndexSnapshotFunc: func(txn *badger.Txn, data []byte) error {
+//				panic("mock out the SaveIndexSnapshot method")
 //			},
 //			TxUpdateFunc: func(f func(txn *badger.Txn) error) error {
 //				panic("mock out the TxUpdate method")
 //			},
 //			TxViewFunc: func(f func(txn *badger.Txn) error) error {
 //				panic("mock out the TxView method")
-//			},
-//			WriteFileFunc: func(txn *badger.Txn, file *FileObj) error {
-//				panic("mock out the WriteFile method")
-//			},
-//			WriteGroupFunc: func(txn *badger.Txn, obj *GroupObj) error {
-//				panic("mock out the WriteGroup method")
-//			},
-//			WriteSpaceFunc: func(txn *badger.Txn, spaceObj *SpaceObj) error {
-//				panic("mock out the WriteSpace method")
 //			},
 //		}
 //
@@ -256,32 +211,23 @@ var _ StoreService = &StoreServiceMock{}
 //
 //	}
 type StoreServiceMock struct {
-	// CreateLinkFileBlockFunc mocks the CreateLinkFileBlock method.
-	CreateLinkFileBlockFunc func(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) error
+	// CloseFunc mocks the Close method.
+	CloseFunc func(ctx context.Context) error
 
-	// CreateLinkGroupSpaceFunc mocks the CreateLinkGroupSpace method.
-	CreateLinkGroupSpaceFunc func(txn *badger.Txn, groupId string, spaceId string) error
+	// DeleteBlockFunc mocks the DeleteBlock method.
+	DeleteBlockFunc func(txn *badger.Txn, c cid.Cid) error
+
+	// DeleteIndexLogsFunc mocks the DeleteIndexLogs method.
+	DeleteIndexLogsFunc func(txn *badger.Txn, idxs []uint64) error
 
 	// GetBlockFunc mocks the GetBlock method.
-	GetBlockFunc func(txn *badger.Txn, k cid.Cid) (*BlockObj, error)
+	GetBlockFunc func(txn *badger.Txn, k cid.Cid) ([]byte, error)
 
-	// GetFileFunc mocks the GetFile method.
-	GetFileFunc func(txn *badger.Txn, spaceId string, fileId string) (*FileObj, error)
+	// GetIndexLogsFunc mocks the GetIndexLogs method.
+	GetIndexLogsFunc func(txn *badger.Txn) ([]IndexLog, error)
 
-	// GetGroupFunc mocks the GetGroup method.
-	GetGroupFunc func(txn *badger.Txn, groupId string) (*GroupObj, error)
-
-	// GetSpaceFunc mocks the GetSpace method.
-	GetSpaceFunc func(txn *badger.Txn, spaceId string) (*SpaceObj, error)
-
-	// HadCIDFunc mocks the HadCID method.
-	HadCIDFunc func(txn *badger.Txn, k cid.Cid) (bool, error)
-
-	// HasCIDInSpaceFunc mocks the HasCIDInSpace method.
-	HasCIDInSpaceFunc func(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error)
-
-	// HasLinkFileBlockFunc mocks the HasLinkFileBlock method.
-	HasLinkFileBlockFunc func(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) (bool, error)
+	// GetIndexSnapshotFunc mocks the GetIndexSnapshot method.
+	GetIndexSnapshotFunc func(txn *badger.Txn) ([]byte, error)
 
 	// InitFunc mocks the Init method.
 	InitFunc func(a *app.App) error
@@ -289,8 +235,17 @@ type StoreServiceMock struct {
 	// NameFunc mocks the Name method.
 	NameFunc func() string
 
-	// PushBlockFunc mocks the PushBlock method.
-	PushBlockFunc func(txn *badger.Txn, spaceId string, block blocks.Block) error
+	// PushIndexLogFunc mocks the PushIndexLog method.
+	PushIndexLogFunc func(txn *badger.Txn, logData []byte) (uint64, error)
+
+	// PutBlockFunc mocks the PutBlock method.
+	PutBlockFunc func(txn *badger.Txn, block blocks.Block) error
+
+	// RunFunc mocks the Run method.
+	RunFunc func(ctx context.Context) error
+
+	// SaveIndexSnapshotFunc mocks the SaveIndexSnapshot method.
+	SaveIndexSnapshotFunc func(txn *badger.Txn, data []byte) error
 
 	// TxUpdateFunc mocks the TxUpdate method.
 	TxUpdateFunc func(f func(txn *badger.Txn) error) error
@@ -298,36 +253,26 @@ type StoreServiceMock struct {
 	// TxViewFunc mocks the TxView method.
 	TxViewFunc func(f func(txn *badger.Txn) error) error
 
-	// WriteFileFunc mocks the WriteFile method.
-	WriteFileFunc func(txn *badger.Txn, file *FileObj) error
-
-	// WriteGroupFunc mocks the WriteGroup method.
-	WriteGroupFunc func(txn *badger.Txn, obj *GroupObj) error
-
-	// WriteSpaceFunc mocks the WriteSpace method.
-	WriteSpaceFunc func(txn *badger.Txn, spaceObj *SpaceObj) error
-
 	// calls tracks calls to the methods.
 	calls struct {
-		// CreateLinkFileBlock holds details about calls to the CreateLinkFileBlock method.
-		CreateLinkFileBlock []struct {
-			// Txn is the txn argument value.
-			Txn *badger.Txn
-			// SpaceId is the spaceId argument value.
-			SpaceId string
-			// FileId is the fileId argument value.
-			FileId string
-			// K is the k argument value.
-			K cid.Cid
+		// Close holds details about calls to the Close method.
+		Close []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 		}
-		// CreateLinkGroupSpace holds details about calls to the CreateLinkGroupSpace method.
-		CreateLinkGroupSpace []struct {
+		// DeleteBlock holds details about calls to the DeleteBlock method.
+		DeleteBlock []struct {
 			// Txn is the txn argument value.
 			Txn *badger.Txn
-			// GroupId is the groupId argument value.
-			GroupId string
-			// SpaceId is the spaceId argument value.
-			SpaceId string
+			// C is the c argument value.
+			C cid.Cid
+		}
+		// DeleteIndexLogs holds details about calls to the DeleteIndexLogs method.
+		DeleteIndexLogs []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// Idxs is the idxs argument value.
+			Idxs []uint64
 		}
 		// GetBlock holds details about calls to the GetBlock method.
 		GetBlock []struct {
@@ -336,55 +281,15 @@ type StoreServiceMock struct {
 			// K is the k argument value.
 			K cid.Cid
 		}
-		// GetFile holds details about calls to the GetFile method.
-		GetFile []struct {
+		// GetIndexLogs holds details about calls to the GetIndexLogs method.
+		GetIndexLogs []struct {
 			// Txn is the txn argument value.
 			Txn *badger.Txn
-			// SpaceId is the spaceId argument value.
-			SpaceId string
-			// FileId is the fileId argument value.
-			FileId string
 		}
-		// GetGroup holds details about calls to the GetGroup method.
-		GetGroup []struct {
+		// GetIndexSnapshot holds details about calls to the GetIndexSnapshot method.
+		GetIndexSnapshot []struct {
 			// Txn is the txn argument value.
 			Txn *badger.Txn
-			// GroupId is the groupId argument value.
-			GroupId string
-		}
-		// GetSpace holds details about calls to the GetSpace method.
-		GetSpace []struct {
-			// Txn is the txn argument value.
-			Txn *badger.Txn
-			// SpaceId is the spaceId argument value.
-			SpaceId string
-		}
-		// HadCID holds details about calls to the HadCID method.
-		HadCID []struct {
-			// Txn is the txn argument value.
-			Txn *badger.Txn
-			// K is the k argument value.
-			K cid.Cid
-		}
-		// HasCIDInSpace holds details about calls to the HasCIDInSpace method.
-		HasCIDInSpace []struct {
-			// Txn is the txn argument value.
-			Txn *badger.Txn
-			// SpaceId is the spaceId argument value.
-			SpaceId string
-			// K is the k argument value.
-			K cid.Cid
-		}
-		// HasLinkFileBlock holds details about calls to the HasLinkFileBlock method.
-		HasLinkFileBlock []struct {
-			// Txn is the txn argument value.
-			Txn *badger.Txn
-			// SpaceId is the spaceId argument value.
-			SpaceId string
-			// FileId is the fileId argument value.
-			FileId string
-			// K is the k argument value.
-			K cid.Cid
 		}
 		// Init holds details about calls to the Init method.
 		Init []struct {
@@ -394,14 +299,31 @@ type StoreServiceMock struct {
 		// Name holds details about calls to the Name method.
 		Name []struct {
 		}
-		// PushBlock holds details about calls to the PushBlock method.
-		PushBlock []struct {
+		// PushIndexLog holds details about calls to the PushIndexLog method.
+		PushIndexLog []struct {
 			// Txn is the txn argument value.
 			Txn *badger.Txn
-			// SpaceId is the spaceId argument value.
-			SpaceId string
+			// LogData is the logData argument value.
+			LogData []byte
+		}
+		// PutBlock holds details about calls to the PutBlock method.
+		PutBlock []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
 			// Block is the block argument value.
 			Block blocks.Block
+		}
+		// Run holds details about calls to the Run method.
+		Run []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
+		// SaveIndexSnapshot holds details about calls to the SaveIndexSnapshot method.
+		SaveIndexSnapshot []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// Data is the data argument value.
+			Data []byte
 		}
 		// TxUpdate holds details about calls to the TxUpdate method.
 		TxUpdate []struct {
@@ -413,133 +335,129 @@ type StoreServiceMock struct {
 			// F is the f argument value.
 			F func(txn *badger.Txn) error
 		}
-		// WriteFile holds details about calls to the WriteFile method.
-		WriteFile []struct {
-			// Txn is the txn argument value.
-			Txn *badger.Txn
-			// File is the file argument value.
-			File *FileObj
-		}
-		// WriteGroup holds details about calls to the WriteGroup method.
-		WriteGroup []struct {
-			// Txn is the txn argument value.
-			Txn *badger.Txn
-			// Obj is the obj argument value.
-			Obj *GroupObj
-		}
-		// WriteSpace holds details about calls to the WriteSpace method.
-		WriteSpace []struct {
-			// Txn is the txn argument value.
-			Txn *badger.Txn
-			// SpaceObj is the spaceObj argument value.
-			SpaceObj *SpaceObj
-		}
 	}
-	lockCreateLinkFileBlock  sync.RWMutex
-	lockCreateLinkGroupSpace sync.RWMutex
-	lockGetBlock             sync.RWMutex
-	lockGetFile              sync.RWMutex
-	lockGetGroup             sync.RWMutex
-	lockGetSpace             sync.RWMutex
-	lockHadCID               sync.RWMutex
-	lockHasCIDInSpace        sync.RWMutex
-	lockHasLinkFileBlock     sync.RWMutex
-	lockInit                 sync.RWMutex
-	lockName                 sync.RWMutex
-	lockPushBlock            sync.RWMutex
-	lockTxUpdate             sync.RWMutex
-	lockTxView               sync.RWMutex
-	lockWriteFile            sync.RWMutex
-	lockWriteGroup           sync.RWMutex
-	lockWriteSpace           sync.RWMutex
+	lockClose             sync.RWMutex
+	lockDeleteBlock       sync.RWMutex
+	lockDeleteIndexLogs   sync.RWMutex
+	lockGetBlock          sync.RWMutex
+	lockGetIndexLogs      sync.RWMutex
+	lockGetIndexSnapshot  sync.RWMutex
+	lockInit              sync.RWMutex
+	lockName              sync.RWMutex
+	lockPushIndexLog      sync.RWMutex
+	lockPutBlock          sync.RWMutex
+	lockRun               sync.RWMutex
+	lockSaveIndexSnapshot sync.RWMutex
+	lockTxUpdate          sync.RWMutex
+	lockTxView            sync.RWMutex
 }
 
-// CreateLinkFileBlock calls CreateLinkFileBlockFunc.
-func (mock *StoreServiceMock) CreateLinkFileBlock(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) error {
-	if mock.CreateLinkFileBlockFunc == nil {
-		panic("StoreServiceMock.CreateLinkFileBlockFunc: method is nil but StoreService.CreateLinkFileBlock was just called")
+// Close calls CloseFunc.
+func (mock *StoreServiceMock) Close(ctx context.Context) error {
+	if mock.CloseFunc == nil {
+		panic("StoreServiceMock.CloseFunc: method is nil but StoreService.Close was just called")
 	}
 	callInfo := struct {
-		Txn     *badger.Txn
-		SpaceId string
-		FileId  string
-		K       cid.Cid
+		Ctx context.Context
 	}{
-		Txn:     txn,
-		SpaceId: spaceId,
-		FileId:  fileId,
-		K:       k,
+		Ctx: ctx,
 	}
-	mock.lockCreateLinkFileBlock.Lock()
-	mock.calls.CreateLinkFileBlock = append(mock.calls.CreateLinkFileBlock, callInfo)
-	mock.lockCreateLinkFileBlock.Unlock()
-	return mock.CreateLinkFileBlockFunc(txn, spaceId, fileId, k)
+	mock.lockClose.Lock()
+	mock.calls.Close = append(mock.calls.Close, callInfo)
+	mock.lockClose.Unlock()
+	return mock.CloseFunc(ctx)
 }
 
-// CreateLinkFileBlockCalls gets all the calls that were made to CreateLinkFileBlock.
+// CloseCalls gets all the calls that were made to Close.
 // Check the length with:
 //
-//	len(mockedStoreService.CreateLinkFileBlockCalls())
-func (mock *StoreServiceMock) CreateLinkFileBlockCalls() []struct {
-	Txn     *badger.Txn
-	SpaceId string
-	FileId  string
-	K       cid.Cid
+//	len(mockedStoreService.CloseCalls())
+func (mock *StoreServiceMock) CloseCalls() []struct {
+	Ctx context.Context
 } {
 	var calls []struct {
-		Txn     *badger.Txn
-		SpaceId string
-		FileId  string
-		K       cid.Cid
+		Ctx context.Context
 	}
-	mock.lockCreateLinkFileBlock.RLock()
-	calls = mock.calls.CreateLinkFileBlock
-	mock.lockCreateLinkFileBlock.RUnlock()
+	mock.lockClose.RLock()
+	calls = mock.calls.Close
+	mock.lockClose.RUnlock()
 	return calls
 }
 
-// CreateLinkGroupSpace calls CreateLinkGroupSpaceFunc.
-func (mock *StoreServiceMock) CreateLinkGroupSpace(txn *badger.Txn, groupId string, spaceId string) error {
-	if mock.CreateLinkGroupSpaceFunc == nil {
-		panic("StoreServiceMock.CreateLinkGroupSpaceFunc: method is nil but StoreService.CreateLinkGroupSpace was just called")
+// DeleteBlock calls DeleteBlockFunc.
+func (mock *StoreServiceMock) DeleteBlock(txn *badger.Txn, c cid.Cid) error {
+	if mock.DeleteBlockFunc == nil {
+		panic("StoreServiceMock.DeleteBlockFunc: method is nil but StoreService.DeleteBlock was just called")
 	}
 	callInfo := struct {
-		Txn     *badger.Txn
-		GroupId string
-		SpaceId string
+		Txn *badger.Txn
+		C   cid.Cid
 	}{
-		Txn:     txn,
-		GroupId: groupId,
-		SpaceId: spaceId,
+		Txn: txn,
+		C:   c,
 	}
-	mock.lockCreateLinkGroupSpace.Lock()
-	mock.calls.CreateLinkGroupSpace = append(mock.calls.CreateLinkGroupSpace, callInfo)
-	mock.lockCreateLinkGroupSpace.Unlock()
-	return mock.CreateLinkGroupSpaceFunc(txn, groupId, spaceId)
+	mock.lockDeleteBlock.Lock()
+	mock.calls.DeleteBlock = append(mock.calls.DeleteBlock, callInfo)
+	mock.lockDeleteBlock.Unlock()
+	return mock.DeleteBlockFunc(txn, c)
 }
 
-// CreateLinkGroupSpaceCalls gets all the calls that were made to CreateLinkGroupSpace.
+// DeleteBlockCalls gets all the calls that were made to DeleteBlock.
 // Check the length with:
 //
-//	len(mockedStoreService.CreateLinkGroupSpaceCalls())
-func (mock *StoreServiceMock) CreateLinkGroupSpaceCalls() []struct {
-	Txn     *badger.Txn
-	GroupId string
-	SpaceId string
+//	len(mockedStoreService.DeleteBlockCalls())
+func (mock *StoreServiceMock) DeleteBlockCalls() []struct {
+	Txn *badger.Txn
+	C   cid.Cid
 } {
 	var calls []struct {
-		Txn     *badger.Txn
-		GroupId string
-		SpaceId string
+		Txn *badger.Txn
+		C   cid.Cid
 	}
-	mock.lockCreateLinkGroupSpace.RLock()
-	calls = mock.calls.CreateLinkGroupSpace
-	mock.lockCreateLinkGroupSpace.RUnlock()
+	mock.lockDeleteBlock.RLock()
+	calls = mock.calls.DeleteBlock
+	mock.lockDeleteBlock.RUnlock()
+	return calls
+}
+
+// DeleteIndexLogs calls DeleteIndexLogsFunc.
+func (mock *StoreServiceMock) DeleteIndexLogs(txn *badger.Txn, idxs []uint64) error {
+	if mock.DeleteIndexLogsFunc == nil {
+		panic("StoreServiceMock.DeleteIndexLogsFunc: method is nil but StoreService.DeleteIndexLogs was just called")
+	}
+	callInfo := struct {
+		Txn  *badger.Txn
+		Idxs []uint64
+	}{
+		Txn:  txn,
+		Idxs: idxs,
+	}
+	mock.lockDeleteIndexLogs.Lock()
+	mock.calls.DeleteIndexLogs = append(mock.calls.DeleteIndexLogs, callInfo)
+	mock.lockDeleteIndexLogs.Unlock()
+	return mock.DeleteIndexLogsFunc(txn, idxs)
+}
+
+// DeleteIndexLogsCalls gets all the calls that were made to DeleteIndexLogs.
+// Check the length with:
+//
+//	len(mockedStoreService.DeleteIndexLogsCalls())
+func (mock *StoreServiceMock) DeleteIndexLogsCalls() []struct {
+	Txn  *badger.Txn
+	Idxs []uint64
+} {
+	var calls []struct {
+		Txn  *badger.Txn
+		Idxs []uint64
+	}
+	mock.lockDeleteIndexLogs.RLock()
+	calls = mock.calls.DeleteIndexLogs
+	mock.lockDeleteIndexLogs.RUnlock()
 	return calls
 }
 
 // GetBlock calls GetBlockFunc.
-func (mock *StoreServiceMock) GetBlock(txn *badger.Txn, k cid.Cid) (*BlockObj, error) {
+func (mock *StoreServiceMock) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 	if mock.GetBlockFunc == nil {
 		panic("StoreServiceMock.GetBlockFunc: method is nil but StoreService.GetBlock was just called")
 	}
@@ -574,235 +492,67 @@ func (mock *StoreServiceMock) GetBlockCalls() []struct {
 	return calls
 }
 
-// GetFile calls GetFileFunc.
-func (mock *StoreServiceMock) GetFile(txn *badger.Txn, spaceId string, fileId string) (*FileObj, error) {
-	if mock.GetFileFunc == nil {
-		panic("StoreServiceMock.GetFileFunc: method is nil but StoreService.GetFile was just called")
-	}
-	callInfo := struct {
-		Txn     *badger.Txn
-		SpaceId string
-		FileId  string
-	}{
-		Txn:     txn,
-		SpaceId: spaceId,
-		FileId:  fileId,
-	}
-	mock.lockGetFile.Lock()
-	mock.calls.GetFile = append(mock.calls.GetFile, callInfo)
-	mock.lockGetFile.Unlock()
-	return mock.GetFileFunc(txn, spaceId, fileId)
-}
-
-// GetFileCalls gets all the calls that were made to GetFile.
-// Check the length with:
-//
-//	len(mockedStoreService.GetFileCalls())
-func (mock *StoreServiceMock) GetFileCalls() []struct {
-	Txn     *badger.Txn
-	SpaceId string
-	FileId  string
-} {
-	var calls []struct {
-		Txn     *badger.Txn
-		SpaceId string
-		FileId  string
-	}
-	mock.lockGetFile.RLock()
-	calls = mock.calls.GetFile
-	mock.lockGetFile.RUnlock()
-	return calls
-}
-
-// GetGroup calls GetGroupFunc.
-func (mock *StoreServiceMock) GetGroup(txn *badger.Txn, groupId string) (*GroupObj, error) {
-	if mock.GetGroupFunc == nil {
-		panic("StoreServiceMock.GetGroupFunc: method is nil but StoreService.GetGroup was just called")
-	}
-	callInfo := struct {
-		Txn     *badger.Txn
-		GroupId string
-	}{
-		Txn:     txn,
-		GroupId: groupId,
-	}
-	mock.lockGetGroup.Lock()
-	mock.calls.GetGroup = append(mock.calls.GetGroup, callInfo)
-	mock.lockGetGroup.Unlock()
-	return mock.GetGroupFunc(txn, groupId)
-}
-
-// GetGroupCalls gets all the calls that were made to GetGroup.
-// Check the length with:
-//
-//	len(mockedStoreService.GetGroupCalls())
-func (mock *StoreServiceMock) GetGroupCalls() []struct {
-	Txn     *badger.Txn
-	GroupId string
-} {
-	var calls []struct {
-		Txn     *badger.Txn
-		GroupId string
-	}
-	mock.lockGetGroup.RLock()
-	calls = mock.calls.GetGroup
-	mock.lockGetGroup.RUnlock()
-	return calls
-}
-
-// GetSpace calls GetSpaceFunc.
-func (mock *StoreServiceMock) GetSpace(txn *badger.Txn, spaceId string) (*SpaceObj, error) {
-	if mock.GetSpaceFunc == nil {
-		panic("StoreServiceMock.GetSpaceFunc: method is nil but StoreService.GetSpace was just called")
-	}
-	callInfo := struct {
-		Txn     *badger.Txn
-		SpaceId string
-	}{
-		Txn:     txn,
-		SpaceId: spaceId,
-	}
-	mock.lockGetSpace.Lock()
-	mock.calls.GetSpace = append(mock.calls.GetSpace, callInfo)
-	mock.lockGetSpace.Unlock()
-	return mock.GetSpaceFunc(txn, spaceId)
-}
-
-// GetSpaceCalls gets all the calls that were made to GetSpace.
-// Check the length with:
-//
-//	len(mockedStoreService.GetSpaceCalls())
-func (mock *StoreServiceMock) GetSpaceCalls() []struct {
-	Txn     *badger.Txn
-	SpaceId string
-} {
-	var calls []struct {
-		Txn     *badger.Txn
-		SpaceId string
-	}
-	mock.lockGetSpace.RLock()
-	calls = mock.calls.GetSpace
-	mock.lockGetSpace.RUnlock()
-	return calls
-}
-
-// HadCID calls HadCIDFunc.
-func (mock *StoreServiceMock) HadCID(txn *badger.Txn, k cid.Cid) (bool, error) {
-	if mock.HadCIDFunc == nil {
-		panic("StoreServiceMock.HadCIDFunc: method is nil but StoreService.HadCID was just called")
+// GetIndexLogs calls GetIndexLogsFunc.
+func (mock *StoreServiceMock) GetIndexLogs(txn *badger.Txn) ([]IndexLog, error) {
+	if mock.GetIndexLogsFunc == nil {
+		panic("StoreServiceMock.GetIndexLogsFunc: method is nil but StoreService.GetIndexLogs was just called")
 	}
 	callInfo := struct {
 		Txn *badger.Txn
-		K   cid.Cid
 	}{
 		Txn: txn,
-		K:   k,
 	}
-	mock.lockHadCID.Lock()
-	mock.calls.HadCID = append(mock.calls.HadCID, callInfo)
-	mock.lockHadCID.Unlock()
-	return mock.HadCIDFunc(txn, k)
+	mock.lockGetIndexLogs.Lock()
+	mock.calls.GetIndexLogs = append(mock.calls.GetIndexLogs, callInfo)
+	mock.lockGetIndexLogs.Unlock()
+	return mock.GetIndexLogsFunc(txn)
 }
 
-// HadCIDCalls gets all the calls that were made to HadCID.
+// GetIndexLogsCalls gets all the calls that were made to GetIndexLogs.
 // Check the length with:
 //
-//	len(mockedStoreService.HadCIDCalls())
-func (mock *StoreServiceMock) HadCIDCalls() []struct {
+//	len(mockedStoreService.GetIndexLogsCalls())
+func (mock *StoreServiceMock) GetIndexLogsCalls() []struct {
 	Txn *badger.Txn
-	K   cid.Cid
 } {
 	var calls []struct {
 		Txn *badger.Txn
-		K   cid.Cid
 	}
-	mock.lockHadCID.RLock()
-	calls = mock.calls.HadCID
-	mock.lockHadCID.RUnlock()
+	mock.lockGetIndexLogs.RLock()
+	calls = mock.calls.GetIndexLogs
+	mock.lockGetIndexLogs.RUnlock()
 	return calls
 }
 
-// HasCIDInSpace calls HasCIDInSpaceFunc.
-func (mock *StoreServiceMock) HasCIDInSpace(txn *badger.Txn, spaceId string, k cid.Cid) (bool, error) {
-	if mock.HasCIDInSpaceFunc == nil {
-		panic("StoreServiceMock.HasCIDInSpaceFunc: method is nil but StoreService.HasCIDInSpace was just called")
+// GetIndexSnapshot calls GetIndexSnapshotFunc.
+func (mock *StoreServiceMock) GetIndexSnapshot(txn *badger.Txn) ([]byte, error) {
+	if mock.GetIndexSnapshotFunc == nil {
+		panic("StoreServiceMock.GetIndexSnapshotFunc: method is nil but StoreService.GetIndexSnapshot was just called")
 	}
 	callInfo := struct {
-		Txn     *badger.Txn
-		SpaceId string
-		K       cid.Cid
+		Txn *badger.Txn
 	}{
-		Txn:     txn,
-		SpaceId: spaceId,
-		K:       k,
+		Txn: txn,
 	}
-	mock.lockHasCIDInSpace.Lock()
-	mock.calls.HasCIDInSpace = append(mock.calls.HasCIDInSpace, callInfo)
-	mock.lockHasCIDInSpace.Unlock()
-	return mock.HasCIDInSpaceFunc(txn, spaceId, k)
+	mock.lockGetIndexSnapshot.Lock()
+	mock.calls.GetIndexSnapshot = append(mock.calls.GetIndexSnapshot, callInfo)
+	mock.lockGetIndexSnapshot.Unlock()
+	return mock.GetIndexSnapshotFunc(txn)
 }
 
-// HasCIDInSpaceCalls gets all the calls that were made to HasCIDInSpace.
+// GetIndexSnapshotCalls gets all the calls that were made to GetIndexSnapshot.
 // Check the length with:
 //
-//	len(mockedStoreService.HasCIDInSpaceCalls())
-func (mock *StoreServiceMock) HasCIDInSpaceCalls() []struct {
-	Txn     *badger.Txn
-	SpaceId string
-	K       cid.Cid
+//	len(mockedStoreService.GetIndexSnapshotCalls())
+func (mock *StoreServiceMock) GetIndexSnapshotCalls() []struct {
+	Txn *badger.Txn
 } {
 	var calls []struct {
-		Txn     *badger.Txn
-		SpaceId string
-		K       cid.Cid
+		Txn *badger.Txn
 	}
-	mock.lockHasCIDInSpace.RLock()
-	calls = mock.calls.HasCIDInSpace
-	mock.lockHasCIDInSpace.RUnlock()
-	return calls
-}
-
-// HasLinkFileBlock calls HasLinkFileBlockFunc.
-func (mock *StoreServiceMock) HasLinkFileBlock(txn *badger.Txn, spaceId string, fileId string, k cid.Cid) (bool, error) {
-	if mock.HasLinkFileBlockFunc == nil {
-		panic("StoreServiceMock.HasLinkFileBlockFunc: method is nil but StoreService.HasLinkFileBlock was just called")
-	}
-	callInfo := struct {
-		Txn     *badger.Txn
-		SpaceId string
-		FileId  string
-		K       cid.Cid
-	}{
-		Txn:     txn,
-		SpaceId: spaceId,
-		FileId:  fileId,
-		K:       k,
-	}
-	mock.lockHasLinkFileBlock.Lock()
-	mock.calls.HasLinkFileBlock = append(mock.calls.HasLinkFileBlock, callInfo)
-	mock.lockHasLinkFileBlock.Unlock()
-	return mock.HasLinkFileBlockFunc(txn, spaceId, fileId, k)
-}
-
-// HasLinkFileBlockCalls gets all the calls that were made to HasLinkFileBlock.
-// Check the length with:
-//
-//	len(mockedStoreService.HasLinkFileBlockCalls())
-func (mock *StoreServiceMock) HasLinkFileBlockCalls() []struct {
-	Txn     *badger.Txn
-	SpaceId string
-	FileId  string
-	K       cid.Cid
-} {
-	var calls []struct {
-		Txn     *badger.Txn
-		SpaceId string
-		FileId  string
-		K       cid.Cid
-	}
-	mock.lockHasLinkFileBlock.RLock()
-	calls = mock.calls.HasLinkFileBlock
-	mock.lockHasLinkFileBlock.RUnlock()
+	mock.lockGetIndexSnapshot.RLock()
+	calls = mock.calls.GetIndexSnapshot
+	mock.lockGetIndexSnapshot.RUnlock()
 	return calls
 }
 
@@ -865,43 +615,143 @@ func (mock *StoreServiceMock) NameCalls() []struct {
 	return calls
 }
 
-// PushBlock calls PushBlockFunc.
-func (mock *StoreServiceMock) PushBlock(txn *badger.Txn, spaceId string, block blocks.Block) error {
-	if mock.PushBlockFunc == nil {
-		panic("StoreServiceMock.PushBlockFunc: method is nil but StoreService.PushBlock was just called")
+// PushIndexLog calls PushIndexLogFunc.
+func (mock *StoreServiceMock) PushIndexLog(txn *badger.Txn, logData []byte) (uint64, error) {
+	if mock.PushIndexLogFunc == nil {
+		panic("StoreServiceMock.PushIndexLogFunc: method is nil but StoreService.PushIndexLog was just called")
 	}
 	callInfo := struct {
 		Txn     *badger.Txn
-		SpaceId string
-		Block   blocks.Block
+		LogData []byte
 	}{
 		Txn:     txn,
-		SpaceId: spaceId,
-		Block:   block,
+		LogData: logData,
 	}
-	mock.lockPushBlock.Lock()
-	mock.calls.PushBlock = append(mock.calls.PushBlock, callInfo)
-	mock.lockPushBlock.Unlock()
-	return mock.PushBlockFunc(txn, spaceId, block)
+	mock.lockPushIndexLog.Lock()
+	mock.calls.PushIndexLog = append(mock.calls.PushIndexLog, callInfo)
+	mock.lockPushIndexLog.Unlock()
+	return mock.PushIndexLogFunc(txn, logData)
 }
 
-// PushBlockCalls gets all the calls that were made to PushBlock.
+// PushIndexLogCalls gets all the calls that were made to PushIndexLog.
 // Check the length with:
 //
-//	len(mockedStoreService.PushBlockCalls())
-func (mock *StoreServiceMock) PushBlockCalls() []struct {
+//	len(mockedStoreService.PushIndexLogCalls())
+func (mock *StoreServiceMock) PushIndexLogCalls() []struct {
 	Txn     *badger.Txn
-	SpaceId string
-	Block   blocks.Block
+	LogData []byte
 } {
 	var calls []struct {
 		Txn     *badger.Txn
-		SpaceId string
-		Block   blocks.Block
+		LogData []byte
 	}
-	mock.lockPushBlock.RLock()
-	calls = mock.calls.PushBlock
-	mock.lockPushBlock.RUnlock()
+	mock.lockPushIndexLog.RLock()
+	calls = mock.calls.PushIndexLog
+	mock.lockPushIndexLog.RUnlock()
+	return calls
+}
+
+// PutBlock calls PutBlockFunc.
+func (mock *StoreServiceMock) PutBlock(txn *badger.Txn, block blocks.Block) error {
+	if mock.PutBlockFunc == nil {
+		panic("StoreServiceMock.PutBlockFunc: method is nil but StoreService.PutBlock was just called")
+	}
+	callInfo := struct {
+		Txn   *badger.Txn
+		Block blocks.Block
+	}{
+		Txn:   txn,
+		Block: block,
+	}
+	mock.lockPutBlock.Lock()
+	mock.calls.PutBlock = append(mock.calls.PutBlock, callInfo)
+	mock.lockPutBlock.Unlock()
+	return mock.PutBlockFunc(txn, block)
+}
+
+// PutBlockCalls gets all the calls that were made to PutBlock.
+// Check the length with:
+//
+//	len(mockedStoreService.PutBlockCalls())
+func (mock *StoreServiceMock) PutBlockCalls() []struct {
+	Txn   *badger.Txn
+	Block blocks.Block
+} {
+	var calls []struct {
+		Txn   *badger.Txn
+		Block blocks.Block
+	}
+	mock.lockPutBlock.RLock()
+	calls = mock.calls.PutBlock
+	mock.lockPutBlock.RUnlock()
+	return calls
+}
+
+// Run calls RunFunc.
+func (mock *StoreServiceMock) Run(ctx context.Context) error {
+	if mock.RunFunc == nil {
+		panic("StoreServiceMock.RunFunc: method is nil but StoreService.Run was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockRun.Lock()
+	mock.calls.Run = append(mock.calls.Run, callInfo)
+	mock.lockRun.Unlock()
+	return mock.RunFunc(ctx)
+}
+
+// RunCalls gets all the calls that were made to Run.
+// Check the length with:
+//
+//	len(mockedStoreService.RunCalls())
+func (mock *StoreServiceMock) RunCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockRun.RLock()
+	calls = mock.calls.Run
+	mock.lockRun.RUnlock()
+	return calls
+}
+
+// SaveIndexSnapshot calls SaveIndexSnapshotFunc.
+func (mock *StoreServiceMock) SaveIndexSnapshot(txn *badger.Txn, data []byte) error {
+	if mock.SaveIndexSnapshotFunc == nil {
+		panic("StoreServiceMock.SaveIndexSnapshotFunc: method is nil but StoreService.SaveIndexSnapshot was just called")
+	}
+	callInfo := struct {
+		Txn  *badger.Txn
+		Data []byte
+	}{
+		Txn:  txn,
+		Data: data,
+	}
+	mock.lockSaveIndexSnapshot.Lock()
+	mock.calls.SaveIndexSnapshot = append(mock.calls.SaveIndexSnapshot, callInfo)
+	mock.lockSaveIndexSnapshot.Unlock()
+	return mock.SaveIndexSnapshotFunc(txn, data)
+}
+
+// SaveIndexSnapshotCalls gets all the calls that were made to SaveIndexSnapshot.
+// Check the length with:
+//
+//	len(mockedStoreService.SaveIndexSnapshotCalls())
+func (mock *StoreServiceMock) SaveIndexSnapshotCalls() []struct {
+	Txn  *badger.Txn
+	Data []byte
+} {
+	var calls []struct {
+		Txn  *badger.Txn
+		Data []byte
+	}
+	mock.lockSaveIndexSnapshot.RLock()
+	calls = mock.calls.SaveIndexSnapshot
+	mock.lockSaveIndexSnapshot.RUnlock()
 	return calls
 }
 
@@ -966,113 +816,5 @@ func (mock *StoreServiceMock) TxViewCalls() []struct {
 	mock.lockTxView.RLock()
 	calls = mock.calls.TxView
 	mock.lockTxView.RUnlock()
-	return calls
-}
-
-// WriteFile calls WriteFileFunc.
-func (mock *StoreServiceMock) WriteFile(txn *badger.Txn, file *FileObj) error {
-	if mock.WriteFileFunc == nil {
-		panic("StoreServiceMock.WriteFileFunc: method is nil but StoreService.WriteFile was just called")
-	}
-	callInfo := struct {
-		Txn  *badger.Txn
-		File *FileObj
-	}{
-		Txn:  txn,
-		File: file,
-	}
-	mock.lockWriteFile.Lock()
-	mock.calls.WriteFile = append(mock.calls.WriteFile, callInfo)
-	mock.lockWriteFile.Unlock()
-	return mock.WriteFileFunc(txn, file)
-}
-
-// WriteFileCalls gets all the calls that were made to WriteFile.
-// Check the length with:
-//
-//	len(mockedStoreService.WriteFileCalls())
-func (mock *StoreServiceMock) WriteFileCalls() []struct {
-	Txn  *badger.Txn
-	File *FileObj
-} {
-	var calls []struct {
-		Txn  *badger.Txn
-		File *FileObj
-	}
-	mock.lockWriteFile.RLock()
-	calls = mock.calls.WriteFile
-	mock.lockWriteFile.RUnlock()
-	return calls
-}
-
-// WriteGroup calls WriteGroupFunc.
-func (mock *StoreServiceMock) WriteGroup(txn *badger.Txn, obj *GroupObj) error {
-	if mock.WriteGroupFunc == nil {
-		panic("StoreServiceMock.WriteGroupFunc: method is nil but StoreService.WriteGroup was just called")
-	}
-	callInfo := struct {
-		Txn *badger.Txn
-		Obj *GroupObj
-	}{
-		Txn: txn,
-		Obj: obj,
-	}
-	mock.lockWriteGroup.Lock()
-	mock.calls.WriteGroup = append(mock.calls.WriteGroup, callInfo)
-	mock.lockWriteGroup.Unlock()
-	return mock.WriteGroupFunc(txn, obj)
-}
-
-// WriteGroupCalls gets all the calls that were made to WriteGroup.
-// Check the length with:
-//
-//	len(mockedStoreService.WriteGroupCalls())
-func (mock *StoreServiceMock) WriteGroupCalls() []struct {
-	Txn *badger.Txn
-	Obj *GroupObj
-} {
-	var calls []struct {
-		Txn *badger.Txn
-		Obj *GroupObj
-	}
-	mock.lockWriteGroup.RLock()
-	calls = mock.calls.WriteGroup
-	mock.lockWriteGroup.RUnlock()
-	return calls
-}
-
-// WriteSpace calls WriteSpaceFunc.
-func (mock *StoreServiceMock) WriteSpace(txn *badger.Txn, spaceObj *SpaceObj) error {
-	if mock.WriteSpaceFunc == nil {
-		panic("StoreServiceMock.WriteSpaceFunc: method is nil but StoreService.WriteSpace was just called")
-	}
-	callInfo := struct {
-		Txn      *badger.Txn
-		SpaceObj *SpaceObj
-	}{
-		Txn:      txn,
-		SpaceObj: spaceObj,
-	}
-	mock.lockWriteSpace.Lock()
-	mock.calls.WriteSpace = append(mock.calls.WriteSpace, callInfo)
-	mock.lockWriteSpace.Unlock()
-	return mock.WriteSpaceFunc(txn, spaceObj)
-}
-
-// WriteSpaceCalls gets all the calls that were made to WriteSpace.
-// Check the length with:
-//
-//	len(mockedStoreService.WriteSpaceCalls())
-func (mock *StoreServiceMock) WriteSpaceCalls() []struct {
-	Txn      *badger.Txn
-	SpaceObj *SpaceObj
-} {
-	var calls []struct {
-		Txn      *badger.Txn
-		SpaceObj *SpaceObj
-	}
-	mock.lockWriteSpace.RLock()
-	calls = mock.calls.WriteSpace
-	mock.lockWriteSpace.RUnlock()
 	return calls
 }

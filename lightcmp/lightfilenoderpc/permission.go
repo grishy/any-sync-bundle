@@ -17,7 +17,7 @@ func (r *lightFileNodeRpc) resolveStoreKey(ctx context.Context, spaceID string) 
 		return index.Key{}, fileprotoerr.ErrForbidden
 	}
 
-	ownerPubKey, err := r.acl.OwnerPubKey(ctx, spaceID)
+	ownerPubKey, err := r.srvAcl.OwnerPubKey(ctx, spaceID)
 	if err != nil {
 		log.Warn("failed to get owner public key", zap.Error(err))
 		return index.Key{}, fileprotoerr.ErrForbidden
@@ -45,7 +45,7 @@ func (r *lightFileNodeRpc) canRead(ctx context.Context, spaceID string) (index.K
 		return storageKey, nil
 	}
 
-	permissions, err := r.acl.Permissions(ctx, identity, storageKey.SpaceId)
+	permissions, err := r.srvAcl.Permissions(ctx, identity, storageKey.SpaceId)
 	if err != nil {
 		return storageKey, fmt.Errorf("failed to get permissions: %w", err)
 	}
@@ -78,7 +78,7 @@ func (r *lightFileNodeRpc) canWrite(ctx context.Context, txn *badger.Txn, spaceI
 		return storageKey, nil
 	}
 
-	permissions, err := r.acl.Permissions(ctx, identity, storageKey.SpaceId)
+	permissions, err := r.srvAcl.Permissions(ctx, identity, storageKey.SpaceId)
 	if err != nil {
 		return storageKey, fmt.Errorf("failed to get permissions: %w", err)
 	}
@@ -87,30 +87,30 @@ func (r *lightFileNodeRpc) canWrite(ctx context.Context, txn *badger.Txn, spaceI
 		return storageKey, fileprotoerr.ErrForbidden
 	}
 
-	return storageKey, r.hasEnoughSpace(txn, &storageKey)
+	return storageKey, r.hasEnoughSpace(txn, storageKey)
 }
 
-func (r *lightFileNodeRpc) hasEnoughSpace(txn *badger.Txn, storageKey *index.Key) error {
-	space, err := r.store.GetSpace(txn, storageKey.SpaceId)
-	if err != nil {
-		return fmt.Errorf("failed to get space: %w", err)
-	}
-
-	group, err := r.store.GetGroup(txn, storageKey.GroupId)
+func (r *lightFileNodeRpc) hasEnoughSpace(txn *badger.Txn, storageKey index.Key) error {
+	group, err := r.srvIndex.GroupInfo(txn, storageKey.GroupId)
 	if err != nil {
 		return fmt.Errorf("failed to get group: %w", err)
 	}
 
+	space, err := r.srvIndex.SpaceInfo(txn, storageKey)
+	if err != nil {
+		return fmt.Errorf("failed to get space: %w", err)
+	}
+
 	// For non-isolated spaces, check space-specific limit first
-	if spaceLimit := space.LimitBytes(); spaceLimit > 0 {
-		if group.TotalUsageBytes() >= spaceLimit {
+	if spaceLimit := space.LimitBytes; spaceLimit > 0 {
+		if group.UsageBytes >= spaceLimit {
 			return fileprotoerr.ErrSpaceLimitExceeded
 		}
 		return nil
 	}
 
 	// For isolated spaces, check group limit
-	if group.TotalUsageBytes() >= group.LimitBytes() {
+	if group.UsageBytes >= group.LimitBytes {
 		return fileprotoerr.ErrSpaceLimitExceeded
 	}
 

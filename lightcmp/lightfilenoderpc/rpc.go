@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
@@ -17,6 +16,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 
+	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
@@ -29,29 +29,37 @@ const (
 var log = logger.NewNamed(CName)
 
 type lightFileNodeRpc struct {
-	acl   acl.AclService
-	dRPC  server.DRPCServer
-	store lightfilenodestore.StoreService
+	srvAcl   acl.AclService
+	srvDRPC  server.DRPCServer
+	srvIndex lightfilenodeindex.IndexService
+	srvStore lightfilenodestore.StoreService
 }
 
-func New() Service {
+func New() app.ComponentRunnable {
 	return new(lightFileNodeRpc)
-}
-
-type Service interface {
-	app.Component
 }
 
 //
 // App Component
 //
 
+//          RPC (DRPC)
+//           ├──────┐
+//           │      │ [Read/Write]
+// [BlockGet]│      ▼
+//           │    Index (In-memory)
+//           │      │ [Write-log and Snapshots]
+//           ├──────┘
+//           ▼
+//         Store (BadgerDB)
+
 func (r *lightFileNodeRpc) Init(a *app.App) error {
 	log.Info("call Init")
 
-	r.dRPC = app.MustComponent[server.DRPCServer](a)
-	r.acl = app.MustComponent[acl.AclService](a)
-	r.store = app.MustComponent[lightfilenodestore.StoreService](a)
+	r.srvAcl = app.MustComponent[acl.AclService](a)
+	r.srvDRPC = app.MustComponent[server.DRPCServer](a)
+	r.srvIndex = app.MustComponent[lightfilenodeindex.IndexService](a)
+	r.srvStore = app.MustComponent[lightfilenodestore.StoreService](a)
 
 	return nil
 }
@@ -65,7 +73,7 @@ func (r *lightFileNodeRpc) Name() (name string) {
 //
 
 func (r *lightFileNodeRpc) Run(ctx context.Context) error {
-	return fileproto.DRPCRegisterFile(r.dRPC, r)
+	return fileproto.DRPCRegisterFile(r.srvDRPC, r)
 }
 
 func (r *lightFileNodeRpc) Close(ctx context.Context) error {
@@ -90,11 +98,11 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 		return nil, fmt.Errorf("failed to cast CID='%s': %w", string(req.Cid), err)
 	}
 
-	var blockObj *lightfilenodestore.BlockObj
+	var blockData []byte
 	for {
-		errTx := r.store.TxView(func(txn *badger.Txn) error {
+		errTx := r.srvStore.TxView(func(txn *badger.Txn) error {
 			var errGet error
-			blockObj, errGet = r.store.GetBlock(txn, c)
+			blockData, errGet = r.srvStore.GetBlock(txn, c)
 			return errGet
 		})
 
@@ -116,7 +124,7 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 
 	resp := &fileproto.BlockGetResponse{
 		Cid:  req.Cid,
-		Data: blockObj.Data(),
+		Data: blockData,
 	}
 
 	return resp, nil
@@ -160,28 +168,32 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	}
 
 	// Finally, save the block and update all necessary counters
-	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
+	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
 		storageKey, errPerm := r.canWrite(ctx, txn, req.SpaceId)
 		if errPerm != nil {
 			return errPerm
 		}
 
-		// Check existing block before, to avoid overwriting
-		isBlkExist, errBlock := r.store.HadCID(txn, c)
-		if errBlock != nil {
-			return fmt.Errorf("failed to check if CID exists: %w", errBlock)
-		}
+		_ = dataSize
+		_ = blk
+		_ = storageKey
 
-		if !isBlkExist {
-			if errPush := r.store.PushBlock(txn, req.SpaceId, blk); errPush != nil {
-				return fmt.Errorf("failed to push block: %w", errPush)
-			}
-		}
-
-		errBind := r.bindBlock(txn, storageKey, req.SpaceId, req.FileId, c, dataSize)
-		if errBind != nil {
-			return fmt.Errorf("failed to bind block: %w", errBind)
-		}
+		// // Check existing block before, to avoid overwriting
+		// isBlkExist, errBlock := r.index.HadCID(txn, c)
+		// if errBlock != nil {
+		// 	return fmt.Errorf("failed to check if CID exists: %w", errBlock)
+		// }
+		//
+		// if !isBlkExist {
+		// 	if errPush := r.store.PutBlock(txn, blk); errPush != nil {
+		// 		return fmt.Errorf("failed to push block: %w", errPush)
+		// 	}
+		// }
+		//
+		// errBind := r.bindBlock(txn, storageKey, req.SpaceId, req.FileId, c, dataSize)
+		// if errBind != nil {
+		// 	return fmt.Errorf("failed to bind block: %w", errBind)
+		// }
 
 		return nil
 	})
@@ -193,71 +205,71 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	return &fileproto.Ok{}, nil
 }
 
-func (r *lightFileNodeRpc) bindBlock(txn *badger.Txn, storageKey index.Key, spaceId, fileId string, c cid.Cid, dataSize int) error {
-	// Update file info, if link exists we don't need to update counters
-	isLinkExist, errLink := r.store.HasLinkFileBlock(txn, spaceId, fileId, c)
-	if errLink != nil {
-		return fmt.Errorf("failed to check if link exists: %w", errLink)
-	}
-
-	if isLinkExist {
-		// If the link exists, we don't need to update counters
-		return nil
-	}
-
-	// TODO: Update ref counter on CID from file
-
-	if errLink := r.store.CreateLinkFileBlock(txn, spaceId, fileId, c); errLink != nil {
-		return fmt.Errorf("failed to create link: %w", errLink)
-	}
-
-	fileObj, errGetFile := r.store.GetFile(txn, spaceId, fileId)
-	if errGetFile != nil {
-		return fmt.Errorf("failed to get file: %w", errGetFile)
-	}
-
-	// Check if this is a new file (no CIDs yet)
-	isNewFile := fileObj.CidsCount() == 0
-
-	// Update file info
-	fileObj.IncCidsCount()
-	fileObj.IncUsageBytes(uint64(dataSize))
-
-	if errWrite := r.store.WriteFile(txn, fileObj); errWrite != nil {
-		return fmt.Errorf("failed to write file: %w", errWrite)
-	}
-
-	// Update space info
-	spaceObj, errGetSpace := r.store.GetSpace(txn, spaceId)
-	if errGetSpace != nil {
-		return fmt.Errorf("failed to get space: %w", errGetSpace)
-	}
-
-	spaceObj.IncCidsCount()
-	if isNewFile {
-		spaceObj.IncFilesCount() // Only increment for new files
-	}
-	spaceObj.IncUsageBytes(uint64(dataSize))
-
-	if errWrite := r.store.WriteSpace(txn, spaceObj); errWrite != nil {
-		return fmt.Errorf("failed to write space: %w", errWrite)
-	}
-
-	// Update group info
-	groupObj, errGetGroup := r.store.GetGroup(txn, storageKey.GroupId)
-	if errGetGroup != nil {
-		return fmt.Errorf("failed to get group: %w", errGetGroup)
-	}
-
-	groupObj.IncCidsCount()
-	groupObj.IncUsageBytes(uint64(dataSize))
-
-	if errWrite := r.store.WriteGroup(txn, groupObj); errWrite != nil {
-		return fmt.Errorf("failed to write group: %w", errWrite)
-	}
-
-	return nil
-}
+// func (r *lightFileNodeRpc) bindBlock(txn *badger.Txn, storageKey index.Key, spaceId, fileId string, c cid.Cid, dataSize int) error {
+// 	// Update file info, if link exists we don't need to update counters
+// 	isLinkExist, errLink := r.store.HasLinkFileBlock(txn, spaceId, fileId, c)
+// 	if errLink != nil {
+// 		return fmt.Errorf("failed to check if link exists: %w", errLink)
+// 	}
+//
+// 	if isLinkExist {
+// 		// If the link exists, we don't need to update counters
+// 		return nil
+// 	}
+//
+// 	// TODO: Update ref counter on CID from file
+//
+// 	if errLink := r.store.CreateLinkFileBlock(txn, spaceId, fileId, c); errLink != nil {
+// 		return fmt.Errorf("failed to create link: %w", errLink)
+// 	}
+//
+// 	fileObj, errGetFile := r.store.GetFile(txn, spaceId, fileId)
+// 	if errGetFile != nil {
+// 		return fmt.Errorf("failed to get file: %w", errGetFile)
+// 	}
+//
+// 	// Check if this is a new file (no CIDs yet)
+// 	isNewFile := fileObj.CidsCount() == 0
+//
+// 	// Update file info
+// 	fileObj.IncCidsCount()
+// 	fileObj.IncUsageBytes(uint64(dataSize))
+//
+// 	if errWrite := r.store.WriteFile(txn, fileObj); errWrite != nil {
+// 		return fmt.Errorf("failed to write file: %w", errWrite)
+// 	}
+//
+// 	// Update space info
+// 	spaceObj, errGetSpace := r.store.GetSpace(txn, spaceId)
+// 	if errGetSpace != nil {
+// 		return fmt.Errorf("failed to get space: %w", errGetSpace)
+// 	}
+//
+// 	spaceObj.IncCidsCount()
+// 	if isNewFile {
+// 		spaceObj.IncFilesCount() // Only increment for new files
+// 	}
+// 	spaceObj.IncUsageBytes(uint64(dataSize))
+//
+// 	if errWrite := r.store.WriteSpace(txn, spaceObj); errWrite != nil {
+// 		return fmt.Errorf("failed to write space: %w", errWrite)
+// 	}
+//
+// 	// Update group info
+// 	groupObj, errGetGroup := r.store.GetGroup(txn, storageKey.GroupId)
+// 	if errGetGroup != nil {
+// 		return fmt.Errorf("failed to get group: %w", errGetGroup)
+// 	}
+//
+// 	groupObj.IncCidsCount()
+// 	groupObj.IncUsageBytes(uint64(dataSize))
+//
+// 	if errWrite := r.store.WriteGroup(txn, groupObj); errWrite != nil {
+// 		return fmt.Errorf("failed to write group: %w", errWrite)
+// 	}
+//
+// 	return nil
+// }
 
 func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
 	log.InfoCtx(ctx, "BlocksCheck",
@@ -271,7 +283,7 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 	availability := make([]*fileproto.BlockAvailability, 0, len(request.Cids))
 	seen := make(map[cid.Cid]struct{}, len(request.Cids))
 
-	errTx := r.store.TxView(func(txn *badger.Txn) error {
+	errTx := r.srvStore.TxView(func(txn *badger.Txn) error {
 		for _, rawCid := range request.Cids {
 			c, err := cid.Cast(rawCid)
 			if err != nil {
@@ -315,7 +327,7 @@ func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 		zap.Strings("cids", cidsToStrings(req.Cids...)),
 	)
 
-	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
+	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
 		storageKey, errPerm := r.canWrite(ctx, txn, req.SpaceId)
 		if errPerm != nil {
 			return errPerm
@@ -327,9 +339,12 @@ func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 				return fmt.Errorf("failed to cast CID='%s': %w", string(rawCid), err)
 			}
 
-			if errBind := r.bindBlock(txn, storageKey, req.SpaceId, req.FileId, c, 0); errBind != nil {
-				return fmt.Errorf("failed to bind block: %w", errBind)
-			}
+			_ = c
+			_ = storageKey
+
+			// if errBind := r.bindBlock(txn, storageKey, req.SpaceId, req.FileId, c, 0); errBind != nil {
+			// 	return fmt.Errorf("failed to bind block: %w", errBind)
+			// }
 		}
 
 		return nil
@@ -352,23 +367,23 @@ func (r *lightFileNodeRpc) FilesInfo(ctx context.Context, request *fileproto.Fil
 		FilesInfo: make([]*fileproto.FileInfo, 0, len(request.FileIds)),
 	}
 
-	errTx := r.store.TxView(func(txn *badger.Txn) error {
+	errTx := r.srvStore.TxView(func(txn *badger.Txn) error {
 		if _, errPerm := r.canRead(ctx, request.SpaceId); errPerm != nil {
 			return errPerm
 		}
 
-		for _, fileID := range request.FileIds {
-			fileObj, errGetFile := r.store.GetFile(txn, request.SpaceId, fileID)
-			if errGetFile != nil {
-				return fmt.Errorf("failed to get file: %w", errGetFile)
-			}
-
-			infoResp.FilesInfo = append(infoResp.FilesInfo, &fileproto.FileInfo{
-				FileId:     fileID,
-				UsageBytes: fileObj.UsageBytes(),
-				CidsCount:  fileObj.CidsCount(),
-			})
-		}
+		// for _, fileID := range request.FileIds {
+		// 	fileObj, errGetFile := r.store.GetFile(txn, request.SpaceId, fileID)
+		// 	if errGetFile != nil {
+		// 		return fmt.Errorf("failed to get file: %w", errGetFile)
+		// 	}
+		//
+		// 	infoResp.FilesInfo = append(infoResp.FilesInfo, &fileproto.FileInfo{
+		// 		FileId:     fileID,
+		// 		UsageBytes: fileObj.UsageBytes(),
+		// 		CidsCount:  fileObj.CidsCount(),
+		// 	})
+		// }
 
 		return nil
 	})
@@ -385,7 +400,7 @@ func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 	log.InfoCtx(ctx, "FilesGet", zap.String("spaceId", request.SpaceId))
 
 	var files []string
-	errTx := r.store.TxView(func(txn *badger.Txn) error {
+	errTx := r.srvStore.TxView(func(txn *badger.Txn) error {
 		if _, err := r.canRead(ctx, request.SpaceId); err != nil {
 			return err
 		}
@@ -425,7 +440,7 @@ func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.F
 		zap.Strings("fileIds", request.FileIds),
 	)
 
-	errTx := r.store.TxUpdate(func(txn *badger.Txn) error {
+	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
 		if _, errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
 			return errPerm
 		}
@@ -493,7 +508,7 @@ func (r *lightFileNodeRpc) SpaceInfo(ctx context.Context, request *fileproto.Spa
 		SpaceUsageBytes: 0,
 	}
 
-	errTx := r.store.TxView(func(txn *badger.Txn) error {
+	errTx := r.srvStore.TxView(func(txn *badger.Txn) error {
 		return nil
 	})
 

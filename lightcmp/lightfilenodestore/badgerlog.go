@@ -5,7 +5,7 @@ import (
 )
 
 // badgerLogger implements badger.Logger interface to redirect BadgerDB logs
-// to our application logger with appropriate prefixes
+// to our application logger
 type badgerLogger struct{}
 
 func (b badgerLogger) Errorf(s string, i ...interface{}) {

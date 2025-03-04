@@ -24,6 +24,7 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 
 	"github.com/grishy/any-sync-bundle/lightcmp/lightconfig"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenoderpc"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightnodeconf"
@@ -42,8 +43,9 @@ func NewApp(cfg *config.Config, fileDir string) *app.App {
 	a := new(app.App).
 		Register(lCfg).
 		Register(lightnodeconf.New()).
-		Register(lightfilenoderpc.New()).
+		Register(lightfilenodeindex.New()).
 		Register(lightfilenodestore.New()).
+		Register(lightfilenoderpc.New()).
 		// Original components
 		Register(account.New()).
 		// TODO: Use direct call for all clients
