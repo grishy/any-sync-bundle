@@ -11,10 +11,9 @@ import (
 	"github.com/anyproto/any-sync/commonspace/object/acl/list"
 	"github.com/anyproto/any-sync/net/peer"
 	"github.com/anyproto/any-sync/util/crypto"
-	"github.com/dgraph-io/badger/v4"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 )
 
 func TestLightFileNodeRpc_resolveStoreKey(t *testing.T) {
@@ -22,7 +21,7 @@ func TestLightFileNodeRpc_resolveStoreKey(t *testing.T) {
 		fx := newFixture(t)
 		defer fx.Finish(t)
 
-		key, err := fx.rpcService.resolveStoreKey(context.Background(), "")
+		key, err := fx.rpcSrv.resolveStoreKey(context.Background(), "")
 		require.ErrorIs(t, err, fileprotoerr.ErrForbidden)
 		require.Empty(t, key)
 	})
@@ -32,9 +31,9 @@ func TestLightFileNodeRpc_resolveStoreKey(t *testing.T) {
 		defer fx.Finish(t)
 
 		ctx, storeKey := newRandKey()
-		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		key, err := fx.rpcService.resolveStoreKey(ctx, storeKey.SpaceId)
+		key, err := fx.rpcSrv.resolveStoreKey(ctx, storeKey.SpaceId)
 		require.NoError(t, err)
 		require.Equal(t, storeKey, key)
 	})
@@ -46,9 +45,9 @@ func TestLightFileNodeRpc_canRead(t *testing.T) {
 		defer fx.Finish(t)
 
 		ctx, storeKey := newRandKey()
-		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		key, err := fx.rpcService.canRead(ctx, storeKey.SpaceId)
+		key, err := fx.rpcSrv.canRead(ctx, storeKey.SpaceId)
 		require.NoError(t, err)
 		require.Equal(t, storeKey, key)
 	})
@@ -71,10 +70,10 @@ func TestLightFileNodeRpc_canRead(t *testing.T) {
 		_, ownerPubKey, err := crypto.GenerateRandomEd25519KeyPair()
 		require.NoError(t, err)
 
-		fx.aclService.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
-		fx.aclService.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsReader, nil)
+		fx.aclSrv.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
+		fx.aclSrv.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsReader, nil)
 
-		key, err := fx.rpcService.canRead(ctx, spaceId)
+		key, err := fx.rpcSrv.canRead(ctx, spaceId)
 		require.NoError(t, err)
 		require.Equal(t, ownerPubKey.Account(), key.GroupId)
 		require.Equal(t, spaceId, key.SpaceId)
@@ -98,10 +97,10 @@ func TestLightFileNodeRpc_canRead(t *testing.T) {
 		_, ownerPubKey, err := crypto.GenerateRandomEd25519KeyPair()
 		require.NoError(t, err)
 
-		fx.aclService.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
-		fx.aclService.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsNone, nil)
+		fx.aclSrv.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
+		fx.aclSrv.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsNone, nil)
 
-		_, err = fx.rpcService.canRead(ctx, spaceId)
+		_, err = fx.rpcSrv.canRead(ctx, spaceId)
 		require.ErrorIs(t, err, fileprotoerr.ErrForbidden)
 	})
 }
@@ -112,17 +111,9 @@ func TestLightFileNodeRpc_canWrite(t *testing.T) {
 		defer fx.Finish(t)
 
 		ctx, storeKey := newRandKey()
-		fx.aclService.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
-			return lightfilenodestore.NewSpaceObj(spaceId), nil
-		}
-
-		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
-			return lightfilenodestore.NewGroupObj(groupId).WithLimitBytes(1 << 30), nil
-		}
-
-		key, err := fx.rpcService.canWrite(ctx, nil, storeKey.SpaceId)
+		key, err := fx.rpcSrv.canWrite(ctx, storeKey.SpaceId)
 		require.NoError(t, err)
 		require.Equal(t, storeKey, key)
 	})
@@ -145,18 +136,20 @@ func TestLightFileNodeRpc_canWrite(t *testing.T) {
 		_, ownerPubKey, err := crypto.GenerateRandomEd25519KeyPair()
 		require.NoError(t, err)
 
-		fx.aclService.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
-		fx.aclService.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsWriter, nil)
+		fx.aclSrv.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
+		fx.aclSrv.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsWriter, nil)
 
-		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
-			return lightfilenodestore.NewSpaceObj(spaceId), nil
+		fx.indexSrv.GroupInfoFunc = func(groupId string) lightfilenodeindex.GroupInfo {
+			return lightfilenodeindex.GroupInfo{
+				LimitBytes: 1 << 30,
+			}
 		}
 
-		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
-			return lightfilenodestore.NewGroupObj(groupId).WithLimitBytes(1 << 30), nil
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) lightfilenodeindex.SpaceInfo {
+			return lightfilenodeindex.SpaceInfo{}
 		}
 
-		key, err := fx.rpcService.canWrite(ctx, nil, spaceId)
+		key, err := fx.rpcSrv.canWrite(ctx, spaceId)
 		require.NoError(t, err)
 		require.Equal(t, ownerPubKey.Account(), key.GroupId)
 		require.Equal(t, spaceId, key.SpaceId)
@@ -180,10 +173,10 @@ func TestLightFileNodeRpc_canWrite(t *testing.T) {
 		_, ownerPubKey, err := crypto.GenerateRandomEd25519KeyPair()
 		require.NoError(t, err)
 
-		fx.aclService.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
-		fx.aclService.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsReader, nil)
+		fx.aclSrv.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
+		fx.aclSrv.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsReader, nil)
 
-		_, err = fx.rpcService.canWrite(ctx, nil, spaceId)
+		_, err = fx.rpcSrv.canWrite(ctx, spaceId)
 		require.ErrorIs(t, err, fileprotoerr.ErrForbidden)
 	})
 }
@@ -198,17 +191,21 @@ func TestLightFileNodeRpc_hasEnoughSpace(t *testing.T) {
 			SpaceId: testutil.NewRandSpaceId(),
 		}
 
-		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
-			return lightfilenodestore.NewSpaceObj(spaceId).WithLimitBytes(1024), nil
+		fx.indexSrv.GroupInfoFunc = func(groupId string) lightfilenodeindex.GroupInfo {
+			return lightfilenodeindex.GroupInfo{
+				UsageBytes: 1025,
+				LimitBytes: 2048,
+			}
 		}
 
-		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
-			return lightfilenodestore.NewGroupObj(groupId).
-				WithLimitBytes(2048).
-				WithTotalUsageBytes(1025), nil
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) lightfilenodeindex.SpaceInfo {
+			return lightfilenodeindex.SpaceInfo{
+				UsageBytes: 0,
+				LimitBytes: 1024,
+			}
 		}
 
-		err := fx.rpcService.hasEnoughSpace(nil, &storeKey)
+		err := fx.rpcSrv.hasEnoughSpace(storeKey)
 		require.ErrorIs(t, err, fileprotoerr.ErrSpaceLimitExceeded)
 	})
 
@@ -221,17 +218,18 @@ func TestLightFileNodeRpc_hasEnoughSpace(t *testing.T) {
 			SpaceId: testutil.NewRandSpaceId(),
 		}
 
-		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
-			return lightfilenodestore.NewSpaceObj(spaceId), nil // No space limit
+		fx.indexSrv.GroupInfoFunc = func(groupId string) lightfilenodeindex.GroupInfo {
+			return lightfilenodeindex.GroupInfo{
+				UsageBytes: 1025,
+				LimitBytes: 1024,
+			}
 		}
 
-		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
-			return lightfilenodestore.NewGroupObj(groupId).
-				WithLimitBytes(1024).
-				WithTotalUsageBytes(1025), nil
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) lightfilenodeindex.SpaceInfo {
+			return lightfilenodeindex.SpaceInfo{}
 		}
 
-		err := fx.rpcService.hasEnoughSpace(nil, &storeKey)
+		err := fx.rpcSrv.hasEnoughSpace(storeKey)
 		require.ErrorIs(t, err, fileprotoerr.ErrSpaceLimitExceeded)
 	})
 
@@ -244,17 +242,19 @@ func TestLightFileNodeRpc_hasEnoughSpace(t *testing.T) {
 			SpaceId: testutil.NewRandSpaceId(),
 		}
 
-		fx.storeService.GetSpaceFunc = func(txn *badger.Txn, spaceId string) (*lightfilenodestore.SpaceObj, error) {
-			return lightfilenodestore.NewSpaceObj(spaceId).WithLimitBytes(2048), nil
+		fx.indexSrv.GroupInfoFunc = func(groupId string) lightfilenodeindex.GroupInfo {
+			return lightfilenodeindex.GroupInfo{
+				UsageBytes: 1024,
+				LimitBytes: 4096,
+			}
+		}
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) lightfilenodeindex.SpaceInfo {
+			return lightfilenodeindex.SpaceInfo{
+				LimitBytes: 2048,
+			}
 		}
 
-		fx.storeService.GetGroupFunc = func(txn *badger.Txn, groupId string) (*lightfilenodestore.GroupObj, error) {
-			return lightfilenodestore.NewGroupObj(groupId).
-				WithLimitBytes(4096).
-				WithTotalUsageBytes(1024), nil
-		}
-
-		err := fx.rpcService.hasEnoughSpace(nil, &storeKey)
+		err := fx.rpcSrv.hasEnoughSpace(storeKey)
 		require.NoError(t, err)
 	})
 }

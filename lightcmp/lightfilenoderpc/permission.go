@@ -8,7 +8,6 @@ import (
 	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/anyproto/any-sync/commonspace/object/acl/aclrecordproto"
 	"github.com/anyproto/any-sync/net/peer"
-	"github.com/dgraph-io/badger/v4"
 	"go.uber.org/zap"
 )
 
@@ -62,7 +61,7 @@ func (r *lightFileNodeRpc) canRead(ctx context.Context, spaceID string) (index.K
 	}
 }
 
-func (r *lightFileNodeRpc) canWrite(ctx context.Context, txn *badger.Txn, spaceID string) (index.Key, error) {
+func (r *lightFileNodeRpc) canWrite(ctx context.Context, spaceID string) (index.Key, error) {
 	storageKey, err := r.resolveStoreKey(ctx, spaceID)
 	if err != nil {
 		return storageKey, err
@@ -87,19 +86,12 @@ func (r *lightFileNodeRpc) canWrite(ctx context.Context, txn *badger.Txn, spaceI
 		return storageKey, fileprotoerr.ErrForbidden
 	}
 
-	return storageKey, r.hasEnoughSpace(txn, storageKey)
+	return storageKey, r.hasEnoughSpace(storageKey)
 }
 
-func (r *lightFileNodeRpc) hasEnoughSpace(txn *badger.Txn, storageKey index.Key) error {
-	group, err := r.srvIndex.GroupInfo(txn, storageKey.GroupId)
-	if err != nil {
-		return fmt.Errorf("failed to get group: %w", err)
-	}
-
-	space, err := r.srvIndex.SpaceInfo(txn, storageKey)
-	if err != nil {
-		return fmt.Errorf("failed to get space: %w", err)
-	}
+func (r *lightFileNodeRpc) hasEnoughSpace(storageKey index.Key) error {
+	group := r.srvIndex.GroupInfo(storageKey.GroupId)
+	space := r.srvIndex.SpaceInfo(storageKey)
 
 	// For non-isolated spaces, check space-specific limit first
 	if spaceLimit := space.LimitBytes; spaceLimit > 0 {

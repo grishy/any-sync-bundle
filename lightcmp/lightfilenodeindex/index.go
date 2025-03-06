@@ -1,3 +1,5 @@
+//go:generate moq -fmt gofumpt -rm -out index_mock.go . configService IndexService
+
 package lightfilenodeindex
 
 import (
@@ -9,14 +11,9 @@ import (
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/ipfs/go-cid"
-)
 
-// TODO: Implement index in memory and store in DB
-// - blocks data
-// - snapshot on index
-// - log of request on top of index
-//
-// And have all index in memory, periodically dump index and remove old logs and snapshots
+	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex/indexpb"
+)
 
 const (
 	CName = "light.filenode.index"
@@ -35,8 +32,14 @@ type configService interface {
 type IndexService interface {
 	app.ComponentRunnable
 
-	GroupInfo(txn *badger.Txn, groupId string) (GroupInfo, error)
-	SpaceInfo(txn *badger.Txn, key index.Key) (SpaceInfo, error)
+	GroupInfo(groupId string) GroupInfo
+	SpaceInfo(key index.Key) SpaceInfo
+
+	// TODO: Remove or replace
+	HasCIDInSpace(spaceId string, k cid.Cid) bool
+	HadCID(k cid.Cid) bool
+
+	Modify(txn *badger.Txn, key index.Key, query *indexpb.Operation) error
 }
 
 // Interface types
@@ -47,7 +50,6 @@ type Key struct {
 }
 
 type GroupInfo struct {
-	GroupID           string
 	UsageBytes        uint64
 	CidsCount         uint64
 	AccountLimitBytes uint64
@@ -56,11 +58,15 @@ type GroupInfo struct {
 }
 
 type SpaceInfo struct {
-	SpaceID    string
 	UsageBytes uint64
 	CidsCount  uint64
 	LimitBytes uint64
 	FileCount  uint32
+}
+
+type FileInfo struct {
+	BytesUsage uint64
+	CidsCount  uint64
 }
 
 // Index
@@ -72,17 +78,20 @@ type Block struct {
 }
 
 type File struct {
-	cids   map[cid.Cid]*Block
 	fileID string // Unique file identifier
+	info   FileInfo
+	cids   map[cid.Cid]*Block
 }
 
 type Space struct {
-	spaceID string           // Unique identifier for the space
+	spaceID string
+	info    SpaceInfo
 	files   map[string]*File // Files within this space (keyed by FileID)
 }
 
 type Group struct {
-	groupID string            // Unique identifier for the group
+	groupID string
+	info    GroupInfo
 	spaces  map[string]*Space // Spaces in the group (keyed by SpaceID)
 }
 
@@ -93,14 +102,6 @@ type lightfileidex struct {
 	sync.RWMutex
 	defaultLimitBytes uint64
 	groups            map[string]*Group // Maps GroupID to Group
-}
-
-func New() IndexService {
-	idx := &lightfileidex{
-		groups: make(map[string]*Group),
-	}
-
-	return idx
 }
 
 //
@@ -140,26 +141,74 @@ func (i *lightfileidex) Close(_ context.Context) error {
 // Component methods
 //
 
-func (i *lightfileidex) Marshal() ([]byte, error) {
+func (i *lightfileidex) GroupInfo(groupId string) GroupInfo {
 	i.RLock()
 	defer i.RUnlock()
 
-	return []byte{}, nil
+	if group, ok := i.groups[groupId]; ok {
+		return group.info
+	}
+
+	// Default group info
+	defaultInfo := GroupInfo{
+		UsageBytes: 0,
+		CidsCount:  0,
+		// TODO: Check in original code how they are computing AccountLimitBytes and LimitBytes
+		AccountLimitBytes: i.defaultLimitBytes,
+		LimitBytes:        i.defaultLimitBytes,
+		SpaceIds:          []string{},
+	}
+
+	return defaultInfo
 }
 
-func (i *lightfileidex) Unmarshal(data []byte) error {
-	i.Lock()
-	defer i.Unlock()
+func (i *lightfileidex) SpaceInfo(key index.Key) SpaceInfo {
+	i.RLock()
+	defer i.RUnlock()
 
-	return nil
+	// Default space info
+	defaultInfo := SpaceInfo{
+		UsageBytes: 0,
+		CidsCount:  0,
+		// TODO: Check in original code how they are computing LimitBytes
+		LimitBytes: i.defaultLimitBytes,
+		FileCount:  0,
+	}
+
+	group, ok := i.groups[key.GroupId]
+	if !ok {
+		return defaultInfo
+	}
+
+	space, ok := group.spaces[key.SpaceId]
+	if ok {
+		return space.info
+	}
+
+	return defaultInfo
 }
 
-func (i *lightfileidex) GroupInfo(txn *badger.Txn, groupId string) (GroupInfo, error) {
+func (i *lightfileidex) HasCIDInSpace(spaceId string, k cid.Cid) bool {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (i *lightfileidex) SpaceInfo(txn *badger.Txn, key index.Key) (SpaceInfo, error) {
+func (i *lightfileidex) HadCID(k cid.Cid) bool {
 	// TODO implement me
+	panic("implement me")
+}
+
+func New() IndexService {
+	idx := &lightfileidex{
+		groups: make(map[string]*Group),
+	}
+
+	return idx
+}
+
+func (i *lightfileidex) Modify(txn *badger.Txn, key index.Key, query *indexpb.Operation) error {
+	i.Lock()
+	defer i.Unlock()
+
 	panic("implement me")
 }

@@ -169,7 +169,7 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 
 	// Finally, save the block and update all necessary counters
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		storageKey, errPerm := r.canWrite(ctx, txn, req.SpaceId)
+		storageKey, errPerm := r.canWrite(ctx, req.SpaceId)
 		if errPerm != nil {
 			return errPerm
 		}
@@ -296,7 +296,7 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 			}
 			seen[c] = struct{}{}
 
-			availabilityStatus, err := r.checkCIDExists(txn, request.SpaceId, c)
+			availabilityStatus, err := r.checkCIDExists(request.SpaceId, c)
 			if err != nil {
 				return fmt.Errorf("failed to check CID='%s': %w", c.String(), err)
 			}
@@ -328,7 +328,7 @@ func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 	)
 
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		storageKey, errPerm := r.canWrite(ctx, txn, req.SpaceId)
+		storageKey, errPerm := r.canWrite(ctx, req.SpaceId)
 		if errPerm != nil {
 			return errPerm
 		}
@@ -441,7 +441,7 @@ func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.F
 	)
 
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		if _, errPerm := r.canWrite(ctx, txn, request.SpaceId); errPerm != nil {
+		if _, errPerm := r.canWrite(ctx, request.SpaceId); errPerm != nil {
 			return errPerm
 		}
 
