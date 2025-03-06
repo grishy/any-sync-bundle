@@ -1,7 +1,6 @@
 package lightfilenodestore
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -16,252 +15,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLightFileNodeStore_BlockOperations(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.cleanup(t)
-
-	testData := []byte("test block data")
-	testBlock, testCID := createTestBlock(t, testData)
-
-	// Test block storage and retrieval
-	err := fx.store.TxUpdate(func(txn *badger.Txn) error {
-		return fx.store.PutBlock(txn, testBlock)
-	})
-	require.NoError(t, err)
-
-	var retrievedData []byte
-	err = fx.store.TxView(func(txn *badger.Txn) error {
-		var readErr error
-		retrievedData, readErr = fx.store.GetBlock(txn, testCID)
-		return readErr
-	})
-	require.NoError(t, err)
-	assert.Equal(t, testData, retrievedData)
-
-	// Test block deletion
-	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
-		return fx.store.DeleteBlock(txn, testCID)
-	})
-	require.NoError(t, err)
-
-	err = fx.store.TxView(func(txn *badger.Txn) error {
-		_, err = fx.store.GetBlock(txn, testCID)
-		return err
-	})
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrBlockNotFound)
+type testFixture struct {
+	app           *app.App
+	configService *configServiceMock
+	store         *lightFileNodeStore
+	cleanupDone   bool // Track if cleanup was already performed
 }
 
-func TestLightFileNodeStore_IndexSnapshotOperations(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.cleanup(t)
-
-	// Verify no snapshot initially exists
-	var snapshot []byte
-	err := fx.store.TxView(func(txn *badger.Txn) error {
-		var readErr error
-		snapshot, readErr = fx.store.GetIndexSnapshot(txn)
-		return readErr
-	})
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrNoSnapshot)
-
-	// Test storing and retrieving snapshot
-	snapshotData := []byte("index snapshot data")
-	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
-		return fx.store.SaveIndexSnapshot(txn, snapshotData)
-	})
-	require.NoError(t, err)
-
-	err = fx.store.TxView(func(txn *badger.Txn) error {
-		var readErr error
-		snapshot, readErr = fx.store.GetIndexSnapshot(txn)
-		return readErr
-	})
-	require.NoError(t, err)
-	assert.Equal(t, snapshotData, snapshot)
+func (f *testFixture) cleanup(t *testing.T) {
+	t.Helper()
+	if f.cleanupDone {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, f.app.Close(ctx))
+	f.cleanupDone = true
 }
 
-func TestLightFileNodeStore_IndexLogOperations(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.cleanup(t)
+func newTestFixture(t *testing.T) *testFixture {
+	t.Helper()
+	tempDir := t.TempDir()
 
-	// Verify no logs initially exist
-	logs, err := getIndexLogs(t, fx.store)
-	require.NoError(t, err)
-	assert.Empty(t, logs)
-
-	// Test adding logs
-	logData1 := []byte("log entry 1")
-	logData2 := []byte("log entry 2")
-	var idx1, idx2 uint64
-
-	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
-		var err error
-		idx1, err = fx.store.PushIndexLog(txn, logData1)
-		if err != nil {
-			return err
-		}
-		idx2, err = fx.store.PushIndexLog(txn, logData2)
-		return err
-	})
-	require.NoError(t, err)
-	assert.Equal(t, uint64(1), idx1)
-	assert.Equal(t, uint64(2), idx2)
-
-	// Verify logs were stored correctly
-	logs, err = getIndexLogs(t, fx.store)
-	require.NoError(t, err)
-	require.Len(t, logs, 2)
-	assert.Equal(t, uint64(1), logs[0].Idx)
-	assert.Equal(t, uint64(2), logs[1].Idx)
-	assert.Equal(t, logData1, logs[0].Data)
-	assert.Equal(t, logData2, logs[1].Data)
-
-	// Test log deletion
-	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
-		return fx.store.DeleteIndexLogs(txn, []uint64{idx1})
-	})
-	require.NoError(t, err)
-
-	logs, err = getIndexLogs(t, fx.store)
-	require.NoError(t, err)
-	require.Len(t, logs, 1)
-	assert.Equal(t, uint64(2), logs[0].Idx)
-	assert.Equal(t, logData2, logs[0].Data)
-
-	// Verify empty deletion doesn't affect anything
-	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
-		return fx.store.DeleteIndexLogs(txn, []uint64{})
-	})
-	require.NoError(t, err)
-
-	logs, err = getIndexLogs(t, fx.store)
-	require.NoError(t, err)
-	assert.Len(t, logs, 1)
-}
-
-func TestLightFileNodeStore_KeyManagement(t *testing.T) {
-	testCases := []struct {
-		name     string
-		testFunc func(*testing.T)
-	}{
-		{
-			name: "blockKey",
-			testFunc: func(t *testing.T) {
-				testData := []byte("test block data")
-				_, testCID := createTestBlock(t, testData)
-
-				key := blockKey(testCID)
-				assert.True(t, bytes.HasPrefix(key, []byte(prefixFileNode+separator+blockType+separator)))
-				assert.Contains(t, string(key), testCID.String())
-			},
-		},
-		{
-			name: "snapshotKey",
-			testFunc: func(t *testing.T) {
-				key := snapshotKey()
-				assert.Equal(t, prefixFileNode+separator+snapshotType+separator+currentSnapshotSuffix, string(key))
-			},
-		},
-		{
-			name: "logKey",
-			testFunc: func(t *testing.T) {
-				key := logKey(123)
-				assert.Equal(t, prefixFileNode+separator+logType+separator+"123", string(key))
-			},
-		},
-		{
-			name: "parseIdxFromKey",
-			testFunc: func(t *testing.T) {
-				key := logKey(456)
-				idx, err := parseIdxFromKey(key)
-				require.NoError(t, err)
-				assert.Equal(t, uint64(456), idx)
-
-				_, err = parseIdxFromKey([]byte("malformed:key"))
-				assert.Error(t, err)
-			},
+	f := &testFixture{
+		app: new(app.App),
+		configService: &configServiceMock{
+			GetFilenodeStoreDirFunc: func() string { return tempDir },
+			InitFunc:                func(a *app.App) error { return nil },
+			NameFunc:                func() string { return "config" },
 		},
 	}
+	f.store = New().(*lightFileNodeStore)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, tc.testFunc)
-	}
+	f.app.Register(f.configService).Register(f.store)
+	require.NoError(t, f.app.Start(context.Background()))
+
+	t.Cleanup(func() { f.cleanup(t) })
+	return f
 }
-
-func TestLightFileNodeStore_TransactionOperations(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.cleanup(t)
-
-	t.Run("TxView success", func(t *testing.T) {
-		viewCalled := false
-		err := fx.store.TxView(func(txn *badger.Txn) error {
-			viewCalled = true
-			return nil
-		})
-		require.NoError(t, err)
-		assert.True(t, viewCalled)
-	})
-
-	t.Run("TxView error", func(t *testing.T) {
-		expectedErr := errors.New("view error")
-		err := fx.store.TxView(func(txn *badger.Txn) error {
-			return expectedErr
-		})
-		assert.ErrorIs(t, err, expectedErr)
-	})
-
-	t.Run("TxUpdate success", func(t *testing.T) {
-		updateCalled := false
-		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
-			updateCalled = true
-			return nil
-		})
-		require.NoError(t, err)
-		assert.True(t, updateCalled)
-	})
-
-	t.Run("TxUpdate error", func(t *testing.T) {
-		expectedErr := errors.New("update error")
-		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
-			return expectedErr
-		})
-		assert.ErrorIs(t, err, expectedErr)
-	})
-}
-
-func TestLightFileNodeStore_GetNextIdx(t *testing.T) {
-	fx := newFixture(t)
-	defer fx.cleanup(t)
-
-	// Test initial index
-	var idx uint64
-	err := fx.store.TxUpdate(func(txn *badger.Txn) error {
-		var err error
-		idx, err = fx.store.getNextIdx(txn, logKeyPrefix())
-		return err
-	})
-	require.NoError(t, err)
-	assert.Equal(t, uint64(1), idx)
-
-	// Test index increment after adding an entry
-	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
-		_, err := fx.store.PushIndexLog(txn, []byte("test log"))
-		return err
-	})
-	require.NoError(t, err)
-
-	err = fx.store.TxUpdate(func(txn *badger.Txn) error {
-		var err error
-		idx, err = fx.store.getNextIdx(txn, logKeyPrefix())
-		return err
-	})
-	require.NoError(t, err)
-	assert.Equal(t, uint64(2), idx)
-}
-
-// Helper functions
 
 func createTestBlock(t *testing.T, data []byte) (blocks.Block, cid.Cid) {
 	t.Helper()
@@ -275,53 +66,275 @@ func createTestBlock(t *testing.T, data []byte) (blocks.Block, cid.Cid) {
 	return block, c
 }
 
-func getIndexLogs(t *testing.T, store *lightFileNodeStore) ([]IndexLog, error) {
-	t.Helper()
-	var logs []IndexLog
-	err := store.TxView(func(txn *badger.Txn) error {
-		var readErr error
-		logs, readErr = store.GetIndexLogs(txn)
-		return readErr
+func TestBlockOperations(t *testing.T) {
+	fx := newTestFixture(t)
+
+	t.Run("put and get block", func(t *testing.T) {
+		testData := []byte("test block data")
+		testBlock, testCID := createTestBlock(t, testData)
+
+		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+			return fx.store.PutBlock(txn, testBlock)
+		})
+		require.NoError(t, err)
+
+		var retrievedData []byte
+		err = fx.store.TxView(func(txn *badger.Txn) error {
+			var err error
+			retrievedData, err = fx.store.GetBlock(txn, testCID)
+			return err
+		})
+		require.NoError(t, err)
+		assert.Equal(t, testData, retrievedData)
 	})
-	return logs, err
+
+	t.Run("delete block", func(t *testing.T) {
+		testData := []byte("block to delete")
+		testBlock, testCID := createTestBlock(t, testData)
+
+		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+			return fx.store.PutBlock(txn, testBlock)
+		})
+		require.NoError(t, err)
+
+		err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+			return fx.store.DeleteBlock(txn, testCID)
+		})
+		require.NoError(t, err)
+
+		err = fx.store.TxView(func(txn *badger.Txn) error {
+			_, err := fx.store.GetBlock(txn, testCID)
+			return err
+		})
+		assert.ErrorIs(t, err, ErrBlockNotFound)
+	})
+
+	t.Run("get non-existent block", func(t *testing.T) {
+		_, nonExistentCID := createTestBlock(t, []byte("non-existent"))
+
+		err := fx.store.TxView(func(txn *badger.Txn) error {
+			_, err := fx.store.GetBlock(txn, nonExistentCID)
+			return err
+		})
+		assert.ErrorIs(t, err, ErrBlockNotFound)
+	})
 }
 
-type fixture struct {
-	app           *app.App
-	configService *configServiceMock
-	store         *lightFileNodeStore
+func TestIndexSnapshotOperations(t *testing.T) {
+	fx := newTestFixture(t)
+
+	t.Run("no initial snapshot", func(t *testing.T) {
+		err := fx.store.TxView(func(txn *badger.Txn) error {
+			_, err := fx.store.GetIndexSnapshot(txn)
+			return err
+		})
+		assert.ErrorIs(t, err, ErrNoSnapshot)
+	})
+
+	t.Run("save and get snapshot", func(t *testing.T) {
+		snapshotData := []byte("test snapshot data")
+
+		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+			return fx.store.SaveIndexSnapshot(txn, snapshotData)
+		})
+		require.NoError(t, err)
+
+		var retrieved []byte
+		err = fx.store.TxView(func(txn *badger.Txn) error {
+			var err error
+			retrieved, err = fx.store.GetIndexSnapshot(txn)
+			return err
+		})
+		require.NoError(t, err)
+		assert.Equal(t, snapshotData, retrieved)
+	})
 }
 
-func (f *fixture) cleanup(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	require.NoError(t, f.app.Close(ctx))
-}
+func TestIndexLogOperations(t *testing.T) {
+	fx := newTestFixture(t)
 
-func newFixture(t *testing.T) *fixture {
-	tempDir := t.TempDir()
-
-	f := &fixture{
-		app: new(app.App),
-		configService: &configServiceMock{
-			InitFunc: func(a *app.App) error {
-				return nil
-			},
-			NameFunc: func() string {
-				return "config"
-			},
-			GetFilenodeStoreDirFunc: func() string {
-				return tempDir
-			},
-		},
-		store: New().(*lightFileNodeStore),
+	getIndexLogs := func(t *testing.T) []IndexLog {
+		t.Helper()
+		var logs []IndexLog
+		err := fx.store.TxView(func(txn *badger.Txn) error {
+			var err error
+			logs, err = fx.store.GetIndexLogs(txn)
+			return err
+		})
+		require.NoError(t, err)
+		return logs
 	}
 
-	f.app.
-		Register(f.configService).
-		Register(f.store)
+	t.Run("initial state", func(t *testing.T) {
+		logs := getIndexLogs(t)
+		assert.Empty(t, logs)
+	})
 
-	t.Logf("Starting test app with temp dir: %s", tempDir)
-	require.NoError(t, f.app.Start(context.Background()))
-	return f
+	t.Run("push and get logs", func(t *testing.T) {
+		testData := []struct {
+			data        []byte
+			expectedIdx uint64
+		}{
+			{[]byte("log 1"), 1},
+			{[]byte("log 2"), 2},
+			{[]byte("log 3"), 3},
+		}
+
+		for _, td := range testData {
+			var idx uint64
+			err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+				var err error
+				idx, err = fx.store.PushIndexLog(txn, td.data)
+				return err
+			})
+			require.NoError(t, err)
+			assert.Equal(t, td.expectedIdx, idx)
+		}
+
+		logs := getIndexLogs(t)
+		require.Len(t, logs, len(testData))
+
+		for i, td := range testData {
+			assert.Equal(t, td.expectedIdx, logs[i].Idx)
+			assert.Equal(t, td.data, logs[i].Data)
+		}
+	})
+
+	t.Run("delete logs", func(t *testing.T) {
+		// Delete middle log
+		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
+			return fx.store.DeleteIndexLogs(txn, []uint64{2})
+		})
+		require.NoError(t, err)
+
+		logs := getIndexLogs(t)
+		require.Len(t, logs, 2)
+		assert.Equal(t, uint64(1), logs[0].Idx)
+		assert.Equal(t, uint64(3), logs[1].Idx)
+
+		// Delete empty list should not error
+		err = fx.store.TxUpdate(func(txn *badger.Txn) error {
+			return fx.store.DeleteIndexLogs(txn, nil)
+		})
+		require.NoError(t, err)
+
+		logs = getIndexLogs(t)
+		require.Len(t, logs, 2)
+	})
+}
+
+func TestTransactionOperations(t *testing.T) {
+	fx := newTestFixture(t)
+
+	testCases := []struct {
+		name    string
+		op      func() error
+		wantErr error
+	}{
+		{
+			name: "view success",
+			op: func() error {
+				return fx.store.TxView(func(txn *badger.Txn) error {
+					return nil
+				})
+			},
+		},
+		{
+			name: "view error",
+			op: func() error {
+				return fx.store.TxView(func(txn *badger.Txn) error {
+					return errors.New("test error")
+				})
+			},
+			wantErr: errors.New("test error"),
+		},
+		{
+			name: "update success",
+			op: func() error {
+				return fx.store.TxUpdate(func(txn *badger.Txn) error {
+					return nil
+				})
+			},
+		},
+		{
+			name: "update error",
+			op: func() error {
+				return fx.store.TxUpdate(func(txn *badger.Txn) error {
+					return errors.New("test error")
+				})
+			},
+			wantErr: errors.New("test error"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.op()
+			if tc.wantErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tc.wantErr.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestKeyManagement(t *testing.T) {
+	testCases := []struct {
+		name string
+		test func(*testing.T)
+	}{
+		{
+			name: "buildKey block",
+			test: func(t *testing.T) {
+				_, testCID := createTestBlock(t, []byte("test"))
+				key := buildKey(blockType, testCID.String())
+				assert.Equal(t, prefixFileNode+separator+blockType+separator+testCID.String(), string(key))
+			},
+		},
+		{
+			name: "buildKey snapshot",
+			test: func(t *testing.T) {
+				key := buildKey(snapshotType, currentSnapshotSuffix)
+				assert.Equal(t, prefixFileNode+separator+snapshotType+separator+currentSnapshotSuffix, string(key))
+			},
+		},
+		{
+			name: "buildKeyPrefix",
+			test: func(t *testing.T) {
+				prefix := buildKeyPrefix(logType)
+				assert.Equal(t, prefixFileNode+separator+logType+separator, string(prefix))
+			},
+		},
+		{
+			name: "parseIdxFromKey valid",
+			test: func(t *testing.T) {
+				key := buildKey(logType, "123")
+				idx, err := parseIdxFromKey(key)
+				require.NoError(t, err)
+				assert.Equal(t, uint64(123), idx)
+			},
+		},
+		{
+			name: "parseIdxFromKey invalid",
+			test: func(t *testing.T) {
+				testCases := []string{
+					"invalid",
+					"invalid:key",
+					prefixFileNode + separator,
+					prefixFileNode + separator + logType,
+				}
+
+				for _, tc := range testCases {
+					_, err := parseIdxFromKey([]byte(tc))
+					assert.ErrorIs(t, err, ErrInvalidKey)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, tc.test)
+	}
 }
