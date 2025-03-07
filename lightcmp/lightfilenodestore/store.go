@@ -46,6 +46,7 @@ var (
 )
 
 // StoreService defines operations for persistent storage
+// NOTE: Perfectly we should have a separate badger.Txn to interface
 type StoreService interface {
 	app.ComponentRunnable
 

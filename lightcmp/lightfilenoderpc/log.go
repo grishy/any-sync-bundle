@@ -1,21 +1,24 @@
 package lightfilenoderpc
 
 import (
+	"fmt"
+
 	"github.com/ipfs/go-cid"
-	"go.uber.org/zap"
 )
 
-// TODO: Remove this?
+// cidsToStrings converts a slice of CID byte arrays to readable strings for logging
 func cidsToStrings(cids ...[]byte) []string {
-	strs := make([]string, len(cids))
-	for i, b := range cids {
+	if len(cids) == 0 {
+		return nil
+	}
+	strs := make([]string, 0, len(cids))
+	for _, b := range cids {
 		c, err := cid.Cast(b)
 		if err != nil {
-			log.Warn("failed to cast cid", zap.Error(err))
+			strs = append(strs, fmt.Sprintf("invalid-cid-%x", b))
 			continue
 		}
-
-		strs[i] = c.String()
+		strs = append(strs, c.String())
 	}
 	return strs
 }

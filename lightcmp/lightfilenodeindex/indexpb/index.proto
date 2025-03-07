@@ -16,25 +16,39 @@ message FileBindOperation {
   string file_id = 1;
   // List of block CIDs associated with this file.
   repeated string block_cids = 2;
+  // Data size for each CID, corresponding to the block_cids array
+  repeated int32 data_sizes = 3;
 }
 
 // Define parameters for unbinding a file.
 message FileUnbindOperation {
-  string file_id = 1;
+  repeated string file_ids = 1;
+}
+
+// Set the storage limit for an account
+message AccountLimitSetOperation {
+  uint64 limit = 2;
+}
+
+// Set the storage limit for a space
+message SpaceLimitSetOperation {
+  uint64 limit = 2;
 }
 
 // Operation encapsulates all possible index modification operations.
 message Operation {
   oneof op {
-    FileBindOperation bind_file = 1;
-    FileUnbindOperation unbind_file = 2;
-    // TODO: Add other operations here as needed.
+    FileBindOperation         bind_file = 1;
+    FileUnbindOperation       unbind_file = 2;
+    AccountLimitSetOperation  account_limit_set = 3;
+    SpaceLimitSetOperation    space_limit_set = 4;
+    // Add other operations here as needed.
   }
 }
 
-// AOFRecord represents a single write-ahead log record.
-message AOFRecord {
-  Key key = 1;            // Which group/space is affected.
-  Operation operation = 2; // Operation parameters, varying by type.
+// WALRecord represents a single write-ahead log record.
+message WALRecord {
+  Key key = 1;             // Which group/space is affected.
+  Operation op = 2;        // Operation parameters, varying by type.
   int64 timestamp = 3;     // Unix timestamp of the operation.
 }

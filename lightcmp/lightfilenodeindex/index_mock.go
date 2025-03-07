@@ -7,6 +7,7 @@ import (
 	"context"
 	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync/app"
+	"github.com/anyproto/any-sync/commonfile/fileproto"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex/indexpb"
 	"github.com/ipfs/go-cid"
@@ -166,6 +167,12 @@ var _ IndexService = &IndexServiceMock{}
 //			CloseFunc: func(ctx context.Context) error {
 //				panic("mock out the Close method")
 //			},
+//			GetFileInfoFunc: func(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error) {
+//				panic("mock out the GetFileInfo method")
+//			},
+//			GetSpaceFilesFunc: func(spaceId string) ([]string, error) {
+//				panic("mock out the GetSpaceFiles method")
+//			},
 //			GroupInfoFunc: func(groupId string) GroupInfo {
 //				panic("mock out the GroupInfo method")
 //			},
@@ -200,6 +207,12 @@ type IndexServiceMock struct {
 	// CloseFunc mocks the Close method.
 	CloseFunc func(ctx context.Context) error
 
+	// GetFileInfoFunc mocks the GetFileInfo method.
+	GetFileInfoFunc func(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error)
+
+	// GetSpaceFilesFunc mocks the GetSpaceFiles method.
+	GetSpaceFilesFunc func(spaceId string) ([]string, error)
+
 	// GroupInfoFunc mocks the GroupInfo method.
 	GroupInfoFunc func(groupId string) GroupInfo
 
@@ -230,6 +243,18 @@ type IndexServiceMock struct {
 		Close []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
+		}
+		// GetFileInfo holds details about calls to the GetFileInfo method.
+		GetFileInfo []struct {
+			// SpaceId is the spaceId argument value.
+			SpaceId string
+			// FileIds is the fileIds argument value.
+			FileIds []string
+		}
+		// GetSpaceFiles holds details about calls to the GetSpaceFiles method.
+		GetSpaceFiles []struct {
+			// SpaceId is the spaceId argument value.
+			SpaceId string
 		}
 		// GroupInfo holds details about calls to the GroupInfo method.
 		GroupInfo []struct {
@@ -277,6 +302,8 @@ type IndexServiceMock struct {
 		}
 	}
 	lockClose         sync.RWMutex
+	lockGetFileInfo   sync.RWMutex
+	lockGetSpaceFiles sync.RWMutex
 	lockGroupInfo     sync.RWMutex
 	lockHadCID        sync.RWMutex
 	lockHasCIDInSpace sync.RWMutex
@@ -316,6 +343,74 @@ func (mock *IndexServiceMock) CloseCalls() []struct {
 	mock.lockClose.RLock()
 	calls = mock.calls.Close
 	mock.lockClose.RUnlock()
+	return calls
+}
+
+// GetFileInfo calls GetFileInfoFunc.
+func (mock *IndexServiceMock) GetFileInfo(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error) {
+	if mock.GetFileInfoFunc == nil {
+		panic("IndexServiceMock.GetFileInfoFunc: method is nil but IndexService.GetFileInfo was just called")
+	}
+	callInfo := struct {
+		SpaceId string
+		FileIds []string
+	}{
+		SpaceId: spaceId,
+		FileIds: fileIds,
+	}
+	mock.lockGetFileInfo.Lock()
+	mock.calls.GetFileInfo = append(mock.calls.GetFileInfo, callInfo)
+	mock.lockGetFileInfo.Unlock()
+	return mock.GetFileInfoFunc(spaceId, fileIds...)
+}
+
+// GetFileInfoCalls gets all the calls that were made to GetFileInfo.
+// Check the length with:
+//
+//	len(mockedIndexService.GetFileInfoCalls())
+func (mock *IndexServiceMock) GetFileInfoCalls() []struct {
+	SpaceId string
+	FileIds []string
+} {
+	var calls []struct {
+		SpaceId string
+		FileIds []string
+	}
+	mock.lockGetFileInfo.RLock()
+	calls = mock.calls.GetFileInfo
+	mock.lockGetFileInfo.RUnlock()
+	return calls
+}
+
+// GetSpaceFiles calls GetSpaceFilesFunc.
+func (mock *IndexServiceMock) GetSpaceFiles(spaceId string) ([]string, error) {
+	if mock.GetSpaceFilesFunc == nil {
+		panic("IndexServiceMock.GetSpaceFilesFunc: method is nil but IndexService.GetSpaceFiles was just called")
+	}
+	callInfo := struct {
+		SpaceId string
+	}{
+		SpaceId: spaceId,
+	}
+	mock.lockGetSpaceFiles.Lock()
+	mock.calls.GetSpaceFiles = append(mock.calls.GetSpaceFiles, callInfo)
+	mock.lockGetSpaceFiles.Unlock()
+	return mock.GetSpaceFilesFunc(spaceId)
+}
+
+// GetSpaceFilesCalls gets all the calls that were made to GetSpaceFiles.
+// Check the length with:
+//
+//	len(mockedIndexService.GetSpaceFilesCalls())
+func (mock *IndexServiceMock) GetSpaceFilesCalls() []struct {
+	SpaceId string
+} {
+	var calls []struct {
+		SpaceId string
+	}
+	mock.lockGetSpaceFiles.RLock()
+	calls = mock.calls.GetSpaceFiles
+	mock.lockGetSpaceFiles.RUnlock()
 	return calls
 }
 

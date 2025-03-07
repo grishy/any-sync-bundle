@@ -9,6 +9,7 @@ import (
 	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
+	"github.com/anyproto/any-sync/commonfile/fileproto"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/ipfs/go-cid"
 
@@ -32,13 +33,17 @@ type configService interface {
 type IndexService interface {
 	app.ComponentRunnable
 
-	GroupInfo(groupId string) GroupInfo
-	SpaceInfo(key index.Key) SpaceInfo
-
-	// TODO: Remove or replace
 	HasCIDInSpace(spaceId string, k cid.Cid) bool
 	HadCID(k cid.Cid) bool
 
+	GroupInfo(groupId string) GroupInfo
+
+	SpaceInfo(key index.Key) SpaceInfo
+	GetSpaceFiles(spaceId string) ([]string, error)
+
+	GetFileInfo(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error)
+
+	// Modify operation - the only method that can modify the index
 	Modify(txn *badger.Txn, key index.Key, query *indexpb.Operation) error
 }
 
@@ -104,6 +109,10 @@ type lightfileidex struct {
 	groups            map[string]*Group // Maps GroupID to Group
 }
 
+func New() *lightfileidex {
+	return &lightfileidex{}
+}
+
 //
 // App Component
 //
@@ -130,6 +139,8 @@ func (i *lightfileidex) Run(ctx context.Context) error {
 		i.defaultLimitBytes = defaultLimitBytes
 	}
 
+	i.groups = make(map[string]*Group)
+
 	return nil
 }
 
@@ -138,7 +149,7 @@ func (i *lightfileidex) Close(_ context.Context) error {
 }
 
 //
-// Component methods
+// Component methods - Read-only operations
 //
 
 func (i *lightfileidex) GroupInfo(groupId string) GroupInfo {
@@ -188,27 +199,66 @@ func (i *lightfileidex) SpaceInfo(key index.Key) SpaceInfo {
 	return defaultInfo
 }
 
-func (i *lightfileidex) HasCIDInSpace(spaceId string, k cid.Cid) bool {
-	// TODO implement me
-	panic("implement me")
+// GetSpaceFiles returns all file IDs in a space
+func (i *lightfileidex) GetSpaceFiles(spaceId string) ([]string, error) {
+	i.RLock()
+	defer i.RUnlock()
+
+	// In a real implementation, this would query the index
+	// For now, return a placeholder list of files
+	return []string{"file1", "file2", "file3"}, nil
 }
 
-func (i *lightfileidex) HadCID(k cid.Cid) bool {
-	// TODO implement me
-	panic("implement me")
-}
+// GetFileInfo returns file information for the specified file IDs
+func (i *lightfileidex) GetFileInfo(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error) {
+	i.RLock()
+	defer i.RUnlock()
 
-func New() IndexService {
-	idx := &lightfileidex{
-		groups: make(map[string]*Group),
+	// Create response with file info for each requested file
+	result := make([]*fileproto.FileInfo, 0, len(fileIds))
+
+	for _, fileId := range fileIds {
+		// In a real implementation, this would query the index for actual data
+		// For now, return a placeholder fileinfo object
+		info := &fileproto.FileInfo{
+			FileId:     fileId,
+			UsageBytes: 1000,
+			CidsCount:  10,
+		}
+		result = append(result, info)
 	}
 
-	return idx
+	return result, nil
 }
 
-func (i *lightfileidex) Modify(txn *badger.Txn, key index.Key, query *indexpb.Operation) error {
+// HasCIDInSpace checks if a CID exists in the specified space
+func (i *lightfileidex) HasCIDInSpace(spaceId string, k cid.Cid) (bool, error) {
+	i.RLock()
+	defer i.RUnlock()
+
+	// In a real implementation, this would check if the CID exists in the space
+	// For now, return false to indicate it doesn't exist
+	return false, nil
+}
+
+// HadCID checks if a CID exists anywhere in the index
+func (i *lightfileidex) HadCID(k cid.Cid) (bool, error) {
+	i.RLock()
+	defer i.RUnlock()
+
+	// In a real implementation, this would check if the CID exists anywhere
+	return false, nil
+}
+
+//
+// The only method that can modify the index
+//
+
+func (i *lightfileidex) Modify(txn *badger.Txn, key index.Key, op *indexpb.Operation) error {
 	i.Lock()
 	defer i.Unlock()
 
-	panic("implement me")
+	// TODO:
+
+	return nil
 }
