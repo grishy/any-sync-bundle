@@ -1,38 +1,36 @@
-edition = "2023";  // successor to proto2 and proto3
+edition = "2023";
 
 package indexpb;
 
 option go_package = "index/indexpb";
 
 
-// Composite key for identifying the space within a group.
 message Key {
   string group_id = 1;
   string space_id = 2;
 }
 
-// Define parameters for binding a file.
 message FileBindOperation {
   string file_id = 1;
-  // List of block CIDs associated with this file.
-  repeated string block_cids = 2;
-  // Data size for each CID, corresponding to the block_cids array
-  repeated int32 data_sizes = 3;
+  repeated string cids = 2;
 }
 
-// Define parameters for unbinding a file.
 message FileUnbindOperation {
   repeated string file_ids = 1;
 }
 
-// Set the storage limit for an account
+// TODO: Can't be used via RPC, only for future our lightAdminUI
 message AccountLimitSetOperation {
   uint64 limit = 2;
 }
 
-// Set the storage limit for a space
 message SpaceLimitSetOperation {
   uint64 limit = 2;
+}
+
+message CidAddOperation {
+  string cid = 1;
+  int64 data_size = 2;
 }
 
 // Operation encapsulates all possible index modification operations.
@@ -42,6 +40,7 @@ message Operation {
     FileUnbindOperation       unbind_file = 2;
     AccountLimitSetOperation  account_limit_set = 3;
     SpaceLimitSetOperation    space_limit_set = 4;
+    CidAddOperation           cid_add = 5;
     // Add other operations here as needed.
   }
 }

@@ -11,13 +11,12 @@ import (
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/commonfile/fileproto"
 	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
+	"github.com/anyproto/any-sync/net/peer"
 	"github.com/anyproto/any-sync/net/rpc/server"
 	"github.com/dgraph-io/badger/v4"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
-
-	"github.com/anyproto/any-sync-filenode/index"
 
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex/indexpb"
@@ -25,18 +24,20 @@ import (
 )
 
 const (
-	CName             = "light.filenode.rpc"
-	cidSizeLimit      = 2 << 20                // 2 Mb
+	CName = "light.filenode.rpc"
+)
+
+const (
+	cidSizeLimit      = 2 << 20                // 2 MiB in bytes
+	fileInfoReqLimit  = 1000                   // Maximum number of file info requests
 	blockGetRetryTime = 100 * time.Millisecond // How often to retry block get if it's not available
 )
 
 var log = logger.NewNamed(CName)
 
-var (
-	ErrWrongHash = fmt.Errorf("block data hash mismatch")
-)
+var ErrWrongHash = fmt.Errorf("block data hash mismatch")
 
-type lightFileNodeRpc struct {
+type lightfilenoderpc struct {
 	srvAcl   acl.AclService
 	srvDRPC  server.DRPCServer
 	srvIndex lightfilenodeindex.IndexService
@@ -44,7 +45,7 @@ type lightFileNodeRpc struct {
 }
 
 func New() app.ComponentRunnable {
-	return new(lightFileNodeRpc)
+	return new(lightfilenoderpc)
 }
 
 //
@@ -61,7 +62,7 @@ func New() app.ComponentRunnable {
 //           ▼
 //         Store (BadgerDB)
 
-func (r *lightFileNodeRpc) Init(a *app.App) error {
+func (r *lightfilenoderpc) Init(a *app.App) error {
 	log.Info("call Init")
 
 	r.srvAcl = app.MustComponent[acl.AclService](a)
@@ -72,7 +73,7 @@ func (r *lightFileNodeRpc) Init(a *app.App) error {
 	return nil
 }
 
-func (r *lightFileNodeRpc) Name() (name string) {
+func (r *lightfilenoderpc) Name() (name string) {
 	return CName
 }
 
@@ -80,11 +81,11 @@ func (r *lightFileNodeRpc) Name() (name string) {
 // App Component Runnable
 //
 
-func (r *lightFileNodeRpc) Run(ctx context.Context) error {
+func (r *lightfilenoderpc) Run(ctx context.Context) error {
 	return fileproto.DRPCRegisterFile(r.srvDRPC, r)
 }
 
-func (r *lightFileNodeRpc) Close(ctx context.Context) error {
+func (r *lightfilenoderpc) Close(ctx context.Context) error {
 	return nil
 }
 
@@ -94,7 +95,8 @@ func (r *lightFileNodeRpc) Close(ctx context.Context) error {
 
 // BlockGet returns block data by CID
 // It does not check permissions, just returns the block data, if it exists
-func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGetRequest) (*fileproto.BlockGetResponse, error) {
+// NOTE: Done
+func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGetRequest) (*fileproto.BlockGetResponse, error) {
 	log.InfoCtx(ctx, "BlockGet",
 		zap.String("spaceId", req.SpaceId),
 		zap.Strings("cid", cidsToStrings(req.Cid)),
@@ -141,7 +143,8 @@ func (r *lightFileNodeRpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 
 // BlockPush stores a CID and data in the datastore.
 // It checks permissions and space limits before storing the data.
-func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPushRequest) (*fileproto.Ok, error) {
+// NODE: Fully implemented
+func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPushRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "BlockPush",
 		zap.String("spaceId", req.SpaceId),
 		zap.String("fileId", req.FileId),
@@ -176,35 +179,40 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		return nil, ErrWrongHash
 	}
 
-	// Finally, save the block and update all necessary counters
+	storageKey, err := r.canWrite(ctx, req.SpaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	cidString := c.String()
+
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		storageKey, errPerm := r.canWrite(ctx, req.SpaceId)
-		if errPerm != nil {
-			return errPerm
-		}
+		var operations []*indexpb.Operation
 
 		// Check if CID exists before storing to avoid duplicate storage
 		hadCid := r.srvIndex.HadCID(c)
-
-		// If block doesn't exist, store it
 		if !hadCid {
 			if errPush := r.srvStore.PutBlock(txn, blk); errPush != nil {
 				return fmt.Errorf("failed to push block: %w", errPush)
 			}
 
-			// TODO: Create CID in Index
-
-			bindOp := &indexpb.FileBindOperation{}
-			bindOp.SetFileId(req.FileId)
-			bindOp.SetBlockCids([]string{c.String()})
-			bindOp.SetDataSizes([]int32{int32(dataSize)})
+			cidOp := &indexpb.CidAddOperation{}
+			cidOp.SetCid(cidString)
+			cidOp.SetDataSize(int64(dataSize))
 
 			op := &indexpb.Operation{}
-			op.SetBindFile(bindOp)
+			op.SetCidAdd(cidOp)
+		}
 
-			if errModify := r.srvIndex.Modify(txn, storageKey, op); errModify != nil {
-				return fmt.Errorf("failed to bind block through Modify: %w", errModify)
-			}
+		bindOp := &indexpb.FileBindOperation{}
+		bindOp.SetFileId(req.FileId)
+		bindOp.SetCids([]string{cidString})
+
+		op := &indexpb.Operation{}
+		op.SetBindFile(bindOp)
+
+		if errModify := r.srvIndex.Modify(txn, storageKey, operations...); errModify != nil {
+			return fmt.Errorf("failed to modify index: %w", errModify)
 		}
 
 		return nil
@@ -217,7 +225,9 @@ func (r *lightFileNodeRpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	return &fileproto.Ok{}, nil
 }
 
-func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
+// BlocksCheck checks if the given CIDs exist in the space or in general in storage.
+// NODE: Fully implemented
+func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
 	log.InfoCtx(ctx, "BlocksCheck",
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("cids", cidsToStrings(request.Cids...)),
@@ -251,40 +261,35 @@ func (r *lightFileNodeRpc) BlocksCheck(ctx context.Context, request *fileproto.B
 	}, nil
 }
 
-func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, req *fileproto.BlocksBindRequest) (*fileproto.Ok, error) {
+// BlocksBind connect a list of CIDs to a file in the space.
+// NODE: Fully implemented
+func (r *lightfilenoderpc) BlocksBind(ctx context.Context, req *fileproto.BlocksBindRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "BlocksBind",
 		zap.String("spaceId", req.SpaceId),
 		zap.String("fileId", req.FileId),
 		zap.Strings("cids", cidsToStrings(req.Cids...)),
 	)
 
-	// Convert binary CIDs to actual CID objects
-	cids := r.convertCids(req.Cids)
+	storageKey, err := r.canWrite(ctx, req.SpaceId)
+	if err != nil {
+		return nil, err
+	}
 
-	// Convert to string representation for the proto message
+	cids := convertCids(req.Cids)
 	cidStrings := make([]string, 0, len(cids))
 	for _, c := range cids {
 		cidStrings = append(cidStrings, c.String())
 	}
 
+	bindOp := &indexpb.FileBindOperation{}
+	bindOp.SetFileId(req.FileId)
+	bindOp.SetCids(cidStrings)
+
+	op := &indexpb.Operation{}
+	op.SetBindFile(bindOp)
+
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		storageKey, errPerm := r.canWrite(ctx, req.SpaceId)
-		if errPerm != nil {
-			return errPerm
-		}
-
-		bindOp := &indexpb.FileBindOperation{}
-		bindOp.SetFileId(req.FileId)
-		bindOp.SetBlockCids(cidStrings)
-
-		op := &indexpb.Operation{}
-		op.SetBindFile(bindOp)
-
-		if errModify := r.srvIndex.Modify(txn, storageKey, op); errModify != nil {
-			return fmt.Errorf("failed to bind blocks through Modify: %w", errModify)
-		}
-
-		return nil
+		return r.srvIndex.Modify(txn, storageKey, op)
 	})
 
 	if errTx != nil {
@@ -294,17 +299,23 @@ func (r *lightFileNodeRpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 	return &fileproto.Ok{}, nil
 }
 
-func (r *lightFileNodeRpc) FilesInfo(ctx context.Context, request *fileproto.FilesInfoRequest) (*fileproto.FilesInfoResponse, error) {
+// FilesInfo returns information about a file in the space.
+// NODE: Fully implemented
+func (r *lightfilenoderpc) FilesInfo(ctx context.Context, req *fileproto.FilesInfoRequest) (*fileproto.FilesInfoResponse, error) {
 	log.InfoCtx(ctx, "FilesInfo",
-		zap.String("spaceId", request.SpaceId),
-		zap.Strings("fileIds", request.FileIds),
+		zap.String("spaceId", req.SpaceId),
+		zap.Strings("fileIds", req.FileIds),
 	)
 
-	if _, errPerm := r.canRead(ctx, request.SpaceId); errPerm != nil {
-		return nil, errPerm
+	if len(req.FileIds) > fileInfoReqLimit {
+		return nil, fileprotoerr.ErrQuerySizeExceeded
 	}
 
-	fileInfos, err := r.srvIndex.GetFileInfo(request.SpaceId, request.FileIds...)
+	if _, err := r.canRead(ctx, req.SpaceId); err != nil {
+		return nil, err
+	}
+
+	fileInfos, err := r.srvIndex.GetFileInfo(req.SpaceId, req.FileIds...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
@@ -314,7 +325,9 @@ func (r *lightFileNodeRpc) FilesInfo(ctx context.Context, request *fileproto.Fil
 	}, nil
 }
 
-func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream fileproto.DRPCFile_FilesGetStream) error {
+// FilesGet returns a stream of file IDs in the space.
+// NODE: Fully implemented
+func (r *lightfilenoderpc) FilesGet(request *fileproto.FilesGetRequest, stream fileproto.DRPCFile_FilesGetStream) error {
 	ctx := stream.Context()
 	log.InfoCtx(ctx, "FilesGet", zap.String("spaceId", request.SpaceId))
 
@@ -327,46 +340,39 @@ func (r *lightFileNodeRpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 		return err
 	}
 
-	// Stream files to client
 	for _, fileID := range files {
-		select {
-		case <-ctx.Done():
-			log.WarnCtx(ctx, "FilesGet stream cancelled", zap.Error(ctx.Err()))
-			return ctx.Err()
-		default:
-			if errSend := stream.Send(&fileproto.FilesGetResponse{FileId: fileID}); errSend != nil {
-				log.ErrorCtx(ctx, "FilesGet failed to send response", zap.Error(errSend))
-				return errSend
-			}
+		fileProto := &fileproto.FilesGetResponse{FileId: fileID}
+
+		if errSend := stream.Send(fileProto); errSend != nil {
+			log.ErrorCtx(ctx, "FilesGet failed to send response", zap.Error(errSend))
+			return errSend
 		}
 	}
 
 	return nil
 }
 
-func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.FilesDeleteRequest) (*fileproto.FilesDeleteResponse, error) {
+// FilesDelete removes a list of files from the space.
+// NODE: Fully implemented
+func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.FilesDeleteRequest) (*fileproto.FilesDeleteResponse, error) {
 	log.InfoCtx(ctx, "FilesDelete",
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("fileIds", request.FileIds),
 	)
 
+	storageKey, err := r.canWrite(ctx, request.SpaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	unbindOp := &indexpb.FileUnbindOperation{}
+	unbindOp.SetFileIds(request.FileIds)
+
+	op := &indexpb.Operation{}
+	op.SetUnbindFile(unbindOp)
+
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		storageKey, errPerm := r.canWrite(ctx, request.SpaceId)
-		if errPerm != nil {
-			return errPerm
-		}
-
-		unbindOp := &indexpb.FileUnbindOperation{}
-		unbindOp.SetFileIds(request.FileIds)
-
-		op := &indexpb.Operation{}
-		op.SetUnbindFile(unbindOp)
-
-		if errModify := r.srvIndex.Modify(txn, storageKey, op); errModify != nil {
-			return fmt.Errorf("failed to unbind files through Modify: %w", errModify)
-		}
-
-		return nil
+		return r.srvIndex.Modify(txn, storageKey, op)
 	})
 
 	if errTx != nil {
@@ -376,19 +382,20 @@ func (r *lightFileNodeRpc) FilesDelete(ctx context.Context, request *fileproto.F
 	return &fileproto.FilesDeleteResponse{}, nil
 }
 
-func (r *lightFileNodeRpc) Check(ctx context.Context, request *fileproto.CheckRequest) (*fileproto.CheckResponse, error) {
+// Check is just simple health check.
+// NOTE: Fully implemented
+func (r *lightfilenoderpc) Check(ctx context.Context, _ *fileproto.CheckRequest) (*fileproto.CheckResponse, error) {
 	log.InfoCtx(ctx, "Check")
 
-	// In a real implementation, this would return the list of spaces the user has access to
-	// and whether they have write permissions
-	// For now, return a simple response allowing write access
 	return &fileproto.CheckResponse{
-		SpaceIds:   []string{"space1", "space2"},
+		SpaceIds:   nil,
 		AllowWrite: true,
 	}, nil
 }
 
-func (r *lightFileNodeRpc) SpaceInfo(ctx context.Context, request *fileproto.SpaceInfoRequest) (*fileproto.SpaceInfoResponse, error) {
+// SpaceInfo returns information about the space.
+// NOTE: Fully implemented
+func (r *lightfilenoderpc) SpaceInfo(ctx context.Context, request *fileproto.SpaceInfoRequest) (*fileproto.SpaceInfoResponse, error) {
 	log.InfoCtx(ctx, "SpaceInfo",
 		zap.String("spaceId", request.SpaceId),
 	)
@@ -399,88 +406,56 @@ func (r *lightFileNodeRpc) SpaceInfo(ctx context.Context, request *fileproto.Spa
 	}
 
 	spaceInfo := r.srvIndex.SpaceInfo(storageKey)
-
-	return &fileproto.SpaceInfoResponse{
-		SpaceId:         request.SpaceId,
-		LimitBytes:      spaceInfo.LimitBytes,
-		TotalUsageBytes: spaceInfo.UsageBytes,
-		CidsCount:       spaceInfo.CidsCount,
-		FilesCount:      uint64(spaceInfo.FileCount),
-		SpaceUsageBytes: spaceInfo.UsageBytes,
-	}, nil
+	return &spaceInfo, nil
 }
 
-func (r *lightFileNodeRpc) AccountInfo(ctx context.Context, request *fileproto.AccountInfoRequest) (*fileproto.AccountInfoResponse, error) {
+// AccountInfo returns information about the account/group.
+// NOTE: Fully implemented
+func (r *lightfilenoderpc) AccountInfo(ctx context.Context, req *fileproto.AccountInfoRequest) (*fileproto.AccountInfoResponse, error) {
 	log.InfoCtx(ctx, "AccountInfo")
 
-	// Get group info for the default group
-	// In a real implementation, this would return information about the user's account
-	groupInfo := r.srvIndex.GroupInfo("default-group")
-
-	// Get space info for all spaces in the group
-	spaces := make([]*fileproto.SpaceInfoResponse, 0, len(groupInfo.SpaceIds))
-	for _, spaceId := range groupInfo.SpaceIds {
-		spaceInfo := r.srvIndex.SpaceInfo(index.Key{GroupId: "default-group", SpaceId: spaceId})
-		spaces = append(spaces, &fileproto.SpaceInfoResponse{
-			SpaceId:         spaceId,
-			LimitBytes:      spaceInfo.LimitBytes,
-			TotalUsageBytes: spaceInfo.UsageBytes,
-			CidsCount:       spaceInfo.CidsCount,
-			FilesCount:      uint64(spaceInfo.FileCount),
-			SpaceUsageBytes: spaceInfo.UsageBytes,
-		})
+	identity, err := peer.CtxPubKey(ctx)
+	if err != nil {
+		return nil, fileprotoerr.ErrForbidden
 	}
+	groupId := identity.Account()
 
-	return &fileproto.AccountInfoResponse{
-		LimitBytes:        groupInfo.LimitBytes,
-		TotalUsageBytes:   groupInfo.UsageBytes,
-		TotalCidsCount:    groupInfo.CidsCount,
-		Spaces:            spaces,
-		AccountLimitBytes: groupInfo.AccountLimitBytes,
-	}, nil
+	groupInfo := r.srvIndex.GroupInfo(groupId)
+	return &groupInfo, nil
 }
 
-func (r *lightFileNodeRpc) AccountLimitSet(ctx context.Context, request *fileproto.AccountLimitSetRequest) (*fileproto.Ok, error) {
+// AccountLimitSet sets the account/group limit.
+// NOTE: Logic is changed for self-hosted version
+func (r *lightfilenoderpc) AccountLimitSet(ctx context.Context, request *fileproto.AccountLimitSetRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "AccountLimitSet",
 		zap.String("identity", request.Identity),
 		zap.Uint64("limit", request.Limit),
 	)
 
-	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		setLimitOp := &indexpb.AccountLimitSetOperation{}
-		setLimitOp.SetLimit(request.Limit)
+	// Because we are using self-hosted version, we simplify the logic here
+	// We don't have payment system, so we can't set account limit
 
-		op := &indexpb.Operation{}
-		op.SetAccountLimitSet(setLimitOp)
-
-		return r.srvIndex.Modify(txn, index.Key{GroupId: request.Identity}, op)
-	})
-
-	if errTx != nil {
-		return nil, errTx
-	}
-
-	return &fileproto.Ok{}, nil
+	return nil, fmt.Errorf("you can't set account limit in this implementation: %w", fileprotoerr.ErrForbidden)
 }
 
-func (r *lightFileNodeRpc) SpaceLimitSet(ctx context.Context, request *fileproto.SpaceLimitSetRequest) (*fileproto.Ok, error) {
+func (r *lightfilenoderpc) SpaceLimitSet(ctx context.Context, request *fileproto.SpaceLimitSetRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "SpaceLimitSet",
 		zap.String("spaceId", request.SpaceId),
 		zap.Uint64("limit", request.Limit),
 	)
 
+	storageKey, err := r.canWrite(ctx, request.SpaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	setLimitOp := &indexpb.SpaceLimitSetOperation{}
+	setLimitOp.SetLimit(request.Limit)
+
+	op := &indexpb.Operation{}
+	op.SetSpaceLimitSet(setLimitOp)
+
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		storageKey, errPerm := r.canWrite(ctx, request.SpaceId)
-		if errPerm != nil {
-			return fmt.Errorf("failed to check permissions: %w", errPerm)
-		}
-
-		setLimitOp := &indexpb.SpaceLimitSetOperation{}
-		setLimitOp.SetLimit(request.Limit)
-
-		op := &indexpb.Operation{}
-		op.SetSpaceLimitSet(setLimitOp)
-
 		return r.srvIndex.Modify(txn, storageKey, op)
 	})
 

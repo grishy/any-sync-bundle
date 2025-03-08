@@ -538,7 +538,7 @@ func newFixture(t *testing.T) *fixture {
 		a:       new(app.App),
 		drpcSrv: server.New(),
 		aclSrv:  mock_acl.NewMockAclService(ctrl),
-		rpcSrv:  New().(*lightFileNodeRpc),
+		rpcSrv:  New().(*lightfilenoderpc),
 		storeSrv: &lightfilenodestore.StoreServiceMock{
 			InitFunc: func(a *app.App) error {
 				return nil
@@ -598,7 +598,7 @@ type fixture struct {
 
 	drpcSrv  server.DRPCServer
 	aclSrv   *mock_acl.MockAclService
-	rpcSrv   *lightFileNodeRpc
+	rpcSrv   *lightfilenoderpc
 	storeSrv *lightfilenodestore.StoreServiceMock
 	indexSrv *lightfilenodeindex.IndexServiceMock
 }

@@ -36,15 +36,16 @@ type IndexService interface {
 	HasCIDInSpace(spaceId string, k cid.Cid) bool
 	HadCID(k cid.Cid) bool
 
-	GroupInfo(groupId string) GroupInfo
+	GroupInfo(groupId string) fileproto.AccountInfoResponse
 
-	SpaceInfo(key index.Key) SpaceInfo
+	SpaceInfo(key index.Key) fileproto.SpaceInfoResponse
 	GetSpaceFiles(spaceId string) ([]string, error)
 
 	GetFileInfo(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error)
 
 	// Modify operation - the only method that can modify the index
-	Modify(txn *badger.Txn, key index.Key, query *indexpb.Operation) error
+	Modify(txn *badger.Txn, key index.Key, query ...*indexpb.Operation) error
+	PutCID(c cid.Cid, size int)
 }
 
 // Interface types

@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (r *lightFileNodeRpc) resolveStoreKey(ctx context.Context, spaceID string) (index.Key, error) {
+func (r *lightfilenoderpc) resolveStoreKey(ctx context.Context, spaceID string) (index.Key, error) {
 	if spaceID == "" {
 		return index.Key{}, fileprotoerr.ErrForbidden
 	}
@@ -28,7 +28,7 @@ func (r *lightFileNodeRpc) resolveStoreKey(ctx context.Context, spaceID string) 
 	}, nil
 }
 
-func (r *lightFileNodeRpc) canRead(ctx context.Context, spaceID string) (index.Key, error) {
+func (r *lightfilenoderpc) canRead(ctx context.Context, spaceID string) (index.Key, error) {
 	storageKey, err := r.resolveStoreKey(ctx, spaceID)
 	if err != nil {
 		return storageKey, err
@@ -61,7 +61,7 @@ func (r *lightFileNodeRpc) canRead(ctx context.Context, spaceID string) (index.K
 	}
 }
 
-func (r *lightFileNodeRpc) canWrite(ctx context.Context, spaceID string) (index.Key, error) {
+func (r *lightfilenoderpc) canWrite(ctx context.Context, spaceID string) (index.Key, error) {
 	storageKey, err := r.resolveStoreKey(ctx, spaceID)
 	if err != nil {
 		return storageKey, err
@@ -89,20 +89,20 @@ func (r *lightFileNodeRpc) canWrite(ctx context.Context, spaceID string) (index.
 	return storageKey, r.hasEnoughSpace(storageKey)
 }
 
-func (r *lightFileNodeRpc) hasEnoughSpace(storageKey index.Key) error {
+func (r *lightfilenoderpc) hasEnoughSpace(storageKey index.Key) error {
 	group := r.srvIndex.GroupInfo(storageKey.GroupId)
 	space := r.srvIndex.SpaceInfo(storageKey)
 
 	// For non-isolated spaces, check space-specific limit first
 	if spaceLimit := space.LimitBytes; spaceLimit > 0 {
-		if group.UsageBytes >= spaceLimit {
+		if group.TotalUsageBytes >= spaceLimit {
 			return fileprotoerr.ErrSpaceLimitExceeded
 		}
 		return nil
 	}
 
 	// For isolated spaces, check group limit
-	if group.UsageBytes >= group.LimitBytes {
+	if group.TotalUsageBytes >= group.LimitBytes {
 		return fileprotoerr.ErrSpaceLimitExceeded
 	}
 

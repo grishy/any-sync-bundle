@@ -1,0 +1,50 @@
+edition = "2023";
+
+package indexpb;
+
+option go_package = "index/indexpb";
+
+message CidEntry {
+  uint64 size = 1;
+  int64 createTime = 2;
+  int64 updateTime = 3;
+  int32 refs = 4;
+  uint32 version = 5;
+}
+
+message GroupEntry {
+  string groupId = 1;
+  int64 createTime = 2;
+  int64 updateTime = 3;
+  uint64 size = 4;
+  uint64 cidCount = 5;
+  repeated string spaceIds = 6;
+  uint64 limit = 7;
+  uint64 accountLimit = 8;
+}
+
+message SpaceEntry {
+  string groupId = 1;
+  int64 createTime = 2;
+  int64 updateTime = 3;
+  uint64 size = 4;
+  uint32 fileCount = 5;
+  uint64 cidCount = 6;
+  uint64 limit = 7;
+}
+
+message FileEntry {
+  repeated string cids = 1;
+  uint64 size = 2;
+  int64 createTime = 3;
+  int64 updateTime = 4;
+}
+
+message Store {
+  repeated CidEntry cids = 1;
+  repeated GroupEntry groups = 2;
+  repeated SpaceEntry spaces = 3;
+  repeated FileEntry files = 4;
+
+  int64 createTime = 10;
+}

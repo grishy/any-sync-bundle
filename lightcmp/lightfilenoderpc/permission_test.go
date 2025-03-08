@@ -7,13 +7,12 @@ import (
 
 	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync-filenode/testutil"
+	"github.com/anyproto/any-sync/commonfile/fileproto"
 	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/anyproto/any-sync/commonspace/object/acl/list"
 	"github.com/anyproto/any-sync/net/peer"
 	"github.com/anyproto/any-sync/util/crypto"
 	"github.com/stretchr/testify/require"
-
-	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 )
 
 func TestLightFileNodeRpc_resolveStoreKey(t *testing.T) {
@@ -139,14 +138,14 @@ func TestLightFileNodeRpc_canWrite(t *testing.T) {
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, spaceId).Return(ownerPubKey, nil)
 		fx.aclSrv.EXPECT().Permissions(ctx, ctxPubKey, spaceId).Return(list.AclPermissionsWriter, nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) lightfilenodeindex.GroupInfo {
-			return lightfilenodeindex.GroupInfo{
+		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) lightfilenodeindex.SpaceInfo {
-			return lightfilenodeindex.SpaceInfo{}
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+			return fileproto.SpaceInfoResponse{}
 		}
 
 		key, err := fx.rpcSrv.canWrite(ctx, spaceId)
@@ -191,17 +190,17 @@ func TestLightFileNodeRpc_hasEnoughSpace(t *testing.T) {
 			SpaceId: testutil.NewRandSpaceId(),
 		}
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) lightfilenodeindex.GroupInfo {
-			return lightfilenodeindex.GroupInfo{
-				UsageBytes: 1025,
-				LimitBytes: 2048,
+		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+			return fileproto.AccountInfoResponse{
+				TotalUsageBytes: 1025,
+				LimitBytes:      2048,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) lightfilenodeindex.SpaceInfo {
-			return lightfilenodeindex.SpaceInfo{
-				UsageBytes: 0,
-				LimitBytes: 1024,
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+			return fileproto.SpaceInfoResponse{
+				TotalUsageBytes: 0,
+				LimitBytes:      1024,
 			}
 		}
 
@@ -218,15 +217,15 @@ func TestLightFileNodeRpc_hasEnoughSpace(t *testing.T) {
 			SpaceId: testutil.NewRandSpaceId(),
 		}
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) lightfilenodeindex.GroupInfo {
-			return lightfilenodeindex.GroupInfo{
-				UsageBytes: 1025,
-				LimitBytes: 1024,
+		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+			return fileproto.AccountInfoResponse{
+				TotalUsageBytes: 1025,
+				LimitBytes:      1024,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) lightfilenodeindex.SpaceInfo {
-			return lightfilenodeindex.SpaceInfo{}
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+			return fileproto.SpaceInfoResponse{}
 		}
 
 		err := fx.rpcSrv.hasEnoughSpace(storeKey)
@@ -242,14 +241,14 @@ func TestLightFileNodeRpc_hasEnoughSpace(t *testing.T) {
 			SpaceId: testutil.NewRandSpaceId(),
 		}
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) lightfilenodeindex.GroupInfo {
-			return lightfilenodeindex.GroupInfo{
-				UsageBytes: 1024,
-				LimitBytes: 4096,
+		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+			return fileproto.AccountInfoResponse{
+				TotalUsageBytes: 1024,
+				LimitBytes:      4096,
 			}
 		}
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) lightfilenodeindex.SpaceInfo {
-			return lightfilenodeindex.SpaceInfo{
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+			return fileproto.SpaceInfoResponse{
 				LimitBytes: 2048,
 			}
 		}

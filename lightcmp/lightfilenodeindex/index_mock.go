@@ -173,7 +173,7 @@ var _ IndexService = &IndexServiceMock{}
 //			GetSpaceFilesFunc: func(spaceId string) ([]string, error) {
 //				panic("mock out the GetSpaceFiles method")
 //			},
-//			GroupInfoFunc: func(groupId string) GroupInfo {
+//			GroupInfoFunc: func(groupId string) fileproto.AccountInfoResponse {
 //				panic("mock out the GroupInfo method")
 //			},
 //			HadCIDFunc: func(k cid.Cid) bool {
@@ -185,16 +185,19 @@ var _ IndexService = &IndexServiceMock{}
 //			InitFunc: func(a *app.App) error {
 //				panic("mock out the Init method")
 //			},
-//			ModifyFunc: func(txn *badger.Txn, key index.Key, query *indexpb.Operation) error {
+//			ModifyFunc: func(txn *badger.Txn, key index.Key, query ...*indexpb.Operation) error {
 //				panic("mock out the Modify method")
 //			},
 //			NameFunc: func() string {
 //				panic("mock out the Name method")
 //			},
+//			PutCIDFunc: func(c cid.Cid, size int)  {
+//				panic("mock out the PutCID method")
+//			},
 //			RunFunc: func(ctx context.Context) error {
 //				panic("mock out the Run method")
 //			},
-//			SpaceInfoFunc: func(key index.Key) SpaceInfo {
+//			SpaceInfoFunc: func(key index.Key) fileproto.SpaceInfoResponse {
 //				panic("mock out the SpaceInfo method")
 //			},
 //		}
@@ -214,7 +217,7 @@ type IndexServiceMock struct {
 	GetSpaceFilesFunc func(spaceId string) ([]string, error)
 
 	// GroupInfoFunc mocks the GroupInfo method.
-	GroupInfoFunc func(groupId string) GroupInfo
+	GroupInfoFunc func(groupId string) fileproto.AccountInfoResponse
 
 	// HadCIDFunc mocks the HadCID method.
 	HadCIDFunc func(k cid.Cid) bool
@@ -226,16 +229,19 @@ type IndexServiceMock struct {
 	InitFunc func(a *app.App) error
 
 	// ModifyFunc mocks the Modify method.
-	ModifyFunc func(txn *badger.Txn, key index.Key, query *indexpb.Operation) error
+	ModifyFunc func(txn *badger.Txn, key index.Key, query ...*indexpb.Operation) error
 
 	// NameFunc mocks the Name method.
 	NameFunc func() string
+
+	// PutCIDFunc mocks the PutCID method.
+	PutCIDFunc func(c cid.Cid, size int)
 
 	// RunFunc mocks the Run method.
 	RunFunc func(ctx context.Context) error
 
 	// SpaceInfoFunc mocks the SpaceInfo method.
-	SpaceInfoFunc func(key index.Key) SpaceInfo
+	SpaceInfoFunc func(key index.Key) fileproto.SpaceInfoResponse
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -285,10 +291,17 @@ type IndexServiceMock struct {
 			// Key is the key argument value.
 			Key index.Key
 			// Query is the query argument value.
-			Query *indexpb.Operation
+			Query []*indexpb.Operation
 		}
 		// Name holds details about calls to the Name method.
 		Name []struct {
+		}
+		// PutCID holds details about calls to the PutCID method.
+		PutCID []struct {
+			// C is the c argument value.
+			C cid.Cid
+			// Size is the size argument value.
+			Size int
 		}
 		// Run holds details about calls to the Run method.
 		Run []struct {
@@ -310,6 +323,7 @@ type IndexServiceMock struct {
 	lockInit          sync.RWMutex
 	lockModify        sync.RWMutex
 	lockName          sync.RWMutex
+	lockPutCID        sync.RWMutex
 	lockRun           sync.RWMutex
 	lockSpaceInfo     sync.RWMutex
 }
@@ -415,7 +429,7 @@ func (mock *IndexServiceMock) GetSpaceFilesCalls() []struct {
 }
 
 // GroupInfo calls GroupInfoFunc.
-func (mock *IndexServiceMock) GroupInfo(groupId string) GroupInfo {
+func (mock *IndexServiceMock) GroupInfo(groupId string) fileproto.AccountInfoResponse {
 	if mock.GroupInfoFunc == nil {
 		panic("IndexServiceMock.GroupInfoFunc: method is nil but IndexService.GroupInfo was just called")
 	}
@@ -547,14 +561,14 @@ func (mock *IndexServiceMock) InitCalls() []struct {
 }
 
 // Modify calls ModifyFunc.
-func (mock *IndexServiceMock) Modify(txn *badger.Txn, key index.Key, query *indexpb.Operation) error {
+func (mock *IndexServiceMock) Modify(txn *badger.Txn, key index.Key, query ...*indexpb.Operation) error {
 	if mock.ModifyFunc == nil {
 		panic("IndexServiceMock.ModifyFunc: method is nil but IndexService.Modify was just called")
 	}
 	callInfo := struct {
 		Txn   *badger.Txn
 		Key   index.Key
-		Query *indexpb.Operation
+		Query []*indexpb.Operation
 	}{
 		Txn:   txn,
 		Key:   key,
@@ -563,7 +577,7 @@ func (mock *IndexServiceMock) Modify(txn *badger.Txn, key index.Key, query *inde
 	mock.lockModify.Lock()
 	mock.calls.Modify = append(mock.calls.Modify, callInfo)
 	mock.lockModify.Unlock()
-	return mock.ModifyFunc(txn, key, query)
+	return mock.ModifyFunc(txn, key, query...)
 }
 
 // ModifyCalls gets all the calls that were made to Modify.
@@ -573,12 +587,12 @@ func (mock *IndexServiceMock) Modify(txn *badger.Txn, key index.Key, query *inde
 func (mock *IndexServiceMock) ModifyCalls() []struct {
 	Txn   *badger.Txn
 	Key   index.Key
-	Query *indexpb.Operation
+	Query []*indexpb.Operation
 } {
 	var calls []struct {
 		Txn   *badger.Txn
 		Key   index.Key
-		Query *indexpb.Operation
+		Query []*indexpb.Operation
 	}
 	mock.lockModify.RLock()
 	calls = mock.calls.Modify
@@ -610,6 +624,42 @@ func (mock *IndexServiceMock) NameCalls() []struct {
 	mock.lockName.RLock()
 	calls = mock.calls.Name
 	mock.lockName.RUnlock()
+	return calls
+}
+
+// PutCID calls PutCIDFunc.
+func (mock *IndexServiceMock) PutCID(c cid.Cid, size int) {
+	if mock.PutCIDFunc == nil {
+		panic("IndexServiceMock.PutCIDFunc: method is nil but IndexService.PutCID was just called")
+	}
+	callInfo := struct {
+		C    cid.Cid
+		Size int
+	}{
+		C:    c,
+		Size: size,
+	}
+	mock.lockPutCID.Lock()
+	mock.calls.PutCID = append(mock.calls.PutCID, callInfo)
+	mock.lockPutCID.Unlock()
+	mock.PutCIDFunc(c, size)
+}
+
+// PutCIDCalls gets all the calls that were made to PutCID.
+// Check the length with:
+//
+//	len(mockedIndexService.PutCIDCalls())
+func (mock *IndexServiceMock) PutCIDCalls() []struct {
+	C    cid.Cid
+	Size int
+} {
+	var calls []struct {
+		C    cid.Cid
+		Size int
+	}
+	mock.lockPutCID.RLock()
+	calls = mock.calls.PutCID
+	mock.lockPutCID.RUnlock()
 	return calls
 }
 
@@ -646,7 +696,7 @@ func (mock *IndexServiceMock) RunCalls() []struct {
 }
 
 // SpaceInfo calls SpaceInfoFunc.
-func (mock *IndexServiceMock) SpaceInfo(key index.Key) SpaceInfo {
+func (mock *IndexServiceMock) SpaceInfo(key index.Key) fileproto.SpaceInfoResponse {
 	if mock.SpaceInfoFunc == nil {
 		panic("IndexServiceMock.SpaceInfoFunc: method is nil but IndexService.SpaceInfo was just called")
 	}
