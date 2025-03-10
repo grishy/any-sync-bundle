@@ -1,30 +1,9 @@
 package lightfilenoderpc
 
 import (
-	"github.com/anyproto/any-sync/commonfile/fileproto"
 	"github.com/ipfs/go-cid"
 )
 
-// checkCIDExists if the CID exists in space or in general in storage or not
-func (r *lightfilenoderpc) checkCIDExists(spaceId string, k cid.Cid) (status fileproto.AvailabilityStatus) {
-	// Check if the CID exists in space
-	if spaceId != "" {
-		exist := r.srvIndex.HasCIDInSpace(spaceId, k)
-		if exist {
-			return fileproto.AvailabilityStatus_ExistsInSpace
-		}
-	}
-
-	// Or check if the CID exists in storage at all
-	exist := r.srvIndex.HadCID(k)
-	if exist {
-		return fileproto.AvailabilityStatus_Exists
-	}
-
-	return fileproto.AvailabilityStatus_NotExists
-}
-
-// convertCids converts [][]byte CIDs to []cid.Cid, filtering out duplicates
 func convertCids(bCids [][]byte) (cids []cid.Cid) {
 	cids = make([]cid.Cid, 0, len(bCids))
 	var uniqMap map[string]struct{}

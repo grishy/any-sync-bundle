@@ -33,27 +33,22 @@ type configService interface {
 type IndexService interface {
 	app.ComponentRunnable
 
-	HasCIDInSpace(spaceId string, k cid.Cid) bool
+	// Read-only operations
+	HasCIDInSpace(key index.Key, k cid.Cid) bool
 	HadCID(k cid.Cid) bool
 
 	GroupInfo(groupId string) fileproto.AccountInfoResponse
 
 	SpaceInfo(key index.Key) fileproto.SpaceInfoResponse
-	GetSpaceFiles(spaceId string) ([]string, error)
+	SpaceFiles(key index.Key) ([]string, error)
 
-	GetFileInfo(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error)
+	FileInfo(key index.Key, fileIds ...string) ([]*fileproto.FileInfo, error)
 
 	// Modify operation - the only method that can modify the index
 	Modify(txn *badger.Txn, key index.Key, query ...*indexpb.Operation) error
-	PutCID(c cid.Cid, size int)
 }
 
 // Interface types
-
-type Key struct {
-	GroupID string
-	SpaceID string
-}
 
 type GroupInfo struct {
 	UsageBytes        uint64

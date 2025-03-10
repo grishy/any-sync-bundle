@@ -167,11 +167,8 @@ var _ IndexService = &IndexServiceMock{}
 //			CloseFunc: func(ctx context.Context) error {
 //				panic("mock out the Close method")
 //			},
-//			GetFileInfoFunc: func(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error) {
-//				panic("mock out the GetFileInfo method")
-//			},
-//			GetSpaceFilesFunc: func(spaceId string) ([]string, error) {
-//				panic("mock out the GetSpaceFiles method")
+//			FileInfoFunc: func(key index.Key, fileIds ...string) ([]*fileproto.FileInfo, error) {
+//				panic("mock out the FileInfo method")
 //			},
 //			GroupInfoFunc: func(groupId string) fileproto.AccountInfoResponse {
 //				panic("mock out the GroupInfo method")
@@ -179,7 +176,7 @@ var _ IndexService = &IndexServiceMock{}
 //			HadCIDFunc: func(k cid.Cid) bool {
 //				panic("mock out the HadCID method")
 //			},
-//			HasCIDInSpaceFunc: func(spaceId string, k cid.Cid) bool {
+//			HasCIDInSpaceFunc: func(key index.Key, k cid.Cid) bool {
 //				panic("mock out the HasCIDInSpace method")
 //			},
 //			InitFunc: func(a *app.App) error {
@@ -191,11 +188,11 @@ var _ IndexService = &IndexServiceMock{}
 //			NameFunc: func() string {
 //				panic("mock out the Name method")
 //			},
-//			PutCIDFunc: func(c cid.Cid, size int)  {
-//				panic("mock out the PutCID method")
-//			},
 //			RunFunc: func(ctx context.Context) error {
 //				panic("mock out the Run method")
+//			},
+//			SpaceFilesFunc: func(key index.Key) ([]string, error) {
+//				panic("mock out the SpaceFiles method")
 //			},
 //			SpaceInfoFunc: func(key index.Key) fileproto.SpaceInfoResponse {
 //				panic("mock out the SpaceInfo method")
@@ -210,11 +207,8 @@ type IndexServiceMock struct {
 	// CloseFunc mocks the Close method.
 	CloseFunc func(ctx context.Context) error
 
-	// GetFileInfoFunc mocks the GetFileInfo method.
-	GetFileInfoFunc func(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error)
-
-	// GetSpaceFilesFunc mocks the GetSpaceFiles method.
-	GetSpaceFilesFunc func(spaceId string) ([]string, error)
+	// FileInfoFunc mocks the FileInfo method.
+	FileInfoFunc func(key index.Key, fileIds ...string) ([]*fileproto.FileInfo, error)
 
 	// GroupInfoFunc mocks the GroupInfo method.
 	GroupInfoFunc func(groupId string) fileproto.AccountInfoResponse
@@ -223,7 +217,7 @@ type IndexServiceMock struct {
 	HadCIDFunc func(k cid.Cid) bool
 
 	// HasCIDInSpaceFunc mocks the HasCIDInSpace method.
-	HasCIDInSpaceFunc func(spaceId string, k cid.Cid) bool
+	HasCIDInSpaceFunc func(key index.Key, k cid.Cid) bool
 
 	// InitFunc mocks the Init method.
 	InitFunc func(a *app.App) error
@@ -234,11 +228,11 @@ type IndexServiceMock struct {
 	// NameFunc mocks the Name method.
 	NameFunc func() string
 
-	// PutCIDFunc mocks the PutCID method.
-	PutCIDFunc func(c cid.Cid, size int)
-
 	// RunFunc mocks the Run method.
 	RunFunc func(ctx context.Context) error
+
+	// SpaceFilesFunc mocks the SpaceFiles method.
+	SpaceFilesFunc func(key index.Key) ([]string, error)
 
 	// SpaceInfoFunc mocks the SpaceInfo method.
 	SpaceInfoFunc func(key index.Key) fileproto.SpaceInfoResponse
@@ -250,17 +244,12 @@ type IndexServiceMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 		}
-		// GetFileInfo holds details about calls to the GetFileInfo method.
-		GetFileInfo []struct {
-			// SpaceId is the spaceId argument value.
-			SpaceId string
+		// FileInfo holds details about calls to the FileInfo method.
+		FileInfo []struct {
+			// Key is the key argument value.
+			Key index.Key
 			// FileIds is the fileIds argument value.
 			FileIds []string
-		}
-		// GetSpaceFiles holds details about calls to the GetSpaceFiles method.
-		GetSpaceFiles []struct {
-			// SpaceId is the spaceId argument value.
-			SpaceId string
 		}
 		// GroupInfo holds details about calls to the GroupInfo method.
 		GroupInfo []struct {
@@ -274,8 +263,8 @@ type IndexServiceMock struct {
 		}
 		// HasCIDInSpace holds details about calls to the HasCIDInSpace method.
 		HasCIDInSpace []struct {
-			// SpaceId is the spaceId argument value.
-			SpaceId string
+			// Key is the key argument value.
+			Key index.Key
 			// K is the k argument value.
 			K cid.Cid
 		}
@@ -296,17 +285,15 @@ type IndexServiceMock struct {
 		// Name holds details about calls to the Name method.
 		Name []struct {
 		}
-		// PutCID holds details about calls to the PutCID method.
-		PutCID []struct {
-			// C is the c argument value.
-			C cid.Cid
-			// Size is the size argument value.
-			Size int
-		}
 		// Run holds details about calls to the Run method.
 		Run []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
+		}
+		// SpaceFiles holds details about calls to the SpaceFiles method.
+		SpaceFiles []struct {
+			// Key is the key argument value.
+			Key index.Key
 		}
 		// SpaceInfo holds details about calls to the SpaceInfo method.
 		SpaceInfo []struct {
@@ -315,16 +302,15 @@ type IndexServiceMock struct {
 		}
 	}
 	lockClose         sync.RWMutex
-	lockGetFileInfo   sync.RWMutex
-	lockGetSpaceFiles sync.RWMutex
+	lockFileInfo      sync.RWMutex
 	lockGroupInfo     sync.RWMutex
 	lockHadCID        sync.RWMutex
 	lockHasCIDInSpace sync.RWMutex
 	lockInit          sync.RWMutex
 	lockModify        sync.RWMutex
 	lockName          sync.RWMutex
-	lockPutCID        sync.RWMutex
 	lockRun           sync.RWMutex
+	lockSpaceFiles    sync.RWMutex
 	lockSpaceInfo     sync.RWMutex
 }
 
@@ -360,71 +346,39 @@ func (mock *IndexServiceMock) CloseCalls() []struct {
 	return calls
 }
 
-// GetFileInfo calls GetFileInfoFunc.
-func (mock *IndexServiceMock) GetFileInfo(spaceId string, fileIds ...string) ([]*fileproto.FileInfo, error) {
-	if mock.GetFileInfoFunc == nil {
-		panic("IndexServiceMock.GetFileInfoFunc: method is nil but IndexService.GetFileInfo was just called")
+// FileInfo calls FileInfoFunc.
+func (mock *IndexServiceMock) FileInfo(key index.Key, fileIds ...string) ([]*fileproto.FileInfo, error) {
+	if mock.FileInfoFunc == nil {
+		panic("IndexServiceMock.FileInfoFunc: method is nil but IndexService.FileInfo was just called")
 	}
 	callInfo := struct {
-		SpaceId string
+		Key     index.Key
 		FileIds []string
 	}{
-		SpaceId: spaceId,
+		Key:     key,
 		FileIds: fileIds,
 	}
-	mock.lockGetFileInfo.Lock()
-	mock.calls.GetFileInfo = append(mock.calls.GetFileInfo, callInfo)
-	mock.lockGetFileInfo.Unlock()
-	return mock.GetFileInfoFunc(spaceId, fileIds...)
+	mock.lockFileInfo.Lock()
+	mock.calls.FileInfo = append(mock.calls.FileInfo, callInfo)
+	mock.lockFileInfo.Unlock()
+	return mock.FileInfoFunc(key, fileIds...)
 }
 
-// GetFileInfoCalls gets all the calls that were made to GetFileInfo.
+// FileInfoCalls gets all the calls that were made to FileInfo.
 // Check the length with:
 //
-//	len(mockedIndexService.GetFileInfoCalls())
-func (mock *IndexServiceMock) GetFileInfoCalls() []struct {
-	SpaceId string
+//	len(mockedIndexService.FileInfoCalls())
+func (mock *IndexServiceMock) FileInfoCalls() []struct {
+	Key     index.Key
 	FileIds []string
 } {
 	var calls []struct {
-		SpaceId string
+		Key     index.Key
 		FileIds []string
 	}
-	mock.lockGetFileInfo.RLock()
-	calls = mock.calls.GetFileInfo
-	mock.lockGetFileInfo.RUnlock()
-	return calls
-}
-
-// GetSpaceFiles calls GetSpaceFilesFunc.
-func (mock *IndexServiceMock) GetSpaceFiles(spaceId string) ([]string, error) {
-	if mock.GetSpaceFilesFunc == nil {
-		panic("IndexServiceMock.GetSpaceFilesFunc: method is nil but IndexService.GetSpaceFiles was just called")
-	}
-	callInfo := struct {
-		SpaceId string
-	}{
-		SpaceId: spaceId,
-	}
-	mock.lockGetSpaceFiles.Lock()
-	mock.calls.GetSpaceFiles = append(mock.calls.GetSpaceFiles, callInfo)
-	mock.lockGetSpaceFiles.Unlock()
-	return mock.GetSpaceFilesFunc(spaceId)
-}
-
-// GetSpaceFilesCalls gets all the calls that were made to GetSpaceFiles.
-// Check the length with:
-//
-//	len(mockedIndexService.GetSpaceFilesCalls())
-func (mock *IndexServiceMock) GetSpaceFilesCalls() []struct {
-	SpaceId string
-} {
-	var calls []struct {
-		SpaceId string
-	}
-	mock.lockGetSpaceFiles.RLock()
-	calls = mock.calls.GetSpaceFiles
-	mock.lockGetSpaceFiles.RUnlock()
+	mock.lockFileInfo.RLock()
+	calls = mock.calls.FileInfo
+	mock.lockFileInfo.RUnlock()
 	return calls
 }
 
@@ -493,21 +447,21 @@ func (mock *IndexServiceMock) HadCIDCalls() []struct {
 }
 
 // HasCIDInSpace calls HasCIDInSpaceFunc.
-func (mock *IndexServiceMock) HasCIDInSpace(spaceId string, k cid.Cid) bool {
+func (mock *IndexServiceMock) HasCIDInSpace(key index.Key, k cid.Cid) bool {
 	if mock.HasCIDInSpaceFunc == nil {
 		panic("IndexServiceMock.HasCIDInSpaceFunc: method is nil but IndexService.HasCIDInSpace was just called")
 	}
 	callInfo := struct {
-		SpaceId string
-		K       cid.Cid
+		Key index.Key
+		K   cid.Cid
 	}{
-		SpaceId: spaceId,
-		K:       k,
+		Key: key,
+		K:   k,
 	}
 	mock.lockHasCIDInSpace.Lock()
 	mock.calls.HasCIDInSpace = append(mock.calls.HasCIDInSpace, callInfo)
 	mock.lockHasCIDInSpace.Unlock()
-	return mock.HasCIDInSpaceFunc(spaceId, k)
+	return mock.HasCIDInSpaceFunc(key, k)
 }
 
 // HasCIDInSpaceCalls gets all the calls that were made to HasCIDInSpace.
@@ -515,12 +469,12 @@ func (mock *IndexServiceMock) HasCIDInSpace(spaceId string, k cid.Cid) bool {
 //
 //	len(mockedIndexService.HasCIDInSpaceCalls())
 func (mock *IndexServiceMock) HasCIDInSpaceCalls() []struct {
-	SpaceId string
-	K       cid.Cid
+	Key index.Key
+	K   cid.Cid
 } {
 	var calls []struct {
-		SpaceId string
-		K       cid.Cid
+		Key index.Key
+		K   cid.Cid
 	}
 	mock.lockHasCIDInSpace.RLock()
 	calls = mock.calls.HasCIDInSpace
@@ -627,42 +581,6 @@ func (mock *IndexServiceMock) NameCalls() []struct {
 	return calls
 }
 
-// PutCID calls PutCIDFunc.
-func (mock *IndexServiceMock) PutCID(c cid.Cid, size int) {
-	if mock.PutCIDFunc == nil {
-		panic("IndexServiceMock.PutCIDFunc: method is nil but IndexService.PutCID was just called")
-	}
-	callInfo := struct {
-		C    cid.Cid
-		Size int
-	}{
-		C:    c,
-		Size: size,
-	}
-	mock.lockPutCID.Lock()
-	mock.calls.PutCID = append(mock.calls.PutCID, callInfo)
-	mock.lockPutCID.Unlock()
-	mock.PutCIDFunc(c, size)
-}
-
-// PutCIDCalls gets all the calls that were made to PutCID.
-// Check the length with:
-//
-//	len(mockedIndexService.PutCIDCalls())
-func (mock *IndexServiceMock) PutCIDCalls() []struct {
-	C    cid.Cid
-	Size int
-} {
-	var calls []struct {
-		C    cid.Cid
-		Size int
-	}
-	mock.lockPutCID.RLock()
-	calls = mock.calls.PutCID
-	mock.lockPutCID.RUnlock()
-	return calls
-}
-
 // Run calls RunFunc.
 func (mock *IndexServiceMock) Run(ctx context.Context) error {
 	if mock.RunFunc == nil {
@@ -692,6 +610,38 @@ func (mock *IndexServiceMock) RunCalls() []struct {
 	mock.lockRun.RLock()
 	calls = mock.calls.Run
 	mock.lockRun.RUnlock()
+	return calls
+}
+
+// SpaceFiles calls SpaceFilesFunc.
+func (mock *IndexServiceMock) SpaceFiles(key index.Key) ([]string, error) {
+	if mock.SpaceFilesFunc == nil {
+		panic("IndexServiceMock.SpaceFilesFunc: method is nil but IndexService.SpaceFiles was just called")
+	}
+	callInfo := struct {
+		Key index.Key
+	}{
+		Key: key,
+	}
+	mock.lockSpaceFiles.Lock()
+	mock.calls.SpaceFiles = append(mock.calls.SpaceFiles, callInfo)
+	mock.lockSpaceFiles.Unlock()
+	return mock.SpaceFilesFunc(key)
+}
+
+// SpaceFilesCalls gets all the calls that were made to SpaceFiles.
+// Check the length with:
+//
+//	len(mockedIndexService.SpaceFilesCalls())
+func (mock *IndexServiceMock) SpaceFilesCalls() []struct {
+	Key index.Key
+} {
+	var calls []struct {
+		Key index.Key
+	}
+	mock.lockSpaceFiles.RLock()
+	calls = mock.calls.SpaceFiles
+	mock.lockSpaceFiles.RUnlock()
 	return calls
 }
 

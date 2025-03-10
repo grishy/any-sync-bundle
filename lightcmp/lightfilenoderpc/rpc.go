@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
@@ -37,6 +38,16 @@ var log = logger.NewNamed(CName)
 
 var ErrWrongHash = fmt.Errorf("block data hash mismatch")
 
+//          RPC (DRPC)
+//           ├──────┐
+//           │      │ [Read/Write]
+// [BlockGet]│      ▼
+//           │    Index (In-memory)
+//           │      │ [Write-log and Snapshots]
+//           ├──────┘
+//           ▼
+//         Store (BadgerDB)
+
 type lightfilenoderpc struct {
 	srvAcl   acl.AclService
 	srvDRPC  server.DRPCServer
@@ -51,16 +62,6 @@ func New() app.ComponentRunnable {
 //
 // App Component
 //
-
-//          RPC (DRPC)
-//           ├──────┐
-//           │      │ [Read/Write]
-// [BlockGet]│      ▼
-//           │    Index (In-memory)
-//           │      │ [Write-log and Snapshots]
-//           ├──────┘
-//           ▼
-//         Store (BadgerDB)
 
 func (r *lightfilenoderpc) Init(a *app.App) error {
 	log.Info("call Init")
@@ -95,7 +96,6 @@ func (r *lightfilenoderpc) Close(ctx context.Context) error {
 
 // BlockGet returns block data by CID
 // It does not check permissions, just returns the block data, if it exists
-// NOTE: Done
 func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGetRequest) (*fileproto.BlockGetResponse, error) {
 	log.InfoCtx(ctx, "BlockGet",
 		zap.String("spaceId", req.SpaceId),
@@ -143,7 +143,6 @@ func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 
 // BlockPush stores a CID and data in the datastore.
 // It checks permissions and space limits before storing the data.
-// NODE: Fully implemented
 func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPushRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "BlockPush",
 		zap.String("spaceId", req.SpaceId),
@@ -226,12 +225,16 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 }
 
 // BlocksCheck checks if the given CIDs exist in the space or in general in storage.
-// NODE: Fully implemented
 func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
 	log.InfoCtx(ctx, "BlocksCheck",
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("cids", cidsToStrings(request.Cids...)),
 	)
+
+	storageKey, err := r.canRead(ctx, request.SpaceId)
+	if err != nil {
+		return nil, err
+	}
 
 	availability := make([]*fileproto.BlockAvailability, 0, len(request.Cids))
 	seen := make(map[cid.Cid]struct{}, len(request.Cids))
@@ -250,7 +253,7 @@ func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.B
 
 		status := &fileproto.BlockAvailability{
 			Cid:    rawCid,
-			Status: r.checkCIDExists(request.SpaceId, c),
+			Status: r.checkCIDExists(storageKey, c),
 		}
 
 		availability = append(availability, status)
@@ -261,8 +264,26 @@ func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.B
 	}, nil
 }
 
+// checkCIDExists if the CID exists in space or in general in storage or not
+func (r *lightfilenoderpc) checkCIDExists(storeKey index.Key, k cid.Cid) (status fileproto.AvailabilityStatus) {
+	// Check if the CID exists in space
+	if storeKey.SpaceId != "" {
+		exist := r.srvIndex.HasCIDInSpace(storeKey, k)
+		if exist {
+			return fileproto.AvailabilityStatus_ExistsInSpace
+		}
+	}
+
+	// Or check if the CID exists in storage at all
+	exist := r.srvIndex.HadCID(k)
+	if exist {
+		return fileproto.AvailabilityStatus_Exists
+	}
+
+	return fileproto.AvailabilityStatus_NotExists
+}
+
 // BlocksBind connect a list of CIDs to a file in the space.
-// NODE: Fully implemented
 func (r *lightfilenoderpc) BlocksBind(ctx context.Context, req *fileproto.BlocksBindRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "BlocksBind",
 		zap.String("spaceId", req.SpaceId),
@@ -300,7 +321,6 @@ func (r *lightfilenoderpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 }
 
 // FilesInfo returns information about a file in the space.
-// NODE: Fully implemented
 func (r *lightfilenoderpc) FilesInfo(ctx context.Context, req *fileproto.FilesInfoRequest) (*fileproto.FilesInfoResponse, error) {
 	log.InfoCtx(ctx, "FilesInfo",
 		zap.String("spaceId", req.SpaceId),
@@ -311,11 +331,12 @@ func (r *lightfilenoderpc) FilesInfo(ctx context.Context, req *fileproto.FilesIn
 		return nil, fileprotoerr.ErrQuerySizeExceeded
 	}
 
-	if _, err := r.canRead(ctx, req.SpaceId); err != nil {
+	storeKey, err := r.canRead(ctx, req.SpaceId)
+	if err != nil {
 		return nil, err
 	}
 
-	fileInfos, err := r.srvIndex.GetFileInfo(req.SpaceId, req.FileIds...)
+	fileInfos, err := r.srvIndex.FileInfo(storeKey, req.FileIds...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
@@ -326,16 +347,16 @@ func (r *lightfilenoderpc) FilesInfo(ctx context.Context, req *fileproto.FilesIn
 }
 
 // FilesGet returns a stream of file IDs in the space.
-// NODE: Fully implemented
 func (r *lightfilenoderpc) FilesGet(request *fileproto.FilesGetRequest, stream fileproto.DRPCFile_FilesGetStream) error {
 	ctx := stream.Context()
 	log.InfoCtx(ctx, "FilesGet", zap.String("spaceId", request.SpaceId))
 
-	if _, err := r.canRead(ctx, request.SpaceId); err != nil {
+	storeKey, err := r.canRead(ctx, request.SpaceId)
+	if err != nil {
 		return err
 	}
 
-	files, err := r.srvIndex.GetSpaceFiles(request.SpaceId)
+	files, err := r.srvIndex.SpaceFiles(storeKey)
 	if err != nil {
 		return err
 	}
@@ -353,7 +374,6 @@ func (r *lightfilenoderpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 }
 
 // FilesDelete removes a list of files from the space.
-// NODE: Fully implemented
 func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.FilesDeleteRequest) (*fileproto.FilesDeleteResponse, error) {
 	log.InfoCtx(ctx, "FilesDelete",
 		zap.String("spaceId", request.SpaceId),
@@ -383,7 +403,6 @@ func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.F
 }
 
 // Check is just simple health check.
-// NOTE: Fully implemented
 func (r *lightfilenoderpc) Check(ctx context.Context, _ *fileproto.CheckRequest) (*fileproto.CheckResponse, error) {
 	log.InfoCtx(ctx, "Check")
 
@@ -394,7 +413,6 @@ func (r *lightfilenoderpc) Check(ctx context.Context, _ *fileproto.CheckRequest)
 }
 
 // SpaceInfo returns information about the space.
-// NOTE: Fully implemented
 func (r *lightfilenoderpc) SpaceInfo(ctx context.Context, request *fileproto.SpaceInfoRequest) (*fileproto.SpaceInfoResponse, error) {
 	log.InfoCtx(ctx, "SpaceInfo",
 		zap.String("spaceId", request.SpaceId),
@@ -410,7 +428,6 @@ func (r *lightfilenoderpc) SpaceInfo(ctx context.Context, request *fileproto.Spa
 }
 
 // AccountInfo returns information about the account/group.
-// NOTE: Fully implemented
 func (r *lightfilenoderpc) AccountInfo(ctx context.Context, req *fileproto.AccountInfoRequest) (*fileproto.AccountInfoResponse, error) {
 	log.InfoCtx(ctx, "AccountInfo")
 
