@@ -28,6 +28,8 @@ jobs:
   tests:
     name: tests-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # Check on all supported GitHub Actions OS
+    # https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
     strategy:
       fail-fast: false
       matrix:
