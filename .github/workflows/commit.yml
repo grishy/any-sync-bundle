@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  linter:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -21,11 +21,39 @@ jobs:
       - run: go mod verify
       - run: go install tool
 
-      - run: go test -v ./...
-
       - uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.5
+
+  tests:
+    name: tests-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04
+          - ubuntu-22.04
+          - ubuntu-20.04
+          - ubuntu-24.04-arm
+          - ubuntu-22.04-arm
+          - windows-latest
+          - windows-2022
+          - windows-2019
+          - windows-2025
+          - macos-latest
+          - macos-14
+          - macos-15
+          - macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.0"
+
+      - run: go mod download
+      - run: go test -v ./...
 
   build:
     runs-on: ubuntu-24.04
