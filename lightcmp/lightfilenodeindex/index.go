@@ -38,7 +38,6 @@ var (
 
 type configService interface {
 	app.Component
-
 	GetFilenodeDefaultLimitBytes() uint64
 }
 
@@ -47,15 +46,11 @@ type IndexService interface {
 	app.ComponentRunnable
 
 	// Read-only operations
-
 	HasCIDInSpace(key index.Key, k cid.Cid) bool
 	HadCID(k cid.Cid) bool
-
 	GroupInfo(groupId string) fileproto.AccountInfoResponse
-
 	SpaceInfo(key index.Key) fileproto.SpaceInfoResponse
 	SpaceFiles(key index.Key) []string
-
 	FileInfo(key index.Key, fileIds ...string) []*fileproto.FileInfo
 
 	// Modify operation - the only method that can modify the index
@@ -74,7 +69,7 @@ type file struct {
 
 type fileInfo struct {
 	bytesUsage uint64
-	cidsCount  uint64
+	cidsCount  uint32
 }
 
 type space struct {
@@ -86,7 +81,7 @@ type spaceInfo struct {
 	usageBytes uint64
 	cidsCount  uint64
 	limitBytes uint64
-	fileCount  uint32
+	fileCount  uint64
 }
 
 type groupInfo struct {
@@ -103,8 +98,10 @@ type group struct {
 
 // lightfileidex is the top-level structure representing the complete index
 type lightfileidex struct {
-	srvCfg            configService
-	srvStore          lightfilenodestore.StoreService
+	srvCfg   configService
+	srvStore lightfilenodestore.StoreService
+
+	// TODO: Store all objects without limit and add in runtime to by dymanic if we will change the limit later
 	defaultLimitBytes uint64
 
 	sync.RWMutex
@@ -157,45 +154,46 @@ func (i *lightfileidex) Close(_ context.Context) error {
 // Component methods
 //
 
-// ensureGroupAndSpace creates group and space if they don't exist
-func (i *lightfileidex) ensureGroupAndSpace(groupId, spaceId string) (*group, *space) {
-	grp, ok := i.groups[groupId]
+// HasCIDInSpace checks if a CID exists in a specific space
+func (i *lightfileidex) HasCIDInSpace(key index.Key, k cid.Cid) bool {
+	i.RLock()
+	defer i.RUnlock()
+
+	group, ok := i.groups[key.GroupId]
 	if !ok {
-		grp = &group{
-			info: groupInfo{
-				usageBytes:        0,
-				cidsCount:         0,
-				accountLimitBytes: i.defaultLimitBytes,
-				limitBytes:        i.defaultLimitBytes,
-			},
-			spaces: make(map[string]*space),
-		}
-		i.groups[groupId] = grp
+		return false
 	}
 
-	sp, ok := grp.spaces[spaceId]
+	space, ok := group.spaces[key.SpaceId]
 	if !ok {
-		sp = &space{
-			info: spaceInfo{
-				usageBytes: 0,
-				cidsCount:  0,
-				limitBytes: i.defaultLimitBytes,
-				fileCount:  0,
-			},
-			files: make(map[string]*file),
-		}
-		grp.spaces[spaceId] = sp
+		return false
 	}
 
-	return grp, sp
+	for _, file := range space.files {
+		if _, hasBlock := file.blocks[k]; hasBlock {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HadCID checks if a CID exists anywhere in the index
+func (i *lightfileidex) HadCID(k cid.Cid) bool {
+	i.RLock()
+	defer i.RUnlock()
+
+	_, exist := i.blocksLake[k]
+	return exist
 }
 
 func (i *lightfileidex) GroupInfo(groupId string) fileproto.AccountInfoResponse {
 	i.RLock()
 	defer i.RUnlock()
 
-	// Set default response
-	response := fileproto.AccountInfoResponse{
+	resp := fileproto.AccountInfoResponse{
+		TotalUsageBytes:   0,
+		TotalCidsCount:    0,
 		LimitBytes:        i.defaultLimitBytes,
 		AccountLimitBytes: i.defaultLimitBytes,
 		Spaces:            []*fileproto.SpaceInfoResponse{},
@@ -203,40 +201,42 @@ func (i *lightfileidex) GroupInfo(groupId string) fileproto.AccountInfoResponse 
 
 	group, ok := i.groups[groupId]
 	if !ok {
-		return response
+		return resp
 	}
 
-	// Populate response from group info
-	response.LimitBytes = group.info.limitBytes
-	response.AccountLimitBytes = group.info.accountLimitBytes
-	response.TotalUsageBytes = group.info.usageBytes
-	response.TotalCidsCount = group.info.cidsCount
+	resp.TotalUsageBytes = group.info.usageBytes
+	resp.TotalCidsCount = group.info.cidsCount
+	resp.LimitBytes = group.info.limitBytes
+	resp.AccountLimitBytes = group.info.accountLimitBytes
 
-	// Add spaces info
+	resp.Spaces = make([]*fileproto.SpaceInfoResponse, 0, len(group.spaces))
 	for spaceId, sp := range group.spaces {
 		spaceInfo := &fileproto.SpaceInfoResponse{
 			SpaceId:         spaceId,
 			LimitBytes:      sp.info.limitBytes,
 			TotalUsageBytes: sp.info.usageBytes,
-			CidsCount:       uint64(sp.info.cidsCount),
-			FilesCount:      uint64(sp.info.fileCount),
+			CidsCount:       sp.info.cidsCount,
+			FilesCount:      sp.info.fileCount,
 			SpaceUsageBytes: sp.info.usageBytes,
 		}
-		response.Spaces = append(response.Spaces, spaceInfo)
+
+		resp.Spaces = append(resp.Spaces, spaceInfo)
 	}
 
-	return response
+	return resp
 }
 
-// SpaceInfo returns information about a space
 func (i *lightfileidex) SpaceInfo(key index.Key) fileproto.SpaceInfoResponse {
 	i.RLock()
 	defer i.RUnlock()
 
-	// Default response
 	response := fileproto.SpaceInfoResponse{
-		LimitBytes: i.defaultLimitBytes,
-		SpaceId:    key.SpaceId,
+		SpaceId:         key.SpaceId,
+		LimitBytes:      i.defaultLimitBytes,
+		TotalUsageBytes: 0,
+		CidsCount:       0,
+		FilesCount:      0,
+		SpaceUsageBytes: 0,
 	}
 
 	grp, ok := i.groups[key.GroupId]
@@ -249,17 +249,15 @@ func (i *lightfileidex) SpaceInfo(key index.Key) fileproto.SpaceInfoResponse {
 		return response
 	}
 
-	// Populate from space info
 	response.LimitBytes = sp.info.limitBytes
 	response.TotalUsageBytes = sp.info.usageBytes
 	response.SpaceUsageBytes = sp.info.usageBytes
-	response.CidsCount = uint64(sp.info.cidsCount)
-	response.FilesCount = uint64(sp.info.fileCount)
+	response.CidsCount = sp.info.cidsCount
+	response.FilesCount = sp.info.fileCount
 
 	return response
 }
 
-// SpaceFiles returns all file IDs in a space
 func (i *lightfileidex) SpaceFiles(key index.Key) []string {
 	i.RLock()
 	defer i.RUnlock()
@@ -282,7 +280,6 @@ func (i *lightfileidex) SpaceFiles(key index.Key) []string {
 	return fileIds
 }
 
-// FileInfo returns information about specified files
 func (i *lightfileidex) FileInfo(key index.Key, fileIds ...string) []*fileproto.FileInfo {
 	i.RLock()
 	defer i.RUnlock()
@@ -309,53 +306,14 @@ func (i *lightfileidex) FileInfo(key index.Key, fileIds ...string) []*fileproto.
 			continue
 		}
 
-		info := &fileproto.FileInfo{
+		result = append(result, &fileproto.FileInfo{
 			FileId:     fileId,
 			UsageBytes: f.info.bytesUsage,
-			CidsCount:  uint32(f.info.cidsCount),
-		}
-		result = append(result, info)
+			CidsCount:  f.info.cidsCount,
+		})
 	}
 
 	return result
-}
-
-// HasCIDInSpace checks if a CID exists in a specific space
-func (i *lightfileidex) HasCIDInSpace(key index.Key, k cid.Cid) bool {
-	i.RLock()
-	defer i.RUnlock()
-
-	group, ok := i.groups[key.GroupId]
-	if !ok {
-		return false
-	}
-
-	space, ok := group.spaces[key.SpaceId]
-	if !ok {
-		return false
-	}
-
-	cidStr := k.String()
-	return i.findBlock(space, cidStr) != nil
-}
-
-// HadCID checks if a CID exists anywhere in the index
-func (i *lightfileidex) HadCID(k cid.Cid) bool {
-	i.RLock()
-	defer i.RUnlock()
-
-	cidStr := k.String()
-
-	// Check all groups and spaces for the CID
-	for _, group := range i.groups {
-		for _, space := range group.spaces {
-			if i.findBlock(space, cidStr) != nil {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 // Modify applies operations to modify the index
@@ -384,6 +342,39 @@ func (i *lightfileidex) Modify(txn *badger.Txn, key index.Key, operations ...*in
 	i.updateGroupStats(group)
 
 	return nil
+}
+
+// ensureGroupAndSpace creates group and space if they don't exist
+func (i *lightfileidex) ensureGroupAndSpace(groupId, spaceId string) (*group, *space) {
+	grp, ok := i.groups[groupId]
+	if !ok {
+		grp = &group{
+			info: groupInfo{
+				usageBytes:        0,
+				cidsCount:         0,
+				accountLimitBytes: i.defaultLimitBytes,
+				limitBytes:        i.defaultLimitBytes,
+			},
+			spaces: make(map[string]*space),
+		}
+		i.groups[groupId] = grp
+	}
+
+	sp, ok := grp.spaces[spaceId]
+	if !ok {
+		sp = &space{
+			info: spaceInfo{
+				limitBytes: i.defaultLimitBytes,
+				usageBytes: 0,
+				cidsCount:  0,
+				fileCount:  0,
+			},
+			files: make(map[string]*file),
+		}
+		grp.spaces[spaceId] = sp
+	}
+
+	return grp, sp
 }
 
 // processOperation handles a single operation
@@ -436,7 +427,7 @@ func (i *lightfileidex) handleBindFile(group *group, space *space, op *indexpb.F
 		}
 
 		// Check if block already exists in any file in the space
-		existingBlock := i.findBlock(space, cidStr)
+		existingBlock := i.findBlock(space, c)
 
 		var b *block
 		if existingBlock != nil {
@@ -504,8 +495,7 @@ func (i *lightfileidex) handleSpaceLimitSet(space *space, op *indexpb.SpaceLimit
 
 // handleCIDAdd adds or updates a CID with size information
 func (i *lightfileidex) handleCIDAdd(space *space, op *indexpb.CidAddOperation) error {
-	cidStr := op.GetCid()
-	c, err := cid.Parse(cidStr)
+	c, err := cid.Parse(op.GetCid())
 	if err != nil {
 		return ErrInvalidCID
 	}
@@ -513,7 +503,7 @@ func (i *lightfileidex) handleCIDAdd(space *space, op *indexpb.CidAddOperation) 
 	size := uint32(op.GetDataSize())
 
 	// Find all files that reference this CID and update their blocks
-	existingBlock := i.findBlock(space, cidStr)
+	existingBlock := i.findBlock(space, c)
 
 	if existingBlock != nil {
 		// Update size if the new size is larger
@@ -568,14 +558,13 @@ func (i *lightfileidex) updateGroupStats(group *group) {
 	}
 }
 
-// findBlock searches for a block by CID string in a space
-// Returns the block if found, nil otherwise
-func (i *lightfileidex) findBlock(space *space, cidStr string) *block {
-	// for _, file := range space.files {
-	// 	if block, found := file.blocks[cidStr]; found {
-	// 		return block
-	// 	}
-	// }
+func (i *lightfileidex) findBlock(space *space, k cid.Cid) *block {
+	for _, file := range space.files {
+		if _, found := file.blocks[k]; found {
+			return i.blocksLake[k]
+		}
+	}
+
 	return nil
 }
 
@@ -606,9 +595,9 @@ func (i *lightfileidex) recordOperations(txn *badger.Txn, key index.Key, ops []*
 	}
 	walRecord := walRecordBuilder.Build()
 
-	data, err := proto.Marshal(walRecord)
-	if err != nil {
-		return fmt.Errorf("failed to marshal WAL record: %w", err)
+	data, errMarshal := proto.Marshal(walRecord)
+	if errMarshal != nil {
+		return fmt.Errorf("failed to marshal WAL record: %w", errMarshal)
 	}
 
 	if errPush := i.srvStore.PushIndexLog(txn, data); errPush != nil {

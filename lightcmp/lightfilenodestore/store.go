@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/anyproto/any-sync/app"
@@ -91,8 +92,11 @@ type storeConfig struct {
 
 type lightFileNodeStore struct {
 	srvCfg configService
-	db     *badger.DB
 	cfg    storeConfig
+	db     *badger.DB
+
+	// TODO: Implement atomic counter for log index, do not calculate on every push
+	currentIndex atomic.Uint64
 }
 
 func New() *lightFileNodeStore {
