@@ -73,8 +73,8 @@ type file struct {
 }
 
 type fileInfo struct {
-	BytesUsage uint64
-	CidsCount  uint64
+	bytesUsage uint64
+	cidsCount  uint64
 }
 
 type space struct {
@@ -83,17 +83,17 @@ type space struct {
 }
 
 type spaceInfo struct {
-	UsageBytes uint64
-	CidsCount  uint64
-	LimitBytes uint64
-	FileCount  uint32
+	usageBytes uint64
+	cidsCount  uint64
+	limitBytes uint64
+	fileCount  uint32
 }
 
 type groupInfo struct {
-	UsageBytes        uint64
-	CidsCount         uint64
-	AccountLimitBytes uint64
-	LimitBytes        uint64
+	usageBytes        uint64
+	cidsCount         uint64
+	accountLimitBytes uint64
+	limitBytes        uint64
 }
 
 type group struct {
@@ -101,10 +101,10 @@ type group struct {
 	spaces map[string]*space
 }
 
+// lightfileidex is the top-level structure representing the complete index
 type lightfileidex struct {
-	srvCfg   configService
-	srvStore lightfilenodestore.StoreService
-
+	srvCfg            configService
+	srvStore          lightfilenodestore.StoreService
 	defaultLimitBytes uint64
 
 	sync.RWMutex
@@ -163,10 +163,10 @@ func (i *lightfileidex) ensureGroupAndSpace(groupId, spaceId string) (*group, *s
 	if !ok {
 		grp = &group{
 			info: groupInfo{
-				UsageBytes:        0,
-				CidsCount:         0,
-				AccountLimitBytes: i.defaultLimitBytes,
-				LimitBytes:        i.defaultLimitBytes,
+				usageBytes:        0,
+				cidsCount:         0,
+				accountLimitBytes: i.defaultLimitBytes,
+				limitBytes:        i.defaultLimitBytes,
 			},
 			spaces: make(map[string]*space),
 		}
@@ -177,10 +177,10 @@ func (i *lightfileidex) ensureGroupAndSpace(groupId, spaceId string) (*group, *s
 	if !ok {
 		sp = &space{
 			info: spaceInfo{
-				UsageBytes: 0,
-				CidsCount:  0,
-				LimitBytes: i.defaultLimitBytes,
-				FileCount:  0,
+				usageBytes: 0,
+				cidsCount:  0,
+				limitBytes: i.defaultLimitBytes,
+				fileCount:  0,
 			},
 			files: make(map[string]*file),
 		}
@@ -207,20 +207,20 @@ func (i *lightfileidex) GroupInfo(groupId string) fileproto.AccountInfoResponse 
 	}
 
 	// Populate response from group info
-	response.LimitBytes = group.info.LimitBytes
-	response.AccountLimitBytes = group.info.AccountLimitBytes
-	response.TotalUsageBytes = group.info.UsageBytes
-	response.TotalCidsCount = group.info.CidsCount
+	response.LimitBytes = group.info.limitBytes
+	response.AccountLimitBytes = group.info.accountLimitBytes
+	response.TotalUsageBytes = group.info.usageBytes
+	response.TotalCidsCount = group.info.cidsCount
 
 	// Add spaces info
 	for spaceId, sp := range group.spaces {
 		spaceInfo := &fileproto.SpaceInfoResponse{
 			SpaceId:         spaceId,
-			LimitBytes:      sp.info.LimitBytes,
-			TotalUsageBytes: sp.info.UsageBytes,
-			CidsCount:       uint64(sp.info.CidsCount),
-			FilesCount:      uint64(sp.info.FileCount),
-			SpaceUsageBytes: sp.info.UsageBytes,
+			LimitBytes:      sp.info.limitBytes,
+			TotalUsageBytes: sp.info.usageBytes,
+			CidsCount:       uint64(sp.info.cidsCount),
+			FilesCount:      uint64(sp.info.fileCount),
+			SpaceUsageBytes: sp.info.usageBytes,
 		}
 		response.Spaces = append(response.Spaces, spaceInfo)
 	}
@@ -250,11 +250,11 @@ func (i *lightfileidex) SpaceInfo(key index.Key) fileproto.SpaceInfoResponse {
 	}
 
 	// Populate from space info
-	response.LimitBytes = sp.info.LimitBytes
-	response.TotalUsageBytes = sp.info.UsageBytes
-	response.SpaceUsageBytes = sp.info.UsageBytes
-	response.CidsCount = uint64(sp.info.CidsCount)
-	response.FilesCount = uint64(sp.info.FileCount)
+	response.LimitBytes = sp.info.limitBytes
+	response.TotalUsageBytes = sp.info.usageBytes
+	response.SpaceUsageBytes = sp.info.usageBytes
+	response.CidsCount = uint64(sp.info.cidsCount)
+	response.FilesCount = uint64(sp.info.fileCount)
 
 	return response
 }
@@ -287,19 +287,19 @@ func (i *lightfileidex) FileInfo(key index.Key, fileIds ...string) []*fileproto.
 	i.RLock()
 	defer i.RUnlock()
 
-	group, ok := i.groups[key.GroupId]
+	grp, ok := i.groups[key.GroupId]
 	if !ok {
 		return []*fileproto.FileInfo{}
 	}
 
-	space, ok := group.spaces[key.SpaceId]
+	sp, ok := grp.spaces[key.SpaceId]
 	if !ok {
 		return []*fileproto.FileInfo{}
 	}
 
 	result := make([]*fileproto.FileInfo, 0, len(fileIds))
 	for _, fileId := range fileIds {
-		file, ok := space.files[fileId]
+		f, ok := sp.files[fileId]
 		if !ok {
 			result = append(result, &fileproto.FileInfo{
 				FileId:     fileId,
@@ -311,8 +311,8 @@ func (i *lightfileidex) FileInfo(key index.Key, fileIds ...string) []*fileproto.
 
 		info := &fileproto.FileInfo{
 			FileId:     fileId,
-			UsageBytes: file.info.BytesUsage,
-			CidsCount:  uint32(file.info.CidsCount),
+			UsageBytes: f.info.bytesUsage,
+			CidsCount:  uint32(f.info.cidsCount),
 		}
 		result = append(result, info)
 	}
@@ -413,13 +413,13 @@ func (i *lightfileidex) handleBindFile(group *group, space *space, op *indexpb.F
 	if !ok {
 		f = &file{
 			info: fileInfo{
-				BytesUsage: 0,
-				CidsCount:  0,
+				bytesUsage: 0,
+				cidsCount:  0,
 			},
 			blocks: make(map[cid.Cid]struct{}),
 		}
 		space.files[fileId] = f
-		space.info.FileCount++
+		space.info.fileCount++
 	}
 
 	// Process CIDs
@@ -463,27 +463,25 @@ func (i *lightfileidex) handleBindFile(group *group, space *space, op *indexpb.F
 // handleDeleteFile removes files from a space
 func (i *lightfileidex) handleDeleteFile(group *group, space *space, op *indexpb.FileDeleteOperation) error {
 	for _, fileId := range op.GetFileIds() {
-		file, ok := space.files[fileId]
+		f, ok := space.files[fileId]
 		if !ok {
 			continue // File not found, nothing to delete
 		}
 
 		// Remove file's usage from space totals
-		space.info.UsageBytes -= file.info.BytesUsage
+		space.info.usageBytes -= f.info.bytesUsage
 
 		// Collect blocks for reference count check and decrement their refCounts
-		for cidStr := range file.blocks {
-			c, err := cid.Parse(cidStr)
-			if err != nil {
-				// log.Warn("Invalid CID in bind operation:", err)
-				return ErrInvalidCID
-			}
+		for c := range f.blocks {
 			block := i.blocksLake[c]
-			block.refCount--
+			if block != nil {
+				block.refCount--
+			}
 		}
 
 		// Remove the file
 		delete(space.files, fileId)
+		space.info.fileCount--
 	}
 
 	return nil
@@ -491,15 +489,15 @@ func (i *lightfileidex) handleDeleteFile(group *group, space *space, op *indexpb
 
 // handleAccountLimitSet sets the account limit for a group
 func (i *lightfileidex) handleAccountLimitSet(group *group, op *indexpb.AccountLimitSetOperation) error {
-	group.info.AccountLimitBytes = op.GetLimit()
-	group.info.LimitBytes = op.GetLimit()
+	group.info.accountLimitBytes = op.GetLimit()
+	group.info.limitBytes = op.GetLimit()
 
 	return nil
 }
 
 // handleSpaceLimitSet sets the space limit
 func (i *lightfileidex) handleSpaceLimitSet(space *space, op *indexpb.SpaceLimitSetOperation) error {
-	space.info.LimitBytes = op.GetLimit()
+	space.info.limitBytes = op.GetLimit()
 
 	return nil
 }
@@ -526,7 +524,7 @@ func (i *lightfileidex) handleCIDAdd(space *space, op *indexpb.CidAddOperation) 
 			// Update size in all files that contain this block
 			for _, file := range space.files {
 				if _, hasBlock := file.blocks[c]; hasBlock {
-					file.info.BytesUsage += sizeDiff
+					file.info.bytesUsage += sizeDiff
 				}
 			}
 
@@ -545,28 +543,28 @@ func (i *lightfileidex) handleCIDAdd(space *space, op *indexpb.CidAddOperation) 
 // updateSpaceStats recalculates space statistics
 func (i *lightfileidex) updateSpaceStats(space *space) {
 	// Reset space usage stats
-	space.info.UsageBytes = 0
+	space.info.usageBytes = 0
 
 	// Count unique blocks across all files
 	uniqueBlocks := i.countUniqueBlocks(space)
-	space.info.CidsCount = uint64(uniqueBlocks)
+	space.info.cidsCount = uint64(uniqueBlocks)
 
 	// Sum file usages
 	for _, file := range space.files {
-		space.info.UsageBytes += file.info.BytesUsage
+		space.info.usageBytes += file.info.bytesUsage
 	}
 }
 
 // updateGroupStats aggregates statistics from spaces to group
 func (i *lightfileidex) updateGroupStats(group *group) {
 	// Reset group usage stats
-	group.info.UsageBytes = 0
-	group.info.CidsCount = 0
+	group.info.usageBytes = 0
+	group.info.cidsCount = 0
 
 	// Aggregate from all spaces
 	for _, space := range group.spaces {
-		group.info.UsageBytes += space.info.UsageBytes
-		group.info.CidsCount += space.info.CidsCount
+		group.info.usageBytes += space.info.usageBytes
+		group.info.cidsCount += space.info.cidsCount
 	}
 }
 
