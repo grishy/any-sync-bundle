@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/anyproto/any-sync/app"
@@ -96,7 +95,7 @@ type lightFileNodeStore struct {
 	db     *badger.DB
 
 	// TODO: Implement atomic counter for log index, do not calculate on every push
-	currentIndex atomic.Uint64
+	// currentIndex atomic.Uint64
 }
 
 func New() *lightFileNodeStore {
