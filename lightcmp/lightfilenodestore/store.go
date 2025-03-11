@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/anyproto/any-sync/app"
@@ -30,20 +31,27 @@ const (
 	currentSnapshotSuffix = "current"
 
 	// GC configuration
-	defaultGCInterval    = 29 * time.Second // Prime number to avoid alignment
+	defaultGCInterval    = 29 * time.Hour // Prime number to avoid alignment
 	defaultMaxGCDuration = time.Minute
 	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
 )
 
 var (
+	// Type assertion
+	_ StoreService = (*lightFileNodeStore)(nil)
+
 	log = logger.NewNamed(CName)
 
 	// Errors
-
 	ErrNoSnapshot    = errors.New("no index snapshot found")
 	ErrBlockNotFound = errors.New("block not found")
 	ErrInvalidKey    = errors.New("invalid key format")
 )
+
+type configService interface {
+	app.Component
+	GetFilenodeStoreDir() string
+}
 
 // StoreService defines operations for persistent storage
 // NOTE: Perfectly we should have a separate badger.Txn to interface
@@ -51,31 +59,22 @@ type StoreService interface {
 	app.ComponentRunnable
 
 	// Transaction operations
-
 	TxView(f func(txn *badger.Txn) error) error
 	TxUpdate(f func(txn *badger.Txn) error) error
 
 	// Block operations
-
 	GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error)
 	PutBlock(txn *badger.Txn, block blocks.Block) error
 	DeleteBlock(txn *badger.Txn, c cid.Cid) error
 
 	// Index snapshot operations
-
 	GetIndexSnapshot(txn *badger.Txn) ([]byte, error)
 	SaveIndexSnapshot(txn *badger.Txn, data []byte) error
 
 	// Index log operations
-
 	GetIndexLogs(txn *badger.Txn) ([]IndexLog, error)
 	DeleteIndexLogs(txn *badger.Txn, idxs []uint64) error
 	PushIndexLog(txn *badger.Txn, logData []byte) error
-}
-
-type configService interface {
-	app.Component
-	GetFilenodeStoreDir() string
 }
 
 // IndexLog represents a single WAL entry for index changes
@@ -96,7 +95,7 @@ type lightFileNodeStore struct {
 	cfg    storeConfig
 }
 
-func New() StoreService {
+func New() *lightFileNodeStore {
 	return &lightFileNodeStore{
 		cfg: storeConfig{
 			gcInterval:    defaultGCInterval,
@@ -140,7 +139,13 @@ func (s *lightFileNodeStore) Close(ctx context.Context) error {
 	return s.db.Close()
 }
 
-// Block operations
+func (s *lightFileNodeStore) TxView(f func(txn *badger.Txn) error) error {
+	return s.db.View(f)
+}
+
+func (s *lightFileNodeStore) TxUpdate(f func(txn *badger.Txn) error) error {
+	return s.db.Update(f)
+}
 
 func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 	item, err := txn.Get(buildKey(blockType, k.String()))
@@ -150,6 +155,7 @@ func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error
 		}
 		return nil, fmt.Errorf("failed to get block %s: %w", k, err)
 	}
+
 	return item.ValueCopy(nil)
 }
 
@@ -161,8 +167,6 @@ func (s *lightFileNodeStore) PutBlock(txn *badger.Txn, block blocks.Block) error
 func (s *lightFileNodeStore) DeleteBlock(txn *badger.Txn, c cid.Cid) error {
 	return txn.Delete(buildKey(blockType, c.String()))
 }
-
-// Index snapshot operations
 
 func (s *lightFileNodeStore) GetIndexSnapshot(txn *badger.Txn) ([]byte, error) {
 	item, err := txn.Get(buildKey(snapshotType, currentSnapshotSuffix))
@@ -183,8 +187,6 @@ func (s *lightFileNodeStore) SaveIndexSnapshot(txn *badger.Txn, data []byte) err
 	return nil
 }
 
-// Index log operations
-
 func (s *lightFileNodeStore) GetIndexLogs(txn *badger.Txn) ([]IndexLog, error) {
 	prefix := buildKeyPrefix(logType)
 	opts := badger.DefaultIteratorOptions
@@ -198,7 +200,7 @@ func (s *lightFileNodeStore) GetIndexLogs(txn *badger.Txn) ([]IndexLog, error) {
 		item := it.Item()
 		idx, err := parseIdxFromKey(item.Key())
 		if err != nil {
-			continue // Skip malformed keys
+			return nil, fmt.Errorf("failed to parse log index key='%s': %w", item.Key(), err)
 		}
 
 		data, err := item.ValueCopy(nil)
@@ -240,18 +242,6 @@ func (s *lightFileNodeStore) PushIndexLog(txn *badger.Txn, logData []byte) error
 	return nil
 }
 
-// Transaction helpers
-
-func (s *lightFileNodeStore) TxView(f func(txn *badger.Txn) error) error {
-	return s.db.View(f)
-}
-
-func (s *lightFileNodeStore) TxUpdate(f func(txn *badger.Txn) error) error {
-	return s.db.Update(f)
-}
-
-// Internal helpers
-
 func buildKey(keyType string, suffix string) []byte {
 	key := make([]byte, 0, len(prefixFileNode)+len(separator)*2+len(keyType)+len(suffix))
 	key = append(key, prefixFileNode...)
@@ -272,21 +262,16 @@ func buildKeyPrefix(keyType string) []byte {
 }
 
 func parseIdxFromKey(key []byte) (uint64, error) {
-	lastSep := -1
-	for i := len(key) - 1; i >= 0; i-- {
-		if key[i] == separator[0] {
-			lastSep = i
-			break
-		}
+	keyStr := string(key)
+
+	lastSepIdx := strings.LastIndex(keyStr, separator)
+	if lastSepIdx == -1 || lastSepIdx >= len(keyStr)-1 {
+		return 0, fmt.Errorf("%w: %s", ErrInvalidKey, keyStr)
 	}
 
-	if lastSep == -1 || lastSep >= len(key)-1 {
-		return 0, fmt.Errorf("%w: %s", ErrInvalidKey, string(key))
-	}
-
-	idx, err := strconv.ParseUint(string(key[lastSep+1:]), 10, 64)
+	idx, err := strconv.ParseUint(keyStr[lastSepIdx+1:], 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s", ErrInvalidKey, string(key))
+		return 0, fmt.Errorf("%w: %s", ErrInvalidKey, keyStr)
 	}
 
 	return idx, nil

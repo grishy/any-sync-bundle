@@ -538,7 +538,7 @@ func newFixture(t *testing.T) *fixture {
 		a:       new(app.App),
 		drpcSrv: server.New(),
 		aclSrv:  mock_acl.NewMockAclService(ctrl),
-		rpcSrv:  New().(*lightfilenoderpc),
+		rpcSrv:  New(),
 		storeSrv: &lightfilenodestore.StoreServiceMock{
 			InitFunc: func(a *app.App) error {
 				return nil

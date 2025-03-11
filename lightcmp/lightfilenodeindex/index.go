@@ -27,9 +27,14 @@ const (
 	defaultLimitBytes = 1 << 40 // 1 TiB in bytes
 )
 
-var log = logger.NewNamed(CName)
+var (
+	// Type assertion
+	_ IndexService = (*lightfileidex)(nil)
 
-var ErrInvalidCID = errors.New("invalid cid")
+	log = logger.NewNamed(CName)
+
+	ErrInvalidCID = errors.New("invalid cid")
+)
 
 type configService interface {
 	app.Component
@@ -37,6 +42,7 @@ type configService interface {
 	GetFilenodeDefaultLimitBytes() uint64
 }
 
+// TODO: Avoid using badger.Txn directly
 type IndexService interface {
 	app.ComponentRunnable
 
@@ -46,55 +52,55 @@ type IndexService interface {
 	HadCID(k cid.Cid) bool
 
 	GroupInfo(groupId string) fileproto.AccountInfoResponse
+
 	SpaceInfo(key index.Key) fileproto.SpaceInfoResponse
 	SpaceFiles(key index.Key) []string
+
 	FileInfo(key index.Key, fileIds ...string) []*fileproto.FileInfo
 
 	// Modify operation - the only method that can modify the index
 	Modify(txn *badger.Txn, key index.Key, query ...*indexpb.Operation) error
 }
 
-type Block struct {
+type block struct {
 	size     uint32
 	refCount int
 }
 
-type File struct {
-	info   FileInfo
+type file struct {
+	info   fileInfo
 	blocks map[cid.Cid]struct{}
 }
 
-type FileInfo struct {
+type fileInfo struct {
 	BytesUsage uint64
 	CidsCount  uint64
 }
 
-type Space struct {
-	info  SpaceInfo
-	files map[string]*File
+type space struct {
+	info  spaceInfo
+	files map[string]*file
 }
 
-type SpaceInfo struct {
+type spaceInfo struct {
 	UsageBytes uint64
 	CidsCount  uint64
 	LimitBytes uint64
 	FileCount  uint32
 }
 
-type GroupInfo struct {
+type groupInfo struct {
 	UsageBytes        uint64
 	CidsCount         uint64
 	AccountLimitBytes uint64
 	LimitBytes        uint64
 }
 
-// Group represents a group containing spaces
-type Group struct {
-	info   GroupInfo         // Group statistics
-	spaces map[string]*Space // Spaces in the group, keyed by space ID
+type group struct {
+	info   groupInfo
+	spaces map[string]*space
 }
 
-// lightfileidex is the top-level structure representing the complete index
 type lightfileidex struct {
 	srvCfg   configService
 	srvStore lightfilenodestore.StoreService
@@ -102,15 +108,18 @@ type lightfileidex struct {
 	defaultLimitBytes uint64
 
 	sync.RWMutex
-	groups     map[string]*Group
-	blocksLake map[cid.Cid]*Block
+	groups     map[string]*group
+	blocksLake map[cid.Cid]*block
 }
 
 func New() *lightfileidex {
 	return &lightfileidex{}
 }
 
-// Init initializes the index service
+//
+// App Component
+//
+
 func (i *lightfileidex) Init(a *app.App) error {
 	log.Info("call Init")
 
@@ -134,8 +143,8 @@ func (i *lightfileidex) Run(ctx context.Context) error {
 		i.defaultLimitBytes = defaultLimitBytes
 	}
 
-	i.groups = make(map[string]*Group)
-	i.blocksLake = make(map[cid.Cid]*Block)
+	i.groups = make(map[string]*group)
+	i.blocksLake = make(map[cid.Cid]*block)
 
 	return nil
 }
@@ -144,37 +153,41 @@ func (i *lightfileidex) Close(_ context.Context) error {
 	return nil
 }
 
+//
+// Component methods
+//
+
 // ensureGroupAndSpace creates group and space if they don't exist
-func (i *lightfileidex) ensureGroupAndSpace(groupId, spaceId string) (*Group, *Space) {
-	group, ok := i.groups[groupId]
+func (i *lightfileidex) ensureGroupAndSpace(groupId, spaceId string) (*group, *space) {
+	grp, ok := i.groups[groupId]
 	if !ok {
-		group = &Group{
-			info: GroupInfo{
+		grp = &group{
+			info: groupInfo{
 				UsageBytes:        0,
 				CidsCount:         0,
 				AccountLimitBytes: i.defaultLimitBytes,
 				LimitBytes:        i.defaultLimitBytes,
 			},
-			spaces: make(map[string]*Space),
+			spaces: make(map[string]*space),
 		}
-		i.groups[groupId] = group
+		i.groups[groupId] = grp
 	}
 
-	space, ok := group.spaces[spaceId]
+	sp, ok := grp.spaces[spaceId]
 	if !ok {
-		space = &Space{
-			info: SpaceInfo{
+		sp = &space{
+			info: spaceInfo{
 				UsageBytes: 0,
 				CidsCount:  0,
 				LimitBytes: i.defaultLimitBytes,
 				FileCount:  0,
 			},
-			files: make(map[string]*File),
+			files: make(map[string]*file),
 		}
-		group.spaces[spaceId] = space
+		grp.spaces[spaceId] = sp
 	}
 
-	return group, space
+	return grp, sp
 }
 
 func (i *lightfileidex) GroupInfo(groupId string) fileproto.AccountInfoResponse {
@@ -200,14 +213,14 @@ func (i *lightfileidex) GroupInfo(groupId string) fileproto.AccountInfoResponse 
 	response.TotalCidsCount = group.info.CidsCount
 
 	// Add spaces info
-	for spaceId, space := range group.spaces {
+	for spaceId, sp := range group.spaces {
 		spaceInfo := &fileproto.SpaceInfoResponse{
 			SpaceId:         spaceId,
-			LimitBytes:      space.info.LimitBytes,
-			TotalUsageBytes: space.info.UsageBytes,
-			CidsCount:       uint64(space.info.CidsCount),
-			FilesCount:      uint64(space.info.FileCount),
-			SpaceUsageBytes: space.info.UsageBytes,
+			LimitBytes:      sp.info.LimitBytes,
+			TotalUsageBytes: sp.info.UsageBytes,
+			CidsCount:       uint64(sp.info.CidsCount),
+			FilesCount:      uint64(sp.info.FileCount),
+			SpaceUsageBytes: sp.info.UsageBytes,
 		}
 		response.Spaces = append(response.Spaces, spaceInfo)
 	}
@@ -226,69 +239,68 @@ func (i *lightfileidex) SpaceInfo(key index.Key) fileproto.SpaceInfoResponse {
 		SpaceId:    key.SpaceId,
 	}
 
-	group, ok := i.groups[key.GroupId]
+	grp, ok := i.groups[key.GroupId]
 	if !ok {
 		return response
 	}
 
-	space, ok := group.spaces[key.SpaceId]
+	sp, ok := grp.spaces[key.SpaceId]
 	if !ok {
 		return response
 	}
 
 	// Populate from space info
-	response.LimitBytes = space.info.LimitBytes
-	response.TotalUsageBytes = space.info.UsageBytes
-	response.SpaceUsageBytes = space.info.UsageBytes
-	response.CidsCount = uint64(space.info.CidsCount)
-	response.FilesCount = uint64(space.info.FileCount)
+	response.LimitBytes = sp.info.LimitBytes
+	response.TotalUsageBytes = sp.info.UsageBytes
+	response.SpaceUsageBytes = sp.info.UsageBytes
+	response.CidsCount = uint64(sp.info.CidsCount)
+	response.FilesCount = uint64(sp.info.FileCount)
 
 	return response
 }
 
 // SpaceFiles returns all file IDs in a space
-func (i *lightfileidex) SpaceFiles(key index.Key) ([]string, error) {
+func (i *lightfileidex) SpaceFiles(key index.Key) []string {
 	i.RLock()
 	defer i.RUnlock()
 
-	group, ok := i.groups[key.GroupId]
+	grp, ok := i.groups[key.GroupId]
 	if !ok {
-		// Create group
+		return []string{}
 	}
 
-	space, ok := group.spaces[key.SpaceId]
+	sp, ok := grp.spaces[key.SpaceId]
 	if !ok {
-		// Create group
+		return []string{}
 	}
 
-	fileIds := make([]string, 0, len(space.files))
-	for fileId := range space.files {
+	fileIds := make([]string, 0, len(sp.files))
+	for fileId := range sp.files {
 		fileIds = append(fileIds, fileId)
 	}
 
-	return fileIds, nil
+	return fileIds
 }
 
 // FileInfo returns information about specified files
-func (i *lightfileidex) FileInfo(key index.Key, fileIds ...string) ([]*fileproto.FileInfo, error) {
+func (i *lightfileidex) FileInfo(key index.Key, fileIds ...string) []*fileproto.FileInfo {
 	i.RLock()
 	defer i.RUnlock()
 
 	group, ok := i.groups[key.GroupId]
 	if !ok {
-		// Create group
+		return []*fileproto.FileInfo{}
 	}
 
 	space, ok := group.spaces[key.SpaceId]
 	if !ok {
-		// Create group
+		return []*fileproto.FileInfo{}
 	}
 
 	result := make([]*fileproto.FileInfo, 0, len(fileIds))
 	for _, fileId := range fileIds {
 		file, ok := space.files[fileId]
 		if !ok {
-			// Return empty FileInfo for files that don't exist
 			result = append(result, &fileproto.FileInfo{
 				FileId:     fileId,
 				UsageBytes: 0,
@@ -305,7 +317,7 @@ func (i *lightfileidex) FileInfo(key index.Key, fileIds ...string) ([]*fileproto
 		result = append(result, info)
 	}
 
-	return result, nil
+	return result
 }
 
 // HasCIDInSpace checks if a CID exists in a specific space
@@ -363,12 +375,11 @@ func (i *lightfileidex) Modify(txn *badger.Txn, key index.Key, operations ...*in
 	group, space := i.ensureGroupAndSpace(key.GroupId, key.SpaceId)
 
 	for _, op := range operations {
-		if err := i.processOperation(txn, key, group, space, op); err != nil {
-			return err
+		if err := i.processOperation(group, space, op); err != nil {
+			return fmt.Errorf("failed to process operation: %w", err)
 		}
 	}
 
-	// Update statistics after all operations
 	i.updateSpaceStats(space)
 	i.updateGroupStats(group)
 
@@ -376,38 +387,38 @@ func (i *lightfileidex) Modify(txn *badger.Txn, key index.Key, operations ...*in
 }
 
 // processOperation handles a single operation
-func (i *lightfileidex) processOperation(txn *badger.Txn, key index.Key, group *Group, space *Space, op *indexpb.Operation) error {
+func (i *lightfileidex) processOperation(group *group, space *space, op *indexpb.Operation) error {
 	switch {
 	case op.GetBindFile() != nil:
-		return i.handleBindFile(txn, key, group, space, op.GetBindFile())
+		return i.handleBindFile(group, space, op.GetBindFile())
 	case op.GetDeleteFile() != nil:
-		return i.handleDeleteFile(txn, key, group, space, op.GetDeleteFile())
+		return i.handleDeleteFile(group, space, op.GetDeleteFile())
 	case op.GetAccountLimitSet() != nil:
-		return i.handleAccountLimitSet(txn, key, group, op.GetAccountLimitSet())
+		return i.handleAccountLimitSet(group, op.GetAccountLimitSet())
 	case op.GetSpaceLimitSet() != nil:
-		return i.handleSpaceLimitSet(txn, key, space, op.GetSpaceLimitSet())
+		return i.handleSpaceLimitSet(space, op.GetSpaceLimitSet())
 	case op.GetCidAdd() != nil:
-		return i.handleCIDAdd(txn, key, space, op.GetCidAdd())
+		return i.handleCIDAdd(space, op.GetCidAdd())
 	default:
 		return errors.New("unsupported operation")
 	}
 }
 
 // handleBindFile associates CIDs with a file
-func (i *lightfileidex) handleBindFile(txn *badger.Txn, key index.Key, group *Group, space *Space, op *indexpb.FileBindOperation) error {
+func (i *lightfileidex) handleBindFile(group *group, space *space, op *indexpb.FileBindOperation) error {
 	fileId := op.GetFileId()
 
 	// Create file if it doesn't exist
-	file, ok := space.files[fileId]
+	f, ok := space.files[fileId]
 	if !ok {
-		file = &File{
-			info: FileInfo{
+		f = &file{
+			info: fileInfo{
 				BytesUsage: 0,
 				CidsCount:  0,
 			},
 			blocks: make(map[cid.Cid]struct{}),
 		}
-		space.files[fileId] = file
+		space.files[fileId] = f
 		space.info.FileCount++
 	}
 
@@ -420,37 +431,37 @@ func (i *lightfileidex) handleBindFile(txn *badger.Txn, key index.Key, group *Gr
 		}
 
 		// Check if this file already has this block
-		if _, hasBlock := file.blocks[c]; hasBlock {
+		if _, hasBlock := f.blocks[c]; hasBlock {
 			continue // Skip if file already has this block
 		}
 
 		// Check if block already exists in any file in the space
 		existingBlock := i.findBlock(space, cidStr)
 
-		var block *Block
+		var b *block
 		if existingBlock != nil {
 			// Reuse existing block and increment its reference count
-			block = existingBlock
-			block.refCount++
+			b = existingBlock
+			b.refCount++
 		} else {
 			// Create new block with initial refCount of 1
-			block = &Block{
+			b = &block{
 				size:     0, // Will be updated by CidAddOperation if needed
 				refCount: 1,
 			}
 		}
 
 		// Add block to file
-		file.blocks[c] = struct{}{}
-		// file.info.CidsCount++
-		// file.info.BytesUsage += uint64(block.size)
+		f.blocks[c] = struct{}{}
+		// f.info.CidsCount++
+		// f.info.BytesUsage += uint64(b.size)
 	}
 
 	return nil
 }
 
 // handleDeleteFile removes files from a space
-func (i *lightfileidex) handleDeleteFile(txn *badger.Txn, key index.Key, group *Group, space *Space, op *indexpb.FileDeleteOperation) error {
+func (i *lightfileidex) handleDeleteFile(group *group, space *space, op *indexpb.FileDeleteOperation) error {
 	for _, fileId := range op.GetFileIds() {
 		file, ok := space.files[fileId]
 		if !ok {
@@ -479,7 +490,7 @@ func (i *lightfileidex) handleDeleteFile(txn *badger.Txn, key index.Key, group *
 }
 
 // handleAccountLimitSet sets the account limit for a group
-func (i *lightfileidex) handleAccountLimitSet(txn *badger.Txn, key index.Key, group *Group, op *indexpb.AccountLimitSetOperation) error {
+func (i *lightfileidex) handleAccountLimitSet(group *group, op *indexpb.AccountLimitSetOperation) error {
 	group.info.AccountLimitBytes = op.GetLimit()
 	group.info.LimitBytes = op.GetLimit()
 
@@ -487,14 +498,14 @@ func (i *lightfileidex) handleAccountLimitSet(txn *badger.Txn, key index.Key, gr
 }
 
 // handleSpaceLimitSet sets the space limit
-func (i *lightfileidex) handleSpaceLimitSet(txn *badger.Txn, key index.Key, space *Space, op *indexpb.SpaceLimitSetOperation) error {
+func (i *lightfileidex) handleSpaceLimitSet(space *space, op *indexpb.SpaceLimitSetOperation) error {
 	space.info.LimitBytes = op.GetLimit()
 
 	return nil
 }
 
 // handleCIDAdd adds or updates a CID with size information
-func (i *lightfileidex) handleCIDAdd(txn *badger.Txn, key index.Key, space *Space, op *indexpb.CidAddOperation) error {
+func (i *lightfileidex) handleCIDAdd(space *space, op *indexpb.CidAddOperation) error {
 	cidStr := op.GetCid()
 	c, err := cid.Parse(cidStr)
 	if err != nil {
@@ -532,7 +543,7 @@ func (i *lightfileidex) handleCIDAdd(txn *badger.Txn, key index.Key, space *Spac
 }
 
 // updateSpaceStats recalculates space statistics
-func (i *lightfileidex) updateSpaceStats(space *Space) {
+func (i *lightfileidex) updateSpaceStats(space *space) {
 	// Reset space usage stats
 	space.info.UsageBytes = 0
 
@@ -547,7 +558,7 @@ func (i *lightfileidex) updateSpaceStats(space *Space) {
 }
 
 // updateGroupStats aggregates statistics from spaces to group
-func (i *lightfileidex) updateGroupStats(group *Group) {
+func (i *lightfileidex) updateGroupStats(group *group) {
 	// Reset group usage stats
 	group.info.UsageBytes = 0
 	group.info.CidsCount = 0
@@ -561,7 +572,7 @@ func (i *lightfileidex) updateGroupStats(group *Group) {
 
 // findBlock searches for a block by CID string in a space
 // Returns the block if found, nil otherwise
-func (i *lightfileidex) findBlock(space *Space, cidStr string) *Block {
+func (i *lightfileidex) findBlock(space *space, cidStr string) *block {
 	// for _, file := range space.files {
 	// 	if block, found := file.blocks[cidStr]; found {
 	// 		return block
@@ -571,7 +582,7 @@ func (i *lightfileidex) findBlock(space *Space, cidStr string) *Block {
 }
 
 // countUniqueBlocks returns a map of all unique blocks in a space
-func (i *lightfileidex) countUniqueBlocks(space *Space) int {
+func (i *lightfileidex) countUniqueBlocks(space *space) int {
 	uniqueBlocks := make(map[cid.Cid]struct{})
 	for _, file := range space.files {
 		for c := range file.blocks {
@@ -590,7 +601,6 @@ func (i *lightfileidex) recordOperations(txn *badger.Txn, key index.Key, ops []*
 	protoKey := keyBuilder.Build()
 
 	timestamp := time.Now().Unix()
-
 	walRecordBuilder := indexpb.WALRecord_builder{
 		Timestamp: &timestamp,
 		Key:       protoKey,

@@ -34,9 +34,14 @@ const (
 	blockGetRetryTime = 100 * time.Millisecond // How often to retry block get if it's not available
 )
 
-var log = logger.NewNamed(CName)
+var (
+	// Type assertion
+	_ fileproto.DRPCFileServer = (*lightfilenoderpc)(nil)
 
-var ErrWrongHash = fmt.Errorf("block data hash mismatch")
+	log = logger.NewNamed(CName)
+
+	ErrWrongHash = fmt.Errorf("block data hash mismatch")
+)
 
 //          RPC (DRPC)
 //           ├──────┐
@@ -55,7 +60,7 @@ type lightfilenoderpc struct {
 	srvStore lightfilenodestore.StoreService
 }
 
-func New() app.ComponentRunnable {
+func New() *lightfilenoderpc {
 	return new(lightfilenoderpc)
 }
 
@@ -435,7 +440,7 @@ func (r *lightfilenoderpc) AccountInfo(ctx context.Context, req *fileproto.Accou
 	return &groupInfo, nil
 }
 
-// AccountLimitSet sets the account/group limit.
+// AccountLimitSet sets the account/group storage limit.
 // NOTE: Logic is changed for self-hosted version
 func (r *lightfilenoderpc) AccountLimitSet(ctx context.Context, request *fileproto.AccountLimitSetRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "AccountLimitSet",
@@ -449,6 +454,7 @@ func (r *lightfilenoderpc) AccountLimitSet(ctx context.Context, request *filepro
 	return nil, fmt.Errorf("you can't set account limit in this implementation: %w", fileprotoerr.ErrForbidden)
 }
 
+// SpaceLimitSet sets the space storage limit.
 func (r *lightfilenoderpc) SpaceLimitSet(ctx context.Context, request *fileproto.SpaceLimitSetRequest) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "SpaceLimitSet",
 		zap.String("spaceId", request.SpaceId),

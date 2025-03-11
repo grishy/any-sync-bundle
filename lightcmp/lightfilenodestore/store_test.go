@@ -19,18 +19,15 @@ type testFixture struct {
 	app           *app.App
 	configService *configServiceMock
 	store         *lightFileNodeStore
-	cleanupDone   bool // Track if cleanup was already performed
 }
 
 func (f *testFixture) cleanup(t *testing.T) {
 	t.Helper()
-	if f.cleanupDone {
-		return
-	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	require.NoError(t, f.app.Close(ctx))
-	f.cleanupDone = true
 }
 
 func newTestFixture(t *testing.T) *testFixture {
@@ -45,7 +42,7 @@ func newTestFixture(t *testing.T) *testFixture {
 			NameFunc:                func() string { return "config" },
 		},
 	}
-	f.store = New().(*lightFileNodeStore)
+	f.store = New()
 
 	f.app.Register(f.configService).Register(f.store)
 	require.NoError(t, f.app.Start(context.Background()))

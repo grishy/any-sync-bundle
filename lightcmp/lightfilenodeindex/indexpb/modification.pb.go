@@ -830,7 +830,7 @@ type operation_SpaceLimitSet struct {
 }
 
 type operation_CidAdd struct {
-	CidAdd *CidAddOperation `protobuf:"bytes,5,opt,name=cid_add,json=cidAdd,oneof"` // Add other operations here as needed.
+	CidAdd *CidAddOperation `protobuf:"bytes,5,opt,name=cid_add,json=cidAdd,oneof"`
 }
 
 func (*operation_BindFile) isOperation_Op() {}
