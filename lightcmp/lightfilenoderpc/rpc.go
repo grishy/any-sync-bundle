@@ -336,10 +336,7 @@ func (r *lightfilenoderpc) FilesInfo(ctx context.Context, req *fileproto.FilesIn
 		return nil, err
 	}
 
-	fileInfos, err := r.srvIndex.FileInfo(storeKey, req.FileIds...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get file info: %w", err)
-	}
+	fileInfos := r.srvIndex.FileInfo(storeKey, req.FileIds...)
 
 	return &fileproto.FilesInfoResponse{
 		FilesInfo: fileInfos,
@@ -356,10 +353,7 @@ func (r *lightfilenoderpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 		return err
 	}
 
-	files, err := r.srvIndex.SpaceFiles(storeKey)
-	if err != nil {
-		return err
-	}
+	files := r.srvIndex.SpaceFiles(storeKey)
 
 	for _, fileID := range files {
 		fileProto := &fileproto.FilesGetResponse{FileId: fileID}
@@ -385,11 +379,11 @@ func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.F
 		return nil, err
 	}
 
-	unbindOp := &indexpb.FileUnbindOperation{}
-	unbindOp.SetFileIds(request.FileIds)
+	deleteOp := &indexpb.FileDeleteOperation{}
+	deleteOp.SetFileIds(request.FileIds)
 
 	op := &indexpb.Operation{}
-	op.SetUnbindFile(unbindOp)
+	op.SetDeleteFile(deleteOp)
 
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
 		return r.srvIndex.Modify(txn, storageKey, op)

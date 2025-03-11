@@ -223,27 +223,27 @@ func (b0 FileBindOperation_builder) Build() *FileBindOperation {
 	return m0
 }
 
-type FileUnbindOperation struct {
+type FileDeleteOperation struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_FileIds []string               `protobuf:"bytes,1,rep,name=file_ids,json=fileIds"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
-func (x *FileUnbindOperation) Reset() {
-	*x = FileUnbindOperation{}
+func (x *FileDeleteOperation) Reset() {
+	*x = FileDeleteOperation{}
 	mi := &file_modification_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *FileUnbindOperation) String() string {
+func (x *FileDeleteOperation) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FileUnbindOperation) ProtoMessage() {}
+func (*FileDeleteOperation) ProtoMessage() {}
 
-func (x *FileUnbindOperation) ProtoReflect() protoreflect.Message {
+func (x *FileDeleteOperation) ProtoReflect() protoreflect.Message {
 	mi := &file_modification_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -255,25 +255,25 @@ func (x *FileUnbindOperation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *FileUnbindOperation) GetFileIds() []string {
+func (x *FileDeleteOperation) GetFileIds() []string {
 	if x != nil {
 		return x.xxx_hidden_FileIds
 	}
 	return nil
 }
 
-func (x *FileUnbindOperation) SetFileIds(v []string) {
+func (x *FileDeleteOperation) SetFileIds(v []string) {
 	x.xxx_hidden_FileIds = v
 }
 
-type FileUnbindOperation_builder struct {
+type FileDeleteOperation_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	FileIds []string
 }
 
-func (b0 FileUnbindOperation_builder) Build() *FileUnbindOperation {
-	m0 := &FileUnbindOperation{}
+func (b0 FileDeleteOperation_builder) Build() *FileDeleteOperation {
+	m0 := &FileDeleteOperation{}
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_FileIds = b.FileIds
@@ -581,10 +581,10 @@ func (x *Operation) GetBindFile() *FileBindOperation {
 	return nil
 }
 
-func (x *Operation) GetUnbindFile() *FileUnbindOperation {
+func (x *Operation) GetDeleteFile() *FileDeleteOperation {
 	if x != nil {
-		if x, ok := x.xxx_hidden_Op.(*operation_UnbindFile); ok {
-			return x.UnbindFile
+		if x, ok := x.xxx_hidden_Op.(*operation_DeleteFile); ok {
+			return x.DeleteFile
 		}
 	}
 	return nil
@@ -625,12 +625,12 @@ func (x *Operation) SetBindFile(v *FileBindOperation) {
 	x.xxx_hidden_Op = &operation_BindFile{v}
 }
 
-func (x *Operation) SetUnbindFile(v *FileUnbindOperation) {
+func (x *Operation) SetDeleteFile(v *FileDeleteOperation) {
 	if v == nil {
 		x.xxx_hidden_Op = nil
 		return
 	}
-	x.xxx_hidden_Op = &operation_UnbindFile{v}
+	x.xxx_hidden_Op = &operation_DeleteFile{v}
 }
 
 func (x *Operation) SetAccountLimitSet(v *AccountLimitSetOperation) {
@@ -672,11 +672,11 @@ func (x *Operation) HasBindFile() bool {
 	return ok
 }
 
-func (x *Operation) HasUnbindFile() bool {
+func (x *Operation) HasDeleteFile() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.xxx_hidden_Op.(*operation_UnbindFile)
+	_, ok := x.xxx_hidden_Op.(*operation_DeleteFile)
 	return ok
 }
 
@@ -714,8 +714,8 @@ func (x *Operation) ClearBindFile() {
 	}
 }
 
-func (x *Operation) ClearUnbindFile() {
-	if _, ok := x.xxx_hidden_Op.(*operation_UnbindFile); ok {
+func (x *Operation) ClearDeleteFile() {
+	if _, ok := x.xxx_hidden_Op.(*operation_DeleteFile); ok {
 		x.xxx_hidden_Op = nil
 	}
 }
@@ -740,7 +740,7 @@ func (x *Operation) ClearCidAdd() {
 
 const Operation_Op_not_set_case case_Operation_Op = 0
 const Operation_BindFile_case case_Operation_Op = 1
-const Operation_UnbindFile_case case_Operation_Op = 2
+const Operation_DeleteFile_case case_Operation_Op = 2
 const Operation_AccountLimitSet_case case_Operation_Op = 3
 const Operation_SpaceLimitSet_case case_Operation_Op = 4
 const Operation_CidAdd_case case_Operation_Op = 5
@@ -752,8 +752,8 @@ func (x *Operation) WhichOp() case_Operation_Op {
 	switch x.xxx_hidden_Op.(type) {
 	case *operation_BindFile:
 		return Operation_BindFile_case
-	case *operation_UnbindFile:
-		return Operation_UnbindFile_case
+	case *operation_DeleteFile:
+		return Operation_DeleteFile_case
 	case *operation_AccountLimitSet:
 		return Operation_AccountLimitSet_case
 	case *operation_SpaceLimitSet:
@@ -770,7 +770,7 @@ type Operation_builder struct {
 
 	// Fields of oneof xxx_hidden_Op:
 	BindFile        *FileBindOperation
-	UnbindFile      *FileUnbindOperation
+	DeleteFile      *FileDeleteOperation
 	AccountLimitSet *AccountLimitSetOperation
 	SpaceLimitSet   *SpaceLimitSetOperation
 	CidAdd          *CidAddOperation
@@ -784,8 +784,8 @@ func (b0 Operation_builder) Build() *Operation {
 	if b.BindFile != nil {
 		x.xxx_hidden_Op = &operation_BindFile{b.BindFile}
 	}
-	if b.UnbindFile != nil {
-		x.xxx_hidden_Op = &operation_UnbindFile{b.UnbindFile}
+	if b.DeleteFile != nil {
+		x.xxx_hidden_Op = &operation_DeleteFile{b.DeleteFile}
 	}
 	if b.AccountLimitSet != nil {
 		x.xxx_hidden_Op = &operation_AccountLimitSet{b.AccountLimitSet}
@@ -817,8 +817,8 @@ type operation_BindFile struct {
 	BindFile *FileBindOperation `protobuf:"bytes,1,opt,name=bind_file,json=bindFile,oneof"`
 }
 
-type operation_UnbindFile struct {
-	UnbindFile *FileUnbindOperation `protobuf:"bytes,2,opt,name=unbind_file,json=unbindFile,oneof"`
+type operation_DeleteFile struct {
+	DeleteFile *FileDeleteOperation `protobuf:"bytes,2,opt,name=delete_file,json=deleteFile,oneof"`
 }
 
 type operation_AccountLimitSet struct {
@@ -835,7 +835,7 @@ type operation_CidAdd struct {
 
 func (*operation_BindFile) isOperation_Op() {}
 
-func (*operation_UnbindFile) isOperation_Op() {}
+func (*operation_DeleteFile) isOperation_Op() {}
 
 func (*operation_AccountLimitSet) isOperation_Op() {}
 
@@ -846,9 +846,9 @@ func (*operation_CidAdd) isOperation_Op() {}
 // WALRecord represents a single write-ahead log record.
 type WALRecord struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Key         *Key                   `protobuf:"bytes,1,opt,name=key"`
-	xxx_hidden_Op          *Operation             `protobuf:"bytes,2,opt,name=op"`
-	xxx_hidden_Timestamp   int64                  `protobuf:"varint,3,opt,name=timestamp"`
+	xxx_hidden_Timestamp   int64                  `protobuf:"varint,1,opt,name=timestamp"`
+	xxx_hidden_Key         *Key                   `protobuf:"bytes,2,opt,name=key"`
+	xxx_hidden_Ops         *[]*Operation          `protobuf:"bytes,3,rep,name=ops"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
 	unknownFields          protoimpl.UnknownFields
@@ -880,20 +880,6 @@ func (x *WALRecord) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *WALRecord) GetKey() *Key {
-	if x != nil {
-		return x.xxx_hidden_Key
-	}
-	return nil
-}
-
-func (x *WALRecord) GetOp() *Operation {
-	if x != nil {
-		return x.xxx_hidden_Op
-	}
-	return nil
-}
-
 func (x *WALRecord) GetTimestamp() int64 {
 	if x != nil {
 		return x.xxx_hidden_Timestamp
@@ -901,17 +887,40 @@ func (x *WALRecord) GetTimestamp() int64 {
 	return 0
 }
 
-func (x *WALRecord) SetKey(v *Key) {
-	x.xxx_hidden_Key = v
+func (x *WALRecord) GetKey() *Key {
+	if x != nil {
+		return x.xxx_hidden_Key
+	}
+	return nil
 }
 
-func (x *WALRecord) SetOp(v *Operation) {
-	x.xxx_hidden_Op = v
+func (x *WALRecord) GetOps() []*Operation {
+	if x != nil {
+		if x.xxx_hidden_Ops != nil {
+			return *x.xxx_hidden_Ops
+		}
+	}
+	return nil
 }
 
 func (x *WALRecord) SetTimestamp(v int64) {
 	x.xxx_hidden_Timestamp = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 3)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
+}
+
+func (x *WALRecord) SetKey(v *Key) {
+	x.xxx_hidden_Key = v
+}
+
+func (x *WALRecord) SetOps(v []*Operation) {
+	x.xxx_hidden_Ops = &v
+}
+
+func (x *WALRecord) HasTimestamp() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
 func (x *WALRecord) HasKey() bool {
@@ -921,51 +930,33 @@ func (x *WALRecord) HasKey() bool {
 	return x.xxx_hidden_Key != nil
 }
 
-func (x *WALRecord) HasOp() bool {
-	if x == nil {
-		return false
-	}
-	return x.xxx_hidden_Op != nil
-}
-
-func (x *WALRecord) HasTimestamp() bool {
-	if x == nil {
-		return false
-	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
+func (x *WALRecord) ClearTimestamp() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_Timestamp = 0
 }
 
 func (x *WALRecord) ClearKey() {
 	x.xxx_hidden_Key = nil
 }
 
-func (x *WALRecord) ClearOp() {
-	x.xxx_hidden_Op = nil
-}
-
-func (x *WALRecord) ClearTimestamp() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
-	x.xxx_hidden_Timestamp = 0
-}
-
 type WALRecord_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Key       *Key
-	Op        *Operation
 	Timestamp *int64
+	Key       *Key
+	Ops       []*Operation
 }
 
 func (b0 WALRecord_builder) Build() *WALRecord {
 	m0 := &WALRecord{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.xxx_hidden_Key = b.Key
-	x.xxx_hidden_Op = b.Op
 	if b.Timestamp != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
 		x.xxx_hidden_Timestamp = *b.Timestamp
 	}
+	x.xxx_hidden_Key = b.Key
+	x.xxx_hidden_Ops = &b.Ops
 	return m0
 }
 
@@ -982,7 +973,7 @@ var file_modification_proto_rawDesc = string([]byte{
 	0x17, 0x0a, 0x07, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
 	0x52, 0x06, 0x66, 0x69, 0x6c, 0x65, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x63, 0x69, 0x64, 0x73,
 	0x18, 0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x63, 0x69, 0x64, 0x73, 0x22, 0x30, 0x0a, 0x13,
-	0x46, 0x69, 0x6c, 0x65, 0x55, 0x6e, 0x62, 0x69, 0x6e, 0x64, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
+	0x46, 0x69, 0x6c, 0x65, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x12, 0x19, 0x0a, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x69, 0x64, 0x73, 0x18,
 	0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x07, 0x66, 0x69, 0x6c, 0x65, 0x49, 0x64, 0x73, 0x22, 0x30,
 	0x0a, 0x18, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x53, 0x65,
@@ -999,11 +990,11 @@ var file_modification_proto_rawDesc = string([]byte{
 	0x12, 0x39, 0x0a, 0x09, 0x62, 0x69, 0x6e, 0x64, 0x5f, 0x66, 0x69, 0x6c, 0x65, 0x18, 0x01, 0x20,
 	0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x70, 0x62, 0x2e, 0x46, 0x69,
 	0x6c, 0x65, 0x42, 0x69, 0x6e, 0x64, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x48,
-	0x00, 0x52, 0x08, 0x62, 0x69, 0x6e, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x3f, 0x0a, 0x0b, 0x75,
-	0x6e, 0x62, 0x69, 0x6e, 0x64, 0x5f, 0x66, 0x69, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b,
-	0x32, 0x1c, 0x2e, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x70, 0x62, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x55,
-	0x6e, 0x62, 0x69, 0x6e, 0x64, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x48, 0x00,
-	0x52, 0x0a, 0x75, 0x6e, 0x62, 0x69, 0x6e, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x4f, 0x0a, 0x11,
+	0x00, 0x52, 0x08, 0x62, 0x69, 0x6e, 0x64, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x3f, 0x0a, 0x0b, 0x64,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x66, 0x69, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x1c, 0x2e, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x70, 0x62, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x44,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x48, 0x00,
+	0x52, 0x0a, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x4f, 0x0a, 0x11,
 	0x61, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x5f, 0x73, 0x65,
 	0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x21, 0x2e, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x70,
 	0x62, 0x2e, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x4c, 0x69, 0x6d, 0x69, 0x74, 0x53, 0x65,
@@ -1017,22 +1008,23 @@ var file_modification_proto_rawDesc = string([]byte{
 	0x61, 0x64, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x69, 0x6e, 0x64, 0x65,
 	0x78, 0x70, 0x62, 0x2e, 0x43, 0x69, 0x64, 0x41, 0x64, 0x64, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x48, 0x00, 0x52, 0x06, 0x63, 0x69, 0x64, 0x41, 0x64, 0x64, 0x42, 0x04, 0x0a,
-	0x02, 0x6f, 0x70, 0x22, 0x6d, 0x0a, 0x09, 0x57, 0x41, 0x4c, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64,
-	0x12, 0x1e, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0c, 0x2e,
-	0x69, 0x6e, 0x64, 0x65, 0x78, 0x70, 0x62, 0x2e, 0x4b, 0x65, 0x79, 0x52, 0x03, 0x6b, 0x65, 0x79,
-	0x12, 0x22, 0x0a, 0x02, 0x6f, 0x70, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x69,
-	0x6e, 0x64, 0x65, 0x78, 0x70, 0x62, 0x2e, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e,
-	0x52, 0x02, 0x6f, 0x70, 0x12, 0x1c, 0x0a, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d,
-	0x70, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61,
-	0x6d, 0x70, 0x42, 0x0f, 0x5a, 0x0d, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x2f, 0x69, 0x6e, 0x64, 0x65,
-	0x78, 0x70, 0x62, 0x62, 0x08, 0x65, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x70, 0xe8, 0x07,
+	0x02, 0x6f, 0x70, 0x22, 0x6f, 0x0a, 0x09, 0x57, 0x41, 0x4c, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64,
+	0x12, 0x1c, 0x0a, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x03, 0x52, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x12, 0x1e,
+	0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x69, 0x6e,
+	0x64, 0x65, 0x78, 0x70, 0x62, 0x2e, 0x4b, 0x65, 0x79, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x24,
+	0x0a, 0x03, 0x6f, 0x70, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x69, 0x6e,
+	0x64, 0x65, 0x78, 0x70, 0x62, 0x2e, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52,
+	0x03, 0x6f, 0x70, 0x73, 0x42, 0x0f, 0x5a, 0x0d, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x2f, 0x69, 0x6e,
+	0x64, 0x65, 0x78, 0x70, 0x62, 0x62, 0x08, 0x65, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x70,
+	0xe8, 0x07,
 })
 
 var file_modification_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_modification_proto_goTypes = []any{
 	(*Key)(nil),                      // 0: indexpb.Key
 	(*FileBindOperation)(nil),        // 1: indexpb.FileBindOperation
-	(*FileUnbindOperation)(nil),      // 2: indexpb.FileUnbindOperation
+	(*FileDeleteOperation)(nil),      // 2: indexpb.FileDeleteOperation
 	(*AccountLimitSetOperation)(nil), // 3: indexpb.AccountLimitSetOperation
 	(*SpaceLimitSetOperation)(nil),   // 4: indexpb.SpaceLimitSetOperation
 	(*CidAddOperation)(nil),          // 5: indexpb.CidAddOperation
@@ -1041,12 +1033,12 @@ var file_modification_proto_goTypes = []any{
 }
 var file_modification_proto_depIdxs = []int32{
 	1, // 0: indexpb.Operation.bind_file:type_name -> indexpb.FileBindOperation
-	2, // 1: indexpb.Operation.unbind_file:type_name -> indexpb.FileUnbindOperation
+	2, // 1: indexpb.Operation.delete_file:type_name -> indexpb.FileDeleteOperation
 	3, // 2: indexpb.Operation.account_limit_set:type_name -> indexpb.AccountLimitSetOperation
 	4, // 3: indexpb.Operation.space_limit_set:type_name -> indexpb.SpaceLimitSetOperation
 	5, // 4: indexpb.Operation.cid_add:type_name -> indexpb.CidAddOperation
 	0, // 5: indexpb.WALRecord.key:type_name -> indexpb.Key
-	6, // 6: indexpb.WALRecord.op:type_name -> indexpb.Operation
+	6, // 6: indexpb.WALRecord.ops:type_name -> indexpb.Operation
 	7, // [7:7] is the sub-list for method output_type
 	7, // [7:7] is the sub-list for method input_type
 	7, // [7:7] is the sub-list for extension type_name
@@ -1061,7 +1053,7 @@ func file_modification_proto_init() {
 	}
 	file_modification_proto_msgTypes[6].OneofWrappers = []any{
 		(*operation_BindFile)(nil),
-		(*operation_UnbindFile)(nil),
+		(*operation_DeleteFile)(nil),
 		(*operation_AccountLimitSet)(nil),
 		(*operation_SpaceLimitSet)(nil),
 		(*operation_CidAdd)(nil),

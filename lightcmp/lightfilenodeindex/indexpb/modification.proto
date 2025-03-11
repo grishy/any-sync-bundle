@@ -4,7 +4,6 @@ package indexpb;
 
 option go_package = "index/indexpb";
 
-
 message Key {
   string group_id = 1;
   string space_id = 2;
@@ -15,7 +14,7 @@ message FileBindOperation {
   repeated string cids = 2;
 }
 
-message FileUnbindOperation {
+message FileDeleteOperation {
   repeated string file_ids = 1;
 }
 
@@ -36,18 +35,17 @@ message CidAddOperation {
 // Operation encapsulates all possible index modification operations.
 message Operation {
   oneof op {
-    FileBindOperation         bind_file = 1;
-    FileUnbindOperation       unbind_file = 2;
-    AccountLimitSetOperation  account_limit_set = 3;
-    SpaceLimitSetOperation    space_limit_set = 4;
-    CidAddOperation           cid_add = 5;
-    // Add other operations here as needed.
+    FileBindOperation bind_file = 1;
+    FileDeleteOperation delete_file = 2;
+    AccountLimitSetOperation account_limit_set = 3;
+    SpaceLimitSetOperation space_limit_set = 4;
+    CidAddOperation cid_add = 5;
   }
 }
 
 // WALRecord represents a single write-ahead log record.
 message WALRecord {
-  Key key = 1;             // Which group/space is affected.
-  Operation op = 2;        // Operation parameters, varying by type.
-  int64 timestamp = 3;     // Unix timestamp of the operation.
+  int64 timestamp = 1;
+  Key key = 2;
+  repeated Operation ops = 3;
 }

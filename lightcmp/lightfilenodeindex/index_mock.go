@@ -167,7 +167,7 @@ var _ IndexService = &IndexServiceMock{}
 //			CloseFunc: func(ctx context.Context) error {
 //				panic("mock out the Close method")
 //			},
-//			FileInfoFunc: func(key index.Key, fileIds ...string) ([]*fileproto.FileInfo, error) {
+//			FileInfoFunc: func(key index.Key, fileIds ...string) []*fileproto.FileInfo {
 //				panic("mock out the FileInfo method")
 //			},
 //			GroupInfoFunc: func(groupId string) fileproto.AccountInfoResponse {
@@ -191,7 +191,7 @@ var _ IndexService = &IndexServiceMock{}
 //			RunFunc: func(ctx context.Context) error {
 //				panic("mock out the Run method")
 //			},
-//			SpaceFilesFunc: func(key index.Key) ([]string, error) {
+//			SpaceFilesFunc: func(key index.Key) []string {
 //				panic("mock out the SpaceFiles method")
 //			},
 //			SpaceInfoFunc: func(key index.Key) fileproto.SpaceInfoResponse {
@@ -208,7 +208,7 @@ type IndexServiceMock struct {
 	CloseFunc func(ctx context.Context) error
 
 	// FileInfoFunc mocks the FileInfo method.
-	FileInfoFunc func(key index.Key, fileIds ...string) ([]*fileproto.FileInfo, error)
+	FileInfoFunc func(key index.Key, fileIds ...string) []*fileproto.FileInfo
 
 	// GroupInfoFunc mocks the GroupInfo method.
 	GroupInfoFunc func(groupId string) fileproto.AccountInfoResponse
@@ -232,7 +232,7 @@ type IndexServiceMock struct {
 	RunFunc func(ctx context.Context) error
 
 	// SpaceFilesFunc mocks the SpaceFiles method.
-	SpaceFilesFunc func(key index.Key) ([]string, error)
+	SpaceFilesFunc func(key index.Key) []string
 
 	// SpaceInfoFunc mocks the SpaceInfo method.
 	SpaceInfoFunc func(key index.Key) fileproto.SpaceInfoResponse
@@ -347,7 +347,7 @@ func (mock *IndexServiceMock) CloseCalls() []struct {
 }
 
 // FileInfo calls FileInfoFunc.
-func (mock *IndexServiceMock) FileInfo(key index.Key, fileIds ...string) ([]*fileproto.FileInfo, error) {
+func (mock *IndexServiceMock) FileInfo(key index.Key, fileIds ...string) []*fileproto.FileInfo {
 	if mock.FileInfoFunc == nil {
 		panic("IndexServiceMock.FileInfoFunc: method is nil but IndexService.FileInfo was just called")
 	}
@@ -614,7 +614,7 @@ func (mock *IndexServiceMock) RunCalls() []struct {
 }
 
 // SpaceFiles calls SpaceFilesFunc.
-func (mock *IndexServiceMock) SpaceFiles(key index.Key) ([]string, error) {
+func (mock *IndexServiceMock) SpaceFiles(key index.Key) []string {
 	if mock.SpaceFilesFunc == nil {
 		panic("IndexServiceMock.SpaceFilesFunc: method is nil but IndexService.SpaceFiles was just called")
 	}

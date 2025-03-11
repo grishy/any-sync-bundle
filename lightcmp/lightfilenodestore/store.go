@@ -70,7 +70,7 @@ type StoreService interface {
 
 	GetIndexLogs(txn *badger.Txn) ([]IndexLog, error)
 	DeleteIndexLogs(txn *badger.Txn, idxs []uint64) error
-	PushIndexLog(txn *badger.Txn, logData []byte) (uint64, error)
+	PushIndexLog(txn *badger.Txn, logData []byte) error
 }
 
 type configService interface {
@@ -226,18 +226,18 @@ func (s *lightFileNodeStore) DeleteIndexLogs(txn *badger.Txn, indices []uint64) 
 	return nil
 }
 
-func (s *lightFileNodeStore) PushIndexLog(txn *badger.Txn, logData []byte) (uint64, error) {
+func (s *lightFileNodeStore) PushIndexLog(txn *badger.Txn, logData []byte) error {
 	idx, err := s.getNextLogIndex(txn)
 	if err != nil {
-		return 0, err
+		return fmt.Errorf("failed to get next log index: %w", err)
 	}
 
 	key := buildKey(logType, strconv.FormatUint(idx, 10))
 	if err := txn.Set(key, logData); err != nil {
-		return 0, fmt.Errorf("failed to store index log: %w", err)
+		return fmt.Errorf("failed to store index log: %w", err)
 	}
 
-	return idx, nil
+	return nil
 }
 
 // Transaction helpers

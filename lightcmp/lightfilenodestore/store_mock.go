@@ -186,7 +186,7 @@ var _ StoreService = &StoreServiceMock{}
 //			NameFunc: func() string {
 //				panic("mock out the Name method")
 //			},
-//			PushIndexLogFunc: func(txn *badger.Txn, logData []byte) (uint64, error) {
+//			PushIndexLogFunc: func(txn *badger.Txn, logData []byte) error {
 //				panic("mock out the PushIndexLog method")
 //			},
 //			PutBlockFunc: func(txn *badger.Txn, block blocks.Block) error {
@@ -236,7 +236,7 @@ type StoreServiceMock struct {
 	NameFunc func() string
 
 	// PushIndexLogFunc mocks the PushIndexLog method.
-	PushIndexLogFunc func(txn *badger.Txn, logData []byte) (uint64, error)
+	PushIndexLogFunc func(txn *badger.Txn, logData []byte) error
 
 	// PutBlockFunc mocks the PutBlock method.
 	PutBlockFunc func(txn *badger.Txn, block blocks.Block) error
@@ -616,7 +616,7 @@ func (mock *StoreServiceMock) NameCalls() []struct {
 }
 
 // PushIndexLog calls PushIndexLogFunc.
-func (mock *StoreServiceMock) PushIndexLog(txn *badger.Txn, logData []byte) (uint64, error) {
+func (mock *StoreServiceMock) PushIndexLog(txn *badger.Txn, logData []byte) error {
 	if mock.PushIndexLogFunc == nil {
 		panic("StoreServiceMock.PushIndexLogFunc: method is nil but StoreService.PushIndexLog was just called")
 	}

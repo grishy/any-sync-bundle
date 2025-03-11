@@ -181,14 +181,10 @@ func TestIndexLogOperations(t *testing.T) {
 		}
 
 		for _, td := range testData {
-			var idx uint64
 			err := fx.store.TxUpdate(func(txn *badger.Txn) error {
-				var err error
-				idx, err = fx.store.PushIndexLog(txn, td.data)
-				return err
+				return fx.store.PushIndexLog(txn, td.data)
 			})
 			require.NoError(t, err)
-			assert.Equal(t, td.expectedIdx, idx)
 		}
 
 		logs := getIndexLogs(t)
