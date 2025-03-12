@@ -112,6 +112,16 @@ func TestLightFileNodeRpc_canWrite(t *testing.T) {
 		ctx, storeKey := newRandKey()
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
+		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+			return fileproto.AccountInfoResponse{
+				LimitBytes: 1 << 30,
+			}
+		}
+
+		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+			return fileproto.SpaceInfoResponse{}
+		}
+
 		key, err := fx.rpcSrv.canWrite(ctx, storeKey.SpaceId)
 		require.NoError(t, err)
 		require.Equal(t, storeKey, key)

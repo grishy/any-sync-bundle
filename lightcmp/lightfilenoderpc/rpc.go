@@ -40,7 +40,7 @@ var (
 
 	log = logger.NewNamed(CName)
 
-	ErrWrongHash = fmt.Errorf("block data hash mismatch")
+	ErrWrongChecksum = fmt.Errorf("block data checksum mismatch")
 )
 
 //          RPC (DRPC)
@@ -123,11 +123,12 @@ func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 
 		if errTx == nil {
 			break
+		} else if !errors.Is(errTx, lightfilenodestore.ErrBlockNotFound) {
+			return nil, fmt.Errorf("failed to get block: %w", errTx)
 		}
 
-		hasRetry := req.Wait && errors.Is(errTx, lightfilenodestore.ErrBlockNotFound)
-		if !hasRetry {
-			return nil, fmt.Errorf("transaction view failed: %w", errTx)
+		if !req.Wait {
+			return nil, fileprotoerr.ErrCIDNotFound
 		}
 
 		select {
@@ -180,7 +181,7 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	}
 
 	if !chkc.Equals(c) {
-		return nil, ErrWrongHash
+		return nil, ErrWrongChecksum
 	}
 
 	storageKey, err := r.canWrite(ctx, req.SpaceId)
@@ -206,6 +207,8 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 
 			op := &indexpb.Operation{}
 			op.SetCidAdd(cidOp)
+
+			operations = append(operations, op)
 		}
 
 		bindOp := &indexpb.FileBindOperation{}
@@ -214,6 +217,7 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 
 		op := &indexpb.Operation{}
 		op.SetBindFile(bindOp)
+		operations = append(operations, op)
 
 		if errModify := r.srvIndex.Modify(txn, storageKey, operations...); errModify != nil {
 			return fmt.Errorf("failed to modify index: %w", errModify)
@@ -271,7 +275,6 @@ func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.B
 
 // checkCIDExists if the CID exists in space or in general in storage or not
 func (r *lightfilenoderpc) checkCIDExists(storeKey index.Key, k cid.Cid) (status fileproto.AvailabilityStatus) {
-	// Check if the CID exists in space
 	if storeKey.SpaceId != "" {
 		exist := r.srvIndex.HasCIDInSpace(storeKey, k)
 		if exist {
@@ -279,7 +282,6 @@ func (r *lightfilenoderpc) checkCIDExists(storeKey index.Key, k cid.Cid) (status
 		}
 	}
 
-	// Or check if the CID exists in storage at all
 	exist := r.srvIndex.HadCID(k)
 	if exist {
 		return fileproto.AvailabilityStatus_Exists
@@ -301,7 +303,11 @@ func (r *lightfilenoderpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 		return nil, err
 	}
 
-	cids := convertCids(req.Cids)
+	cids, err := convertCids(req.Cids)
+	if err != nil {
+		return nil, err
+	}
+
 	cidStrings := make([]string, 0, len(cids))
 	for _, c := range cids {
 		cidStrings = append(cidStrings, c.String())
@@ -432,6 +438,7 @@ func (r *lightfilenoderpc) AccountInfo(ctx context.Context, req *fileproto.Accou
 
 	identity, err := peer.CtxPubKey(ctx)
 	if err != nil {
+		log.WarnCtx(ctx, "AccountInfo failed to get identity", zap.Error(err))
 		return nil, fileprotoerr.ErrForbidden
 	}
 	groupId := identity.Account()

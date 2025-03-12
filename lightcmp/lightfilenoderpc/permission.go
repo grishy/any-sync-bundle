@@ -67,26 +67,38 @@ func (r *lightfilenoderpc) canWrite(ctx context.Context, spaceID string) (index.
 		return storageKey, err
 	}
 
-	identity, err := peer.CtxPubKey(ctx)
-	if err != nil {
-		return storageKey, fmt.Errorf("failed to get identity: %w", err)
+	errWritable := func() error {
+		identity, errKey := peer.CtxPubKey(ctx)
+		if errKey != nil {
+			return fmt.Errorf("failed to get identity: %w", errKey)
+		}
+
+		// Owner has full permissions
+		if identity.Account() == storageKey.GroupId {
+			return nil
+		}
+
+		permissions, errPerm := r.srvAcl.Permissions(ctx, identity, storageKey.SpaceId)
+		if errPerm != nil {
+			return fmt.Errorf("failed to get permissions: %w", errPerm)
+		}
+
+		if !permissions.CanWrite() {
+			return fileprotoerr.ErrForbidden
+		}
+
+		return nil
+	}()
+
+	if errWritable != nil {
+		return index.Key{}, errWritable
 	}
 
-	// Owner has full permissions
-	if identity.Account() == storageKey.GroupId {
-		return storageKey, nil
+	if errSpace := r.hasEnoughSpace(storageKey); errSpace != nil {
+		return index.Key{}, errSpace
 	}
 
-	permissions, err := r.srvAcl.Permissions(ctx, identity, storageKey.SpaceId)
-	if err != nil {
-		return storageKey, fmt.Errorf("failed to get permissions: %w", err)
-	}
-
-	if !permissions.CanWrite() {
-		return storageKey, fileprotoerr.ErrForbidden
-	}
-
-	return storageKey, r.hasEnoughSpace(storageKey)
+	return storageKey, nil
 }
 
 func (r *lightfilenoderpc) hasEnoughSpace(storageKey index.Key) error {
