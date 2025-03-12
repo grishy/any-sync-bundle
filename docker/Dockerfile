@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
 
-# NOTE: Good video about multi-stage builds: https://www.youtube.com/watch?v=v5E-enT_pyo
 
 # 
 # Stage: Initial bin build
