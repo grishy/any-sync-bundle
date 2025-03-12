@@ -512,11 +512,13 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 		}
 
 		// Prepare CIDs for request
-		cids := make([][]byte, len(bs))
-		cidStrings := make([]string, len(bs))
-		for i, b := range bs {
-			cids[i] = b.Cid().Bytes()
-			cidStrings[i] = b.Cid().String()
+		cids := make([][]byte, 0, len(bs))
+		cidStrings := make([]string, 0, len(bs))
+		for _, b := range bs {
+			t.Logf("Block CID: %s", b.Cid().String())
+
+			cids = append(cids, b.Cid().Bytes())
+			cidStrings = append(cidStrings, b.Cid().String())
 		}
 
 		var capturedOp *indexpb.Operation
