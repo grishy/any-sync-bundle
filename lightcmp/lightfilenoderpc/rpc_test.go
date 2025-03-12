@@ -2,9 +2,9 @@ package lightfilenoderpc
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -1473,12 +1473,12 @@ func mustPubKey(ctx context.Context) crypto.PubKey {
 	return pubKey
 }
 
+// TODO: Replace with testutil.NewRandBlock when will be fixed
+// https://github.com/anyproto/any-sync-filenode/issues/142
 func randBlocks(t *testing.T, l int) []blocks.Block {
 	newBlock := func(size int) blocks.Block {
-		var p = make([]byte, size)
-		seed := time.Now().UnixNano()
-		randReader := rand.New(rand.NewSource(seed))
-		_, err := io.ReadFull(randReader, p)
+		p := make([]byte, size)
+		_, err := io.ReadFull(rand.Reader, p)
 		require.NoError(t, err)
 
 		c, err := cidutil.NewCidFromBytes(p)
@@ -1487,11 +1487,10 @@ func randBlocks(t *testing.T, l int) []blocks.Block {
 		b, err := blocks.NewBlockWithCid(p, cid.MustParse(c))
 		require.NoError(t, err)
 
-		t.Logf("newBlock seed: %d, CID: %s", seed, b.Cid().String())
 		return b
 	}
 
-	var bs = make([]blocks.Block, l)
+	bs := make([]blocks.Block, l)
 	for i := range bs {
 		bs[i] = newBlock(10 * l)
 	}
