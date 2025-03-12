@@ -3,6 +3,8 @@ package lightfilenoderpc
 import (
 	"context"
 	"errors"
+	"io"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/anyproto/any-sync/net/peer"
 	"github.com/anyproto/any-sync/net/rpc/server"
+	"github.com/anyproto/any-sync/util/cidutil"
 	"github.com/anyproto/any-sync/util/crypto"
 	"github.com/dgraph-io/badger/v4"
 	blocks "github.com/ipfs/go-block-format"
@@ -380,7 +383,7 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 		defer fx.Finish(t)
 		var (
 			ctx, storeKey = newRandKey()
-			bs            = testutil.NewRandBlocks(3)
+			bs            = randBlocks(t, 3)
 		)
 
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
@@ -496,7 +499,7 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 		var (
 			ctx, storeKey = newRandKey()
 			fileId        = testutil.NewRandCid().String()
-			bs            = testutil.NewRandBlocks(3)
+			bs            = randBlocks(t, 3)
 		)
 
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
@@ -1468,4 +1471,29 @@ func mustPubKey(ctx context.Context) crypto.PubKey {
 		panic(err)
 	}
 	return pubKey
+}
+
+func randBlocks(t *testing.T, l int) []blocks.Block {
+	newBlock := func(size int) blocks.Block {
+		var p = make([]byte, size)
+		seed := time.Now().UnixNano()
+		randReader := rand.New(rand.NewSource(seed))
+		_, err := io.ReadFull(randReader, p)
+		require.NoError(t, err)
+
+		c, err := cidutil.NewCidFromBytes(p)
+		require.NoError(t, err)
+
+		b, err := blocks.NewBlockWithCid(p, cid.MustParse(c))
+		require.NoError(t, err)
+
+		t.Logf("newBlock seed: %d, CID: %s", seed, b.Cid().String())
+		return b
+	}
+
+	var bs = make([]blocks.Block, l)
+	for i := range bs {
+		bs[i] = newBlock(10 * l)
+	}
+	return bs
 }
