@@ -203,7 +203,7 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 
 			cidOp := &indexpb.CidAddOperation{}
 			cidOp.SetCid(cidString)
-			cidOp.SetDataSize(int64(dataSize))
+			cidOp.SetDataSize(uint64(dataSize))
 
 			op := &indexpb.Operation{}
 			op.SetCidAdd(cidOp)

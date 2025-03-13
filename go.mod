@@ -31,6 +31,7 @@ require (
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.35.0
+	storj.io/drpc v0.0.34
 )
 
 require (
@@ -133,5 +134,4 @@ require (
 	modernc.org/libc v1.61.13 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.8.2 // indirect
-	storj.io/drpc v0.0.34 // indirect
 )

@@ -28,8 +28,9 @@ message SpaceLimitSetOperation {
 }
 
 message CidAddOperation {
-  string cid = 1;
-  int64 data_size = 2;
+  string file_id = 1;
+  string cid = 2;
+  uint64 data_size = 3;
 }
 
 // Operation encapsulates all possible index modification operations.
