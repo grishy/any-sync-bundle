@@ -192,7 +192,6 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	cidString := c.String()
 
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		var operations []*indexpb.Operation
 
 		// Check if CID exists before storing to avoid duplicate storage
 		hadCid := r.srvIndex.HadCID(c)
@@ -200,26 +199,17 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 			if errPush := r.srvStore.PutBlock(txn, blk); errPush != nil {
 				return fmt.Errorf("failed to push block: %w", errPush)
 			}
-
-			cidOp := &indexpb.CidAddOperation{}
-			cidOp.SetCid(cidString)
-			cidOp.SetDataSize(uint64(dataSize))
-
-			op := &indexpb.Operation{}
-			op.SetCidAdd(cidOp)
-
-			operations = append(operations, op)
 		}
 
-		bindOp := &indexpb.FileBindOperation{}
-		bindOp.SetFileId(req.FileId)
-		bindOp.SetCids([]string{cidString})
+		cidOp := &indexpb.CidAddOperation{}
+		cidOp.SetFileId(req.FileId)
+		cidOp.SetCid(cidString)
+		cidOp.SetDataSize(uint64(dataSize))
 
 		op := &indexpb.Operation{}
-		op.SetBindFile(bindOp)
-		operations = append(operations, op)
+		op.SetCidAdd(cidOp)
 
-		if errModify := r.srvIndex.Modify(txn, storageKey, operations...); errModify != nil {
+		if errModify := r.srvIndex.Modify(txn, storageKey, op); errModify != nil {
 			return fmt.Errorf("failed to modify index: %w", errModify)
 		}
 
@@ -249,9 +239,9 @@ func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.B
 	seen := make(map[cid.Cid]struct{}, len(request.Cids))
 
 	for _, rawCid := range request.Cids {
-		c, err := cid.Cast(rawCid)
-		if err != nil {
-			return nil, fmt.Errorf("failed to cast CID='%s': %w", string(rawCid), err)
+		c, errCast := cid.Cast(rawCid)
+		if errCast != nil {
+			return nil, fmt.Errorf("failed to cast CID='%s': %w", string(rawCid), errCast)
 		}
 
 		// Skip duplicates

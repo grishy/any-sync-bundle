@@ -32,8 +32,6 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
-// TODO: Write test with real database
-
 func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		fx := newFixture(t)
@@ -231,18 +229,13 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 
-		require.Equal(t, 2, len(capturedOps), "Should have two operations: CidAdd and FileBindOperation")
+		require.Equal(t, 1, len(capturedOps))
 
 		cidAddOp := capturedOps[0].GetCidAdd()
 		require.NotNil(t, cidAddOp)
 		require.Equal(t, b.Cid().String(), cidAddOp.GetCid())
-		require.Equal(t, int64(len(b.RawData())), cidAddOp.GetDataSize())
-
-		bindOp := capturedOps[1].GetBindFile()
-		require.NotNil(t, bindOp)
-		require.Equal(t, fileId, bindOp.GetFileId())
-		require.Equal(t, 1, len(bindOp.GetCids()))
-		require.Equal(t, b.Cid().String(), bindOp.GetCids()[0])
+		require.Equal(t, fileId, cidAddOp.GetFileId())
+		require.Equal(t, uint64(len(b.RawData())), cidAddOp.GetDataSize())
 	})
 
 	t.Run("invalid cid", func(t *testing.T) {
