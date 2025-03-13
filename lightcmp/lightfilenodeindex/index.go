@@ -202,7 +202,7 @@ func (i *lightfileindex) GroupInfo(groupId string) fileproto.AccountInfoResponse
 }
 
 func (i *lightfileindex) getGroupInfo(groupId string) fileproto.AccountInfoResponse {
-	grp := i.getGroupEntry(groupId, false)
+	grp, _ := i.getGroupEntry(groupId, false)
 
 	resp := fileproto.AccountInfoResponse{
 		LimitBytes:        grp.info.limitBytes,
@@ -225,9 +225,10 @@ func (i *lightfileindex) getGroupInfo(groupId string) fileproto.AccountInfoRespo
 	return resp
 }
 
-func (i *lightfileindex) getGroupEntry(groupId string, saveCreated bool) *group {
-	g := i.groups[groupId]
+func (i *lightfileindex) getGroupEntry(groupId string, saveCreated bool) (g *group, created bool) {
+	g = i.groups[groupId]
 	if g == nil {
+		created = true
 		g = &group{
 			info: groupInfo{
 				createTime:        time.Now(),
@@ -244,21 +245,21 @@ func (i *lightfileindex) getGroupEntry(groupId string, saveCreated bool) *group 
 		}
 	}
 
-	return g
+	return
 }
 
 func (i *lightfileindex) SpaceInfo(key index.Key) fileproto.SpaceInfoResponse {
 	i.RLock()
 	defer i.RUnlock()
 
-	grp := i.getGroupEntry(key.GroupId, false)
+	grp, _ := i.getGroupEntry(key.GroupId, false)
 	spInfo := i.getSpaceInfo(grp, key.SpaceId)
 
 	return spInfo
 }
 
 func (i *lightfileindex) getSpaceInfo(group *group, spaceId string) fileproto.SpaceInfoResponse {
-	s := i.getSpaceEntry(group, spaceId, false)
+	s, _ := i.getSpaceEntry(group, spaceId, false)
 
 	resp := fileproto.SpaceInfoResponse{
 		SpaceId:         spaceId,
@@ -277,9 +278,10 @@ func (i *lightfileindex) getSpaceInfo(group *group, spaceId string) fileproto.Sp
 	return resp
 }
 
-func (i *lightfileindex) getSpaceEntry(group *group, spaceId string, saveCreated bool) *space {
-	s := group.spaces[spaceId]
+func (i *lightfileindex) getSpaceEntry(group *group, spaceId string, saveCreated bool) (s *space, created bool) {
+	s = group.spaces[spaceId]
 	if s == nil {
+		created = true
 		s = &space{
 			info: spaceInfo{
 				createTime: time.Now(),
@@ -296,15 +298,15 @@ func (i *lightfileindex) getSpaceEntry(group *group, spaceId string, saveCreated
 		}
 	}
 
-	return s
+	return
 }
 
 func (i *lightfileindex) SpaceFiles(key index.Key) []string {
 	i.RLock()
 	defer i.RUnlock()
 
-	grp := i.getGroupEntry(key.GroupId, false)
-	sp := i.getSpaceEntry(grp, key.SpaceId, false)
+	grp, _ := i.getGroupEntry(key.GroupId, false)
+	sp, _ := i.getSpaceEntry(grp, key.SpaceId, false)
 
 	fileIds := make([]string, 0, len(sp.files))
 	for fileId := range sp.files {
@@ -318,12 +320,12 @@ func (i *lightfileindex) FileInfo(key index.Key, fileIds ...string) []*fileproto
 	i.RLock()
 	defer i.RUnlock()
 
-	grp := i.getGroupEntry(key.GroupId, false)
-	sp := i.getSpaceEntry(grp, key.SpaceId, false)
+	grp, _ := i.getGroupEntry(key.GroupId, false)
+	sp, _ := i.getSpaceEntry(grp, key.SpaceId, false)
 
 	result := make([]*fileproto.FileInfo, 0, len(fileIds))
 	for _, fileId := range fileIds {
-		f := i.getFileEntry(sp, fileId, false)
+		f, _ := i.getFileEntry(sp, fileId, false)
 		result = append(result, &fileproto.FileInfo{
 			FileId:     fileId,
 			UsageBytes: f.info.bytesUsage,
@@ -334,9 +336,10 @@ func (i *lightfileindex) FileInfo(key index.Key, fileIds ...string) []*fileproto
 	return result
 }
 
-func (i *lightfileindex) getFileEntry(space *space, fileId string, saveCreated bool) *file {
-	f := space.files[fileId]
+func (i *lightfileindex) getFileEntry(space *space, fileId string, saveCreated bool) (f *file, created bool) {
+	f = space.files[fileId]
 	if f == nil {
+		created = true
 		f = &file{
 			info: fileInfo{
 				createTime: time.Now(),
@@ -351,7 +354,7 @@ func (i *lightfileindex) getFileEntry(space *space, fileId string, saveCreated b
 		}
 	}
 
-	return f
+	return
 }
 
 // Modify applies operations to modify the index
@@ -369,8 +372,8 @@ func (i *lightfileindex) Modify(txn *badger.Txn, key index.Key, operations ...*i
 		i.Unlock()
 	}()
 
-	grp := i.getGroupEntry(key.GroupId, true)
-	sps := i.getSpaceEntry(grp, key.SpaceId, true)
+	grp, _ := i.getGroupEntry(key.GroupId, true)
+	sps, _ := i.getSpaceEntry(grp, key.SpaceId, true)
 
 	for _, op := range operations {
 		if errProc := i.processOperation(grp, sps, op); errProc != nil {
@@ -415,7 +418,6 @@ func (i *lightfileindex) recordOperations(txn *badger.Txn, key index.Key, ops []
 
 // processOperation handles a single operation
 func (i *lightfileindex) processOperation(group *group, space *space, op *indexpb.Operation) error {
-	// TODO: Avoid error from handler
 	switch {
 	case op.GetCidAdd() != nil:
 		return i.handleCIDAdd(space, op.GetCidAdd())
@@ -432,7 +434,6 @@ func (i *lightfileindex) processOperation(group *group, space *space, op *indexp
 	}
 }
 
-// handleCIDAdd adds or updates a CID with size information
 func (i *lightfileindex) handleCIDAdd(space *space, op *indexpb.CidAddOperation) error {
 	c, err := cid.Parse(op.GetCid())
 	if err != nil {
@@ -448,23 +449,30 @@ func (i *lightfileindex) handleCIDAdd(space *space, op *indexpb.CidAddOperation)
 			size:       size,
 			refCount:   0,
 		}
-
 		i.blocksLake[c] = b
-	}
-
-	if b.size != size {
+	} else if b.size != size {
 		log.Warn("block size mismatch",
 			zap.String("cid", c.String()),
 			zap.Uint32("expected", size),
 			zap.Uint32("actual", b.size),
 		)
-
 		return fmt.Errorf("block size mismatch: %d != %d", b.size, size)
 	}
 
-	// Update space
-	fileEntry := i.getFileEntry(space, op.GetFileId(), true)
-	fileEntry.blocks[c] = struct{}{}
+	fileId := op.GetFileId()
+	fileEntry, created := i.getFileEntry(space, fileId, true)
+
+	if created {
+		space.info.fileCount++
+	}
+
+	_, hadBlock := fileEntry.blocks[c]
+	if !hadBlock {
+		fileEntry.blocks[c] = struct{}{}
+		fileEntry.info.cidsCount++
+		fileEntry.info.bytesUsage += uint64(b.size)
+		b.refCount++
+	}
 
 	return nil
 }
