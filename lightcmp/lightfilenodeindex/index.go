@@ -532,9 +532,9 @@ func (i *lightfileindex) handleDeleteFile(space *space, op *indexpb.FileDeleteOp
 
 		space.info.usageBytes -= f.info.bytesUsage
 		for c := range f.blocks {
-			block := i.blocksLake[c]
-			if block != nil {
-				block.refCount--
+			blk := i.blocksLake[c]
+			if blk != nil {
+				blk.refCount--
 			}
 		}
 
@@ -567,31 +567,30 @@ func (i *lightfileindex) updateSpaceStats(space *space) {
 
 	uniqueBlocks := make(map[cid.Cid]struct{})
 
-	for fileId, file := range space.files {
-		file.info.bytesUsage = 0
-		file.info.cidsCount = uint32(len(file.blocks))
+	for _, f := range space.files {
+		f.info.bytesUsage = 0
+		f.info.cidsCount = uint32(len(f.blocks))
 
-		for c := range file.blocks {
+		for c := range f.blocks {
 			if b, ok := i.blocksLake[c]; ok {
 				uniqueBlocks[c] = struct{}{}
-				file.info.bytesUsage += uint64(b.size)
+				f.info.bytesUsage += uint64(b.size)
 			}
 		}
 
-		space.info.usageBytes += file.info.bytesUsage
-		space.files[fileId] = file
+		space.info.usageBytes += f.info.bytesUsage
 	}
 
 	space.info.cidsCount = uint64(len(uniqueBlocks))
 }
 
 // updateGroupStats aggregates statistics from spaces to group
-func (i *lightfileindex) updateGroupStats(group *group) {
-	group.info.usageBytes = 0
-	group.info.cidsCount = 0
+func (i *lightfileindex) updateGroupStats(grp *group) {
+	grp.info.usageBytes = 0
+	grp.info.cidsCount = 0
 
-	for _, space := range group.spaces {
-		group.info.usageBytes += space.info.usageBytes
-		group.info.cidsCount += space.info.cidsCount
+	for _, sps := range grp.spaces {
+		grp.info.usageBytes += sps.info.usageBytes
+		grp.info.cidsCount += sps.info.cidsCount
 	}
 }

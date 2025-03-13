@@ -18,7 +18,7 @@ message FileDeleteOperation {
   repeated string file_ids = 1;
 }
 
-// TODO: Can't be used via RPC, only for future our lightAdminUI
+// TODO: Can't be used via RPC, only for future lightAdminUI
 message AccountLimitSetOperation {
   uint64 limit = 2;
 }
@@ -36,11 +36,11 @@ message CidAddOperation {
 // Operation encapsulates all possible index modification operations.
 message Operation {
   oneof op {
-    FileBindOperation bind_file = 1;
-    FileDeleteOperation delete_file = 2;
-    AccountLimitSetOperation account_limit_set = 3;
-    SpaceLimitSetOperation space_limit_set = 4;
-    CidAddOperation cid_add = 5;
+    CidAddOperation cid_add = 1;
+    FileBindOperation bind_file = 2;
+    FileDeleteOperation delete_file = 3;
+    AccountLimitSetOperation account_limit_set = 4;
+    SpaceLimitSetOperation space_limit_set = 5;
   }
 }
 
