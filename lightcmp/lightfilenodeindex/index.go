@@ -416,7 +416,6 @@ func (i *lightfileindex) recordOperations(txn *badger.Txn, key index.Key, ops []
 	return nil
 }
 
-// processOperation handles a single operation
 func (i *lightfileindex) processOperation(group *group, space *space, op *indexpb.Operation) error {
 	switch {
 	case op.GetCidAdd() != nil:
@@ -481,7 +480,6 @@ func (i *lightfileindex) handleCIDAdd(space *space, op *indexpb.CidAddOperation)
 func (i *lightfileindex) handleBindFile(space *space, op *indexpb.FileBindOperation) error {
 	fileId := op.GetFileId()
 
-	// Create file if it doesn't exist
 	f, ok := space.files[fileId]
 	if !ok {
 		f = &file{
@@ -495,34 +493,27 @@ func (i *lightfileindex) handleBindFile(space *space, op *indexpb.FileBindOperat
 		space.info.fileCount++
 	}
 
-	// Process CIDs
 	for _, cidStr := range op.GetCids() {
 		c, err := cid.Parse(cidStr)
 		if err != nil {
-			// log.Warn("Invalid CID in bind operation:", err)
 			return ErrInvalidCID
 		}
 
-		// Check if this file already has this block
 		if _, hasBlock := f.blocks[c]; hasBlock {
-			continue // Skip if file already has this block
+			continue
 		}
 
-		// Get or create the block
 		b, exists := i.blocksLake[c]
 		if !exists {
-			// Create new block with initial refCount of 1
 			b = &block{
-				size:     0, // Will be updated by CidAddOperation if needed
+				size:     0,
 				refCount: 1,
 			}
 			i.blocksLake[c] = b
 		} else {
-			// Increment reference count for existing block
 			b.refCount++
 		}
 
-		// Add block to file
 		f.blocks[c] = struct{}{}
 		f.info.cidsCount++
 		f.info.bytesUsage += uint64(b.size)
@@ -536,13 +527,10 @@ func (i *lightfileindex) handleDeleteFile(space *space, op *indexpb.FileDeleteOp
 	for _, fileId := range op.GetFileIds() {
 		f, ok := space.files[fileId]
 		if !ok {
-			continue // File not found, nothing to delete
+			continue
 		}
 
-		// Remove file's usage from space totals
 		space.info.usageBytes -= f.info.bytesUsage
-
-		// Collect blocks for reference count check and decrement their refCounts
 		for c := range f.blocks {
 			block := i.blocksLake[c]
 			if block != nil {
@@ -550,7 +538,6 @@ func (i *lightfileindex) handleDeleteFile(space *space, op *indexpb.FileDeleteOp
 			}
 		}
 
-		// Remove the file
 		delete(space.files, fileId)
 		space.info.fileCount--
 	}
@@ -575,33 +562,23 @@ func (i *lightfileindex) handleSpaceLimitSet(space *space, op *indexpb.SpaceLimi
 
 // updateSpaceStats recalculates space statistics
 func (i *lightfileindex) updateSpaceStats(space *space) {
-	// Reset space usage stats
 	space.info.usageBytes = 0
 	space.info.cidsCount = 0
 
-	// Count unique blocks across all files and calculate file stats
 	uniqueBlocks := make(map[cid.Cid]struct{})
 
 	for fileId, file := range space.files {
-		// Reset file statistics
 		file.info.bytesUsage = 0
 		file.info.cidsCount = uint32(len(file.blocks))
 
-		// Calculate file usage and collect unique blocks
 		for c := range file.blocks {
 			if b, ok := i.blocksLake[c]; ok {
-				// Create map of unique blocks
 				uniqueBlocks[c] = struct{}{}
-
-				// Add block size to file
 				file.info.bytesUsage += uint64(b.size)
 			}
 		}
 
-		// Add to space total usage
 		space.info.usageBytes += file.info.bytesUsage
-
-		// Update the file in the space map with new stats
 		space.files[fileId] = file
 	}
 
@@ -610,34 +587,11 @@ func (i *lightfileindex) updateSpaceStats(space *space) {
 
 // updateGroupStats aggregates statistics from spaces to group
 func (i *lightfileindex) updateGroupStats(group *group) {
-	// Reset group usage stats
 	group.info.usageBytes = 0
 	group.info.cidsCount = 0
 
-	// Aggregate from all spaces
 	for _, space := range group.spaces {
 		group.info.usageBytes += space.info.usageBytes
 		group.info.cidsCount += space.info.cidsCount
 	}
-}
-
-func (i *lightfileindex) findBlock(space *space, k cid.Cid) *block {
-	for _, f := range space.files {
-		if _, found := f.blocks[k]; found {
-			return i.blocksLake[k]
-		}
-	}
-
-	return nil
-}
-
-// countUniqueBlocks returns a map of all unique blocks in a space
-func (i *lightfileindex) countUniqueBlocks(space *space) int {
-	uniqueBlocks := make(map[cid.Cid]struct{})
-	for _, file := range space.files {
-		for c := range file.blocks {
-			uniqueBlocks[c] = struct{}{}
-		}
-	}
-	return len(uniqueBlocks)
 }
