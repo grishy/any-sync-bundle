@@ -70,7 +70,7 @@ jobs:
     needs: tests
     permissions:
       contents: read
-      actions: read # to download code coverage results from "test" job
+      actions: read
       pull-requests: write # write permission needed to comment on PR
     steps:
       - uses: fgrosse/go-coverage-report@v1.2.0
