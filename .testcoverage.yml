@@ -1,0 +1,5 @@
+profile: cover.out
+exclude:
+  paths:
+    - \.pb\.go$
+    - _mock\.go$
