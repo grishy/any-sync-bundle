@@ -24,6 +24,9 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
+// TODO: Implement restore on start from badger
+// TODO: Implement log compaction
+
 const (
 	CName = "light.filenode.index"
 
