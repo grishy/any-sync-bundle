@@ -2,14 +2,11 @@ package lightfilenoderpc
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
 	"github.com/anyproto/any-sync-filenode/index"
-	"github.com/anyproto/any-sync-filenode/testutil"
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/acl/mock_acl"
 	"github.com/anyproto/any-sync/app"
@@ -17,7 +14,6 @@ import (
 	"github.com/anyproto/any-sync/commonfile/fileproto/fileprotoerr"
 	"github.com/anyproto/any-sync/net/peer"
 	"github.com/anyproto/any-sync/net/rpc/server"
-	"github.com/anyproto/any-sync/util/cidutil"
 	"github.com/anyproto/any-sync/util/crypto"
 	"github.com/dgraph-io/badger/v4"
 	blocks "github.com/ipfs/go-block-format"
@@ -30,6 +26,7 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex/indexpb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
+	"github.com/grishy/any-sync-bundle/testutil"
 )
 
 func TestLightFileNodeRpc_BlockGet(t *testing.T) {
@@ -376,7 +373,7 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 		defer fx.Finish(t)
 		var (
 			ctx, storeKey = newRandKey()
-			bs            = randBlocks(t, 3)
+			bs            = testutil.NewRandBlocks(3)
 		)
 
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
@@ -492,7 +489,7 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 		var (
 			ctx, storeKey = newRandKey()
 			fileId        = testutil.NewRandCid().String()
-			bs            = randBlocks(t, 3)
+			bs            = testutil.NewRandBlocks(3)
 		)
 
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
@@ -1383,28 +1380,4 @@ func mustPubKey(ctx context.Context) crypto.PubKey {
 		panic(err)
 	}
 	return pubKey
-}
-
-// TODO: Replace with testutil.NewRandBlock when will be fixed
-// https://github.com/anyproto/any-sync-filenode/issues/142
-func randBlocks(t *testing.T, l int) []blocks.Block {
-	newBlock := func(size int) blocks.Block {
-		p := make([]byte, size)
-		_, err := io.ReadFull(rand.Reader, p)
-		require.NoError(t, err)
-
-		c, err := cidutil.NewCidFromBytes(p)
-		require.NoError(t, err)
-
-		b, err := blocks.NewBlockWithCid(p, cid.MustParse(c))
-		require.NoError(t, err)
-
-		return b
-	}
-
-	bs := make([]blocks.Block, l)
-	for i := range bs {
-		bs[i] = newBlock(10 * l)
-	}
-	return bs
 }

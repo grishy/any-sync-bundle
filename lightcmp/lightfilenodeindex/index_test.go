@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/anyproto/any-sync-filenode/index"
-	"github.com/anyproto/any-sync-filenode/testutil"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/util/crypto"
 	"github.com/dgraph-io/badger/v4"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex/indexpb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
+	"github.com/grishy/any-sync-bundle/testutil"
 )
 
 type testFixture struct {
