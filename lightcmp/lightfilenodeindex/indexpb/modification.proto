@@ -18,15 +18,6 @@ message FileDeleteOperation {
   repeated string file_ids = 1;
 }
 
-// TODO: Can't be used via RPC, only for future lightAdminUI
-message AccountLimitSetOperation {
-  uint64 limit = 2;
-}
-
-message SpaceLimitSetOperation {
-  uint64 limit = 2;
-}
-
 message CidAddOperation {
   string file_id = 1;
   string cid = 2;
@@ -39,8 +30,6 @@ message Operation {
     CidAddOperation cid_add = 1;
     FileBindOperation bind_file = 2;
     FileDeleteOperation delete_file = 3;
-    AccountLimitSetOperation account_limit_set = 4;
-    SpaceLimitSetOperation space_limit_set = 5;
   }
 }
 

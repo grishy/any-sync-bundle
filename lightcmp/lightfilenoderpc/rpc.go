@@ -192,7 +192,6 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	cidString := c.String()
 
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-
 		// Check if CID exists before storing to avoid duplicate storage
 		hadCid := r.srvIndex.HadCID(c)
 		if !hadCid {
@@ -446,7 +445,9 @@ func (r *lightfilenoderpc) AccountLimitSet(ctx context.Context, request *filepro
 	)
 
 	// Because we are using self-hosted version, we simplify the logic here
-	// We don't have payment system, so we can't set account limit
+	// We don't have payment system, so we can't set account limit,
+	// and we don't have any option from Anytype to set account limit.
+	// It may be implemented in the future, but for now we just return error.
 
 	return nil, fmt.Errorf("you can't set account limit in this implementation: %w", fileprotoerr.ErrForbidden)
 }
@@ -458,24 +459,9 @@ func (r *lightfilenoderpc) SpaceLimitSet(ctx context.Context, request *fileproto
 		zap.Uint64("limit", request.Limit),
 	)
 
-	storageKey, err := r.canWrite(ctx, request.SpaceId)
-	if err != nil {
-		return nil, err
-	}
+	// Because we are using self-hosted version, we simplify the logic here.
+	// There in no option from Anytype to set space limit.
+	// It may be implemented in the future, but for now we just return error.
 
-	setLimitOp := &indexpb.SpaceLimitSetOperation{}
-	setLimitOp.SetLimit(request.Limit)
-
-	op := &indexpb.Operation{}
-	op.SetSpaceLimitSet(setLimitOp)
-
-	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		return r.srvIndex.Modify(txn, storageKey, op)
-	})
-
-	if errTx != nil {
-		return nil, errTx
-	}
-
-	return &fileproto.Ok{}, nil
+	return nil, fmt.Errorf("you can't set space limit in this implementation: %w", fileprotoerr.ErrForbidden)
 }

@@ -1219,100 +1219,19 @@ func TestLightFileNodeRpc_AccountInfo(t *testing.T) {
 }
 
 func TestLightFileNodeRpc_SpaceLimitSet(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
+	t.Run("not implemented", func(t *testing.T) {
 		fx := newFixture(t)
 		defer fx.Finish(t)
-		var (
-			ctx, storeKey = newRandKey()
-			limit         = uint64(100 << 20) // 100 MiB
-		)
-
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
-
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
-			return fileproto.AccountInfoResponse{
-				LimitBytes: 1 << 30,
-			}
-		}
-
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
-			return fileproto.SpaceInfoResponse{}
-		}
-
-		var capturedOp *indexpb.Operation
-
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
-			require.Equal(t, storeKey, key)
-			require.Equal(t, 1, len(operations))
-			capturedOp = operations[0]
-			return nil
-		}
+		ctx := context.Background()
 
 		resp, err := fx.rpcSrv.SpaceLimitSet(ctx, &fileproto.SpaceLimitSetRequest{
-			SpaceId: storeKey.SpaceId,
-			Limit:   limit,
-		})
-
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-
-		setLimitOp := capturedOp.GetSpaceLimitSet()
-		require.NotNil(t, setLimitOp)
-		require.Equal(t, limit, setLimitOp.GetLimit())
-	})
-
-	t.Run("forbidden", func(t *testing.T) {
-		fx := newFixture(t)
-		defer fx.Finish(t)
-		var (
-			ctx, storeKey = newRandKey()
-			limit         = uint64(100 << 20) // 100 MiB
-		)
-
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
-
-		resp, err := fx.rpcSrv.SpaceLimitSet(ctx, &fileproto.SpaceLimitSetRequest{
-			SpaceId: storeKey.SpaceId,
-			Limit:   limit,
+			SpaceId: "some-space-id",
+			Limit:   100 << 20, // 100 MiB
 		})
 
 		require.Error(t, err)
-		require.Equal(t, fileprotoerr.ErrForbidden, err)
-		require.Nil(t, resp)
-	})
-
-	t.Run("modify error", func(t *testing.T) {
-		fx := newFixture(t)
-		defer fx.Finish(t)
-		var (
-			ctx, storeKey = newRandKey()
-			limit         = uint64(100 << 20) // 100 MiB
-		)
-
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
-
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
-			return fileproto.AccountInfoResponse{
-				LimitBytes: 1 << 30,
-			}
-		}
-
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
-			return fileproto.SpaceInfoResponse{}
-		}
-
-		modifyErr := errors.New("modify error")
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
-			return modifyErr
-		}
-
-		resp, err := fx.rpcSrv.SpaceLimitSet(ctx, &fileproto.SpaceLimitSetRequest{
-			SpaceId: storeKey.SpaceId,
-			Limit:   limit,
-		})
-
-		require.Error(t, err)
-		require.Equal(t, modifyErr, err)
+		require.Contains(t, err.Error(), "you can't set space limit in this implementation")
+		require.ErrorIs(t, err, fileprotoerr.ErrForbidden)
 		require.Nil(t, resp)
 	})
 }
@@ -1330,7 +1249,7 @@ func TestLightFileNodeRpc_AccountLimitSet(t *testing.T) {
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "you can't set account limit in this implementation")
-		require.Contains(t, err.Error(), fileprotoerr.ErrForbidden.Error())
+		require.ErrorIs(t, err, fileprotoerr.ErrForbidden)
 		require.Nil(t, resp)
 	})
 }
