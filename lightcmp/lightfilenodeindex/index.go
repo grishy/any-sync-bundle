@@ -140,6 +140,8 @@ func (i *lightfileindex) Name() (name string) {
 //
 
 func (i *lightfileindex) Run(ctx context.Context) error {
+	log.Info("call Run")
+
 	i.defaultLimitBytes = i.srvCfg.GetFilenodeDefaultLimitBytes()
 	if i.defaultLimitBytes == 0 {
 		i.defaultLimitBytes = defaultLimitBytes
@@ -152,6 +154,7 @@ func (i *lightfileindex) Run(ctx context.Context) error {
 }
 
 func (i *lightfileindex) Close(_ context.Context) error {
+	log.Info("call Close")
 	return nil
 }
 
@@ -160,7 +163,17 @@ func (i *lightfileindex) Close(_ context.Context) error {
 //
 
 // HasCIDInSpace checks if a CID exists in a specific space
-func (i *lightfileindex) HasCIDInSpace(key index.Key, k cid.Cid) bool {
+func (i *lightfileindex) HasCIDInSpace(key index.Key, k cid.Cid) (exists bool) {
+	defer func(start time.Time) {
+		log.Info("HasCIDInSpace",
+			zap.String("groupId", key.GroupId),
+			zap.String("spaceId", key.SpaceId),
+			zap.String("cid", k.String()),
+			zap.Bool("exists", exists),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	i.RLock()
 	defer i.RUnlock()
 
@@ -184,15 +197,35 @@ func (i *lightfileindex) HasCIDInSpace(key index.Key, k cid.Cid) bool {
 }
 
 // HadCID checks if a CID exists anywhere in the index
-func (i *lightfileindex) HadCID(k cid.Cid) bool {
+func (i *lightfileindex) HadCID(k cid.Cid) (exists bool) {
+	defer func(start time.Time) {
+		log.Info("HadCID",
+			zap.String("cid", k.String()),
+			zap.Bool("exists", exists),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	i.RLock()
 	defer i.RUnlock()
 
-	_, exist := i.blocksLake[k]
-	return exist
+	_, exists = i.blocksLake[k]
+	return exists
 }
 
-func (i *lightfileindex) GroupInfo(groupId string) fileproto.AccountInfoResponse {
+func (i *lightfileindex) GroupInfo(groupId string) (info fileproto.AccountInfoResponse) {
+	defer func(start time.Time) {
+		log.Info("GroupInfo",
+			zap.String("groupId", groupId),
+			zap.Uint64("limitBytes", info.LimitBytes),
+			zap.Uint64("accountLimitBytes", info.AccountLimitBytes),
+			zap.Uint64("totalUsageBytes", info.TotalUsageBytes),
+			zap.Uint64("totalCidsCount", info.TotalCidsCount),
+			zap.Int("len(spaces)", len(info.Spaces)),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	i.RLock()
 	defer i.RUnlock()
 
@@ -236,6 +269,14 @@ func (i *lightfileindex) getGroupEntry(groupId string, saveCreated bool) (g *gro
 }
 
 func (i *lightfileindex) SpaceInfo(key index.Key) fileproto.SpaceInfoResponse {
+	defer func(start time.Time) {
+		log.Info("SpaceInfo",
+			zap.String("groupId", key.GroupId),
+			zap.String("spaceId", key.SpaceId),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	i.RLock()
 	defer i.RUnlock()
 
@@ -277,14 +318,23 @@ func (i *lightfileindex) getSpaceEntry(group *group, spaceId string, saveCreated
 	return
 }
 
-func (i *lightfileindex) SpaceFiles(key index.Key) []string {
+func (i *lightfileindex) SpaceFiles(key index.Key) (fileIds []string) {
+	defer func(start time.Time) {
+		log.Info("SpaceFiles",
+			zap.String("groupId", key.GroupId),
+			zap.String("spaceId", key.SpaceId),
+			zap.Int("fileCount", len(fileIds)),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	i.RLock()
 	defer i.RUnlock()
 
 	grp := i.getGroupEntry(key.GroupId, false)
 	sp := i.getSpaceEntry(grp, key.SpaceId, false)
 
-	fileIds := make([]string, 0, len(sp.files))
+	fileIds = make([]string, 0, len(sp.files))
 	for fileId := range sp.files {
 		fileIds = append(fileIds, fileId)
 	}
@@ -292,14 +342,24 @@ func (i *lightfileindex) SpaceFiles(key index.Key) []string {
 	return fileIds
 }
 
-func (i *lightfileindex) FileInfo(key index.Key, fileIds ...string) []*fileproto.FileInfo {
+func (i *lightfileindex) FileInfo(key index.Key, fileIds ...string) (result []*fileproto.FileInfo) {
+	defer func(start time.Time) {
+		log.Info("FileInfo",
+			zap.String("groupId", key.GroupId),
+			zap.String("spaceId", key.SpaceId),
+			zap.Strings("fileIds", fileIds),
+			zap.Int("resultCount", len(result)),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	i.RLock()
 	defer i.RUnlock()
 
 	grp := i.getGroupEntry(key.GroupId, false)
 	sp := i.getSpaceEntry(grp, key.SpaceId, false)
 
-	result := make([]*fileproto.FileInfo, 0, len(fileIds))
+	result = make([]*fileproto.FileInfo, 0, len(fileIds))
 	for _, fileId := range fileIds {
 		f := i.getFileEntry(sp, fileId, false)
 		result = append(result, &fileproto.FileInfo{
@@ -330,6 +390,16 @@ func (i *lightfileindex) getFileEntry(space *space, fileId string, saveCreated b
 
 // Modify applies operations to modify the index
 func (i *lightfileindex) Modify(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) (err error) {
+	defer func(start time.Time) {
+		log.Info("Modify",
+			zap.String("groupId", key.GroupId),
+			zap.String("spaceId", key.SpaceId),
+			zap.Int("operations", len(operations)),
+			zap.Duration("duration", time.Since(start)),
+			zap.Error(err),
+		)
+	}(time.Now())
+
 	if len(operations) == 0 {
 		return nil
 	}
@@ -396,7 +466,17 @@ func (i *lightfileindex) processOperation(group *group, space *space, op *indexp
 	}
 }
 
-func (i *lightfileindex) handleCIDAdd(group *group, space *space, op *indexpb.CidAddOperation) error {
+func (i *lightfileindex) handleCIDAdd(group *group, space *space, op *indexpb.CidAddOperation) (err error) {
+	defer func(start time.Time) {
+		log.Debug("handleCIDAdd",
+			zap.String("cid", op.GetCid()),
+			zap.String("fileId", op.GetFileId()),
+			zap.Uint64("dataSize", op.GetDataSize()),
+			zap.Error(err),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	c, err := cid.Parse(op.GetCid())
 	if err != nil {
 		return ErrInvalidCID
@@ -435,7 +515,16 @@ func (i *lightfileindex) handleCIDAdd(group *group, space *space, op *indexpb.Ci
 	return nil
 }
 
-func (i *lightfileindex) handleBindFile(group *group, space *space, op *indexpb.FileBindOperation) error {
+func (i *lightfileindex) handleBindFile(group *group, space *space, op *indexpb.FileBindOperation) (err error) {
+	defer func(start time.Time) {
+		log.Debug("handleBindFile",
+			zap.String("fileId", op.GetFileId()),
+			zap.Int("cidCount", len(op.GetCids())),
+			zap.Error(err),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	fileId := op.GetFileId()
 	cids := op.GetCids()
 
@@ -473,7 +562,15 @@ func (i *lightfileindex) handleBindFile(group *group, space *space, op *indexpb.
 }
 
 // handleDeleteFile removes files from a space
-func (i *lightfileindex) handleDeleteFile(group *group, space *space, op *indexpb.FileDeleteOperation) error {
+func (i *lightfileindex) handleDeleteFile(group *group, space *space, op *indexpb.FileDeleteOperation) (err error) {
+	defer func(start time.Time) {
+		log.Debug("handleDeleteFile",
+			zap.Strings("fileIds", op.GetFileIds()),
+			zap.Error(err),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}(time.Now())
+
 	for _, fileId := range op.GetFileIds() {
 		f, ok := space.files[fileId]
 		if !ok {
@@ -513,10 +610,10 @@ func (i *lightfileindex) handleDeleteFile(group *group, space *space, op *indexp
 									isStillUsedInGroup = true
 									break
 								}
-							}
 
-							if isStillUsedInGroup {
-								break
+								if isStillUsedInGroup {
+									break
+								}
 							}
 						}
 					}
