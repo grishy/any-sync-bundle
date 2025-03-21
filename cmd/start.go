@@ -83,7 +83,7 @@ func startAction(ctx context.Context) cli.ActionFunc {
 		apps := []node{
 			{name: "consensus", app: lightnode.NewLightConsensusNode(cfgNodes.Consensus)},
 			{name: "filenode", app: lightnode.NewLightFileNode(cfgNodes.Filenode)},
-			{name: "coordinator", app: lightnode.NewCoordinatorNode(cfgNodes.Coordinator)},
+			{name: "coordinator", app: lightnode.NewLightCoordinatorNode(cfgNodes.Coordinator)},
 			{name: "sync", app: lightnode.NewSyncNode(cfgNodes.Sync)},
 		}
 

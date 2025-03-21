@@ -25,7 +25,36 @@ import (
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
+
+	"github.com/grishy/any-sync-bundle/lightcmp/lightconfig"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightcoordinatorrpc"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightnodeconf"
 )
+
+func NewLightCoordinatorNode(cfg *config.Config) *app.App {
+	lCfg := &lightconfig.LightConfig{
+		Account:          cfg.Account,
+		Network:          cfg.Network,
+		ListenTCPAddr:    cfg.Yamux.ListenAddrs,
+		ListenUDPAddr:    cfg.Quic.ListenAddrs,
+		FilenodeStoreDir: "./data/filenode_store",
+	}
+
+	a := new(app.App).
+		Register(lCfg).
+		Register(lightnodeconf.New()).
+		Register(lightcoordinatorrpc.New()).
+		// Original
+		Register(account.New()).
+		Register(peerservice.New()).
+		Register(secureservice.New()).
+		Register(pool.New()).
+		Register(server.New()).
+		Register(yamux.New()).
+		Register(quic.New())
+
+	return a
+}
 
 func NewCoordinatorNode(cfg *config.Config) *app.App {
 	MustMkdirAll(cfg.NetworkStorePath)
