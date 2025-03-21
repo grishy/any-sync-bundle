@@ -35,3 +35,5 @@ go.work.sum
 /dist/
 /data/
 /any-sync-bundle
+/consensus.db*
+/tmp/

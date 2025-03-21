@@ -36,6 +36,9 @@
 
 ---
 
+TODO: Table with benchmaks and cpu/memory/etc.
+
+for ortiginal, allinone, light
 
 ## TL;DR – How to start a self-hosted Anytype server
 
