@@ -89,17 +89,17 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
 		}
 
-		// TODO: Just keep import here available
-		_ = []node{
-			// Light
-			{name: "consensus", app: lightConsensus.NewApp(cfgNodes.Consensus)},
-			{name: "filenode", app: lightFile.NewApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
-			// Full
-			{name: "consensus", app: lightConsensus.NewConsensusApp(cfgNodes.Consensus)},
-			{name: "coordinator", app: lightnode.NewCoordinatorApp(cfgNodes.Coordinator)},
-			{name: "filenode", app: lightFile.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
-			{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
-		}
+		// // TODO: Just keep import here available
+		// _ = []node{
+		// 	// Light
+		// 	{name: "consensus", app: lightConsensus.NewApp(cfgNodes.Consensus)},
+		// 	{name: "filenode", app: lightFile.NewApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
+		// 	// Full
+		// 	{name: "consensus", app: lightConsensus.NewConsensusApp(cfgNodes.Consensus)},
+		// 	{name: "coordinator", app: lightnode.NewCoordinatorApp(cfgNodes.Coordinator)},
+		// 	{name: "filenode", app: lightFile.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
+		// 	{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
+		// }
 
 		if err := startServices(ctx, apps); err != nil {
 			return err
