@@ -1,4 +1,4 @@
-package filenode
+package lightnode
 
 import (
 	"github.com/anyproto/any-sync-filenode/account"
@@ -28,10 +28,9 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenoderpc"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightnodeconf"
-	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
-func NewApp(cfg *config.Config, fileDir string) *app.App {
+func NewLightFileNode(cfg *config.Config) *app.App {
 	lCfg := &lightconfig.LightConfig{
 		Account:          cfg.Account,
 		Network:          cfg.Network,
@@ -62,8 +61,8 @@ func NewApp(cfg *config.Config, fileDir string) *app.App {
 	return a
 }
 
-func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
-	lightnode.MustMkdirAll(cfg.NetworkStorePath)
+func NewFileNode(cfg *config.Config, fileDir string) *app.App {
+	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
 		Register(cfg).

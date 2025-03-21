@@ -1,4 +1,4 @@
-package consensus
+package lightnode
 
 import (
 	"github.com/anyproto/any-sync-consensusnode/account"
@@ -24,10 +24,9 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightconsensusdb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightconsensusrpc"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightnodeconf"
-	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
-func NewApp(cfg *config.Config) *app.App {
+func NewLightConsensusNode(cfg *config.Config) *app.App {
 	// TODO: Add limiter to server?
 
 	lCfg := &lightconfig.LightConfig{
@@ -55,8 +54,8 @@ func NewApp(cfg *config.Config) *app.App {
 	return a
 }
 
-func NewConsensusApp(cfg *config.Config) *app.App {
-	lightnode.MustMkdirAll(cfg.NetworkStorePath)
+func NewConsensusNode(cfg *config.Config) *app.App {
+	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
 		Register(cfg).

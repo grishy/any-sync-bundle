@@ -27,7 +27,7 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 )
 
-func NewCoordinatorApp(cfg *config.Config) *app.App {
+func NewCoordinatorNode(cfg *config.Config) *app.App {
 	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
