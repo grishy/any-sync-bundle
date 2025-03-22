@@ -3,7 +3,6 @@ package lightnodeconf
 import (
 	"context"
 
-	"github.com/anyproto/any-sync-consensusnode/config"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/nodeconf"
@@ -12,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var log = logger.NewNamed("light.consensus." + config.CName)
+var log = logger.NewNamed("light." + nodeconf.CName)
 
 type cfgSrv interface {
 	GetNodeConf() nodeconf.Configuration
