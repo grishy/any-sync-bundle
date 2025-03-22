@@ -17,6 +17,8 @@ const (
 
 var log = logger.NewNamed("light." + CName)
 
+// TODO: Currently each node has its own configuration and fill related to the node type fields
+// After it will be possible to use only one instance
 type LightConfig struct {
 	// Global
 	Account       commonaccount.Config
@@ -25,6 +27,8 @@ type LightConfig struct {
 	ListenUDPAddr []string
 	// Consensus
 	ConsensusDBPath string
+	// Coordinator
+	// ...
 	// Filenode
 	FilenodeStoreDir          string
 	FilenodeDefaultLimitBytes uint64

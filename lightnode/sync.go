@@ -36,7 +36,7 @@ import (
 	"github.com/anyproto/any-sync-node/nodesync/hotsync"
 )
 
-func NewSyncApp(cfg *config.Config) *app.App {
+func NewSyncNode(cfg *config.Config) *app.App {
 	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
