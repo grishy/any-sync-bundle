@@ -108,8 +108,6 @@ func (r *lightcoordinatorrpc) Close(ctx context.Context) error {
 //   - Preventing unauthorized space creation (coordinator signature).
 //   - Maintaining a consistent view of space existence across the network.
 func (r *lightcoordinatorrpc) SpaceSign(ctx context.Context, req *coordinatorproto.SpaceSignRequest) (*coordinatorproto.SpaceSignResponse, error) {
-	panic("implement me")
-
 	// TODO: Think about how to make it more evident that account.SignKey is actually a network key on a coordinator level
 	networkKey := r.account.SignKey
 	accountPubKey, err := peer.CtxPubKey(ctx)
@@ -160,27 +158,22 @@ func (r *lightcoordinatorrpc) SpaceSign(ctx context.Context, req *coordinatorpro
 }
 
 func (r *lightcoordinatorrpc) SpaceStatusCheck(ctx context.Context, request *coordinatorproto.SpaceStatusCheckRequest) (*coordinatorproto.SpaceStatusCheckResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.SpaceStatusCheckResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceStatusCheckMany(ctx context.Context, request *coordinatorproto.SpaceStatusCheckManyRequest) (*coordinatorproto.SpaceStatusCheckManyResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.SpaceStatusCheckManyResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceStatusChange(ctx context.Context, request *coordinatorproto.SpaceStatusChangeRequest) (*coordinatorproto.SpaceStatusChangeResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.SpaceStatusChangeResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceMakeShareable(ctx context.Context, request *coordinatorproto.SpaceMakeShareableRequest) (*coordinatorproto.SpaceMakeShareableResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.SpaceMakeShareableResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceMakeUnshareable(ctx context.Context, request *coordinatorproto.SpaceMakeUnshareableRequest) (*coordinatorproto.SpaceMakeUnshareableResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.SpaceMakeUnshareableResponse{}, nil
 }
 
@@ -221,42 +214,34 @@ func (r *lightcoordinatorrpc) NetworkConfiguration(ctx context.Context, request 
 }
 
 func (r *lightcoordinatorrpc) DeletionLog(ctx context.Context, request *coordinatorproto.DeletionLogRequest) (*coordinatorproto.DeletionLogResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.DeletionLogResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceDelete(ctx context.Context, request *coordinatorproto.SpaceDeleteRequest) (*coordinatorproto.SpaceDeleteResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.SpaceDeleteResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AccountDelete(ctx context.Context, request *coordinatorproto.AccountDeleteRequest) (*coordinatorproto.AccountDeleteResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.AccountDeleteResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AccountRevertDeletion(ctx context.Context, request *coordinatorproto.AccountRevertDeletionRequest) (*coordinatorproto.AccountRevertDeletionResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.AccountRevertDeletionResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AclAddRecord(ctx context.Context, request *coordinatorproto.AclAddRecordRequest) (*coordinatorproto.AclAddRecordResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.AclAddRecordResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AclGetRecords(ctx context.Context, request *coordinatorproto.AclGetRecordsRequest) (*coordinatorproto.AclGetRecordsResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.AclGetRecordsResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AccountLimitsSet(ctx context.Context, request *coordinatorproto.AccountLimitsSetRequest) (*coordinatorproto.AccountLimitsSetResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.AccountLimitsSetResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AclEventLog(ctx context.Context, request *coordinatorproto.AclEventLogRequest) (*coordinatorproto.AclEventLogResponse, error) {
-	panic("implement me")
 	return &coordinatorproto.AclEventLogResponse{}, nil
 }
 
