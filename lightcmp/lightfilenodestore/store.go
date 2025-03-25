@@ -1,4 +1,4 @@
-//go:generate moq -fmt gofumpt -rm -out store_mock.go . configService StoreService
+//go:generate go tool moq -fmt gofumpt -rm -out store_moq_test.go . configService dbService StoreService
 
 package lightfilenodestore
 
@@ -8,15 +8,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/dgraph-io/badger/v4/options"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"go.uber.org/zap"
 )
 
 const CName = "light.filenode.store"
@@ -29,11 +26,6 @@ const (
 	snapshotType          = "s"
 	logType               = "l"
 	currentSnapshotSuffix = "current"
-
-	// GC configuration
-	defaultGCInterval    = 29 * time.Hour // Prime number to avoid alignment
-	defaultMaxGCDuration = time.Minute
-	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
 )
 
 var (
@@ -48,19 +40,10 @@ var (
 	ErrInvalidKey    = errors.New("invalid key format")
 )
 
-type configService interface {
-	app.Component
-	GetFilenodeStoreDir() string
-}
-
 // StoreService defines operations for persistent storage
 // NOTE: Perfectly we should have a separate badger.Txn to interface
 type StoreService interface {
 	app.ComponentRunnable
-
-	// Transaction operations
-	TxView(f func(txn *badger.Txn) error) error
-	TxUpdate(f func(txn *badger.Txn) error) error
 
 	// Block operations
 	GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error)
@@ -83,34 +66,30 @@ type IndexLog struct {
 	Data []byte
 }
 
-type storeConfig struct {
-	gcInterval    time.Duration
-	maxGCDuration time.Duration
-	gcThreshold   float64
+type dbService interface {
+	TxView(f func(txn *badger.Txn) error) error
+	TxUpdate(f func(txn *badger.Txn) error) error
+}
+
+type configService interface {
+	app.Component
+	GetDBDir() string
 }
 
 type lightFileNodeStore struct {
-	srvCfg configService
-	cfg    storeConfig
-	db     *badger.DB
+	srvDB dbService
 
 	// TODO: Implement atomic counter for log index, do not calculate on every push
 	// currentIndex atomic.Uint64
 }
 
 func New() *lightFileNodeStore {
-	return &lightFileNodeStore{
-		cfg: storeConfig{
-			gcInterval:    defaultGCInterval,
-			maxGCDuration: defaultMaxGCDuration,
-			gcThreshold:   defaultGCThreshold,
-		},
-	}
+	return &lightFileNodeStore{}
 }
 
 func (s *lightFileNodeStore) Init(a *app.App) error {
 	log.Info("initializing light filenode store")
-	s.srvCfg = app.MustComponent[configService](a)
+	s.srvDB = app.MustComponent[dbService](a)
 	return nil
 }
 
@@ -119,36 +98,16 @@ func (s *lightFileNodeStore) Name() string {
 }
 
 func (s *lightFileNodeStore) Run(ctx context.Context) error {
-	storePath := s.srvCfg.GetFilenodeStoreDir()
-
-	opts := badger.DefaultOptions(storePath).
-		WithLogger(badgerLogger{}).
-		WithCompression(options.None).
-		WithZSTDCompressionLevel(0)
-
-	db, err := badger.Open(opts)
-	if err != nil {
-		return fmt.Errorf("failed to open badger db: %w", err)
-	}
-
-	s.db = db
-
-	go s.runGC(ctx)
-
 	return nil
 }
 
 func (s *lightFileNodeStore) Close(ctx context.Context) error {
-	return s.db.Close()
+	return nil
 }
 
-func (s *lightFileNodeStore) TxView(f func(txn *badger.Txn) error) error {
-	return s.db.View(f)
-}
-
-func (s *lightFileNodeStore) TxUpdate(f func(txn *badger.Txn) error) error {
-	return s.db.Update(f)
-}
+//
+// Component methods
+//
 
 func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 	item, err := txn.Get(buildKey(blockType, k.String()))
@@ -300,37 +259,4 @@ func (s *lightFileNodeStore) getNextLogIndex(txn *badger.Txn) (uint64, error) {
 	}
 
 	return idx, nil
-}
-
-func (s *lightFileNodeStore) runGC(ctx context.Context) {
-	log.Info("starting badger garbage collection routine")
-	ticker := time.NewTicker(s.cfg.gcInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Info("stopping badger garbage collection routine")
-			return
-		case <-ticker.C:
-			start := time.Now()
-			gcCount := 0
-
-			// Run GC until either we hit time limit or no more files need GC
-			for time.Since(start) < s.cfg.maxGCDuration {
-				if err := s.db.RunValueLogGC(s.cfg.gcThreshold); err != nil {
-					if errors.Is(err, badger.ErrNoRewrite) {
-						break // No more files need GC
-					}
-					log.Warn("badger gc failed", zap.Error(err))
-					break
-				}
-				gcCount++
-			}
-
-			log.Info("badger garbage collection completed",
-				zap.Duration("duration", time.Since(start)),
-				zap.Int("filesGCed", gcCount))
-		}
-	}
 }

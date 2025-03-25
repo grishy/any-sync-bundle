@@ -33,11 +33,11 @@ import (
 
 func NewLightCoordinatorNode(cfg *config.Config) *app.App {
 	lCfg := &lightconfig.LightConfig{
-		Account:          cfg.Account,
-		Network:          cfg.Network,
-		ListenTCPAddr:    cfg.Yamux.ListenAddrs,
-		ListenUDPAddr:    cfg.Quic.ListenAddrs,
-		FilenodeStoreDir: "./data/filenode_store",
+		Account:       cfg.Account,
+		Network:       cfg.Network,
+		ListenTCPAddr: cfg.Yamux.ListenAddrs,
+		ListenUDPAddr: cfg.Quic.ListenAddrs,
+		DBPath:        "./data/filenode_store",
 	}
 
 	a := new(app.App).

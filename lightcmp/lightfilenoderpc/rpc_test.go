@@ -23,6 +23,7 @@ import (
 	"storj.io/drpc"
 
 	"github.com/grishy/any-sync-bundle/lightcmp/lightconfig"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightdb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex/indexpb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
@@ -38,11 +39,11 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.storeSrv.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
+		fx.srvStore.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 			return nil, lightfilenodestore.ErrBlockNotFound
 		}
 
-		resp, err := fx.rpcSrv.BlockGet(ctx, &fileproto.BlockGetRequest{
+		resp, err := fx.srvRPC.BlockGet(ctx, &fileproto.BlockGetRequest{
 			SpaceId: storeKey.SpaceId,
 			Cid:     b.Cid().Bytes(),
 			Wait:    false,
@@ -61,11 +62,11 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.storeSrv.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
+		fx.srvStore.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 			return b.RawData(), nil
 		}
 
-		resp, err := fx.rpcSrv.BlockGet(ctx, &fileproto.BlockGetRequest{
+		resp, err := fx.srvRPC.BlockGet(ctx, &fileproto.BlockGetRequest{
 			SpaceId: storeKey.SpaceId,
 			Cid:     b.Cid().Bytes(),
 			Wait:    false,
@@ -85,7 +86,7 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			attempts      = 0
 		)
 
-		fx.storeSrv.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
+		fx.srvStore.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 			t.Logf("GetBlockFunc: %d", attempts)
 			attempts++
 			if attempts < 3 {
@@ -95,7 +96,7 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			return b.RawData(), nil
 		}
 
-		resp, err := fx.rpcSrv.BlockGet(ctx, &fileproto.BlockGetRequest{
+		resp, err := fx.srvRPC.BlockGet(ctx, &fileproto.BlockGetRequest{
 			SpaceId: storeKey.SpaceId,
 			Cid:     b.Cid().Bytes(),
 			Wait:    true,
@@ -115,14 +116,14 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.storeSrv.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
+		fx.srvStore.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 			return nil, lightfilenodestore.ErrBlockNotFound
 		}
 
 		timeoutCtx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer cancel()
 
-		resp, err := fx.rpcSrv.BlockGet(timeoutCtx, &fileproto.BlockGetRequest{
+		resp, err := fx.srvRPC.BlockGet(timeoutCtx, &fileproto.BlockGetRequest{
 			SpaceId: storeKey.SpaceId,
 			Cid:     b.Cid().Bytes(),
 			Wait:    true,
@@ -138,7 +139,7 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		resp, err := fx.rpcSrv.BlockGet(ctx, &fileproto.BlockGetRequest{
+		resp, err := fx.srvRPC.BlockGet(ctx, &fileproto.BlockGetRequest{
 			SpaceId: storeKey.SpaceId,
 			Cid:     []byte("invalid"),
 			Wait:    true,
@@ -158,11 +159,11 @@ func TestLightFileNodeRpc_BlockGet(t *testing.T) {
 		)
 
 		errUnknown := errors.New("unknown error")
-		fx.storeSrv.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
+		fx.srvStore.GetBlockFunc = func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 			return nil, errUnknown
 		}
 
-		resp, err := fx.rpcSrv.BlockGet(ctx, &fileproto.BlockGetRequest{
+		resp, err := fx.srvRPC.BlockGet(ctx, &fileproto.BlockGetRequest{
 			SpaceId: storeKey.SpaceId,
 			Cid:     b.Cid().Bytes(),
 			Wait:    false,
@@ -184,24 +185,24 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
-		fx.indexSrv.HadCIDFunc = func(k cid.Cid) bool {
+		fx.srvIndex.HadCIDFunc = func(k cid.Cid) bool {
 			require.Equal(t, b.Cid(), k)
 			return false
 		}
 
-		fx.storeSrv.PutBlockFunc = func(txn *badger.Txn, blk blocks.Block) error {
+		fx.srvStore.PutBlockFunc = func(txn *badger.Txn, blk blocks.Block) error {
 			require.Equal(t, b.Cid(), blk.Cid())
 			require.Equal(t, b.RawData(), blk.RawData())
 			return nil
@@ -209,14 +210,14 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 
 		capturedOps := make([]*indexpb.Operation, 0, 2)
 
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
+		fx.srvIndex.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
 
 			capturedOps = append(capturedOps, operations...)
 			return nil
 		}
 
-		resp, err := fx.rpcSrv.BlockPush(ctx, &fileproto.BlockPushRequest{
+		resp, err := fx.srvRPC.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cid:     b.Cid().Bytes(),
@@ -244,7 +245,7 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		resp, err := fx.rpcSrv.BlockPush(ctx, &fileproto.BlockPushRequest{
+		resp, err := fx.srvRPC.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cid:     []byte("invalid"),
@@ -266,7 +267,7 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			b2            = testutil.NewRandBlock(10)
 		)
 
-		resp, err := fx.rpcSrv.BlockPush(ctx, &fileproto.BlockPushRequest{
+		resp, err := fx.srvRPC.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cid:     b2.Cid().Bytes(),
@@ -289,7 +290,7 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			b        = testutil.NewRandBlock(3 << 20) // 3 MiB, larger than the 2 MiB limit
 		)
 
-		resp, err := fx.rpcSrv.BlockPush(ctx, &fileproto.BlockPushRequest{
+		resp, err := fx.srvRPC.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: spaceId,
 			FileId:  fileId,
 			Cid:     b.Cid().Bytes(),
@@ -308,29 +309,29 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
-		fx.indexSrv.HadCIDFunc = func(k cid.Cid) bool {
+		fx.srvIndex.HadCIDFunc = func(k cid.Cid) bool {
 			require.Equal(t, b.Cid(), k)
 			return false
 		}
 
 		storeErr := errors.New("store error")
-		fx.storeSrv.PutBlockFunc = func(txn *badger.Txn, blk blocks.Block) error {
+		fx.srvStore.PutBlockFunc = func(txn *badger.Txn, blk blocks.Block) error {
 			return storeErr
 		}
 
-		resp, err := fx.rpcSrv.BlockPush(ctx, &fileproto.BlockPushRequest{
+		resp, err := fx.srvRPC.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cid:     b.Cid().Bytes(),
@@ -352,9 +353,9 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 		)
 
 		// Simulate permission denied
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
-		resp, err := fx.rpcSrv.BlockPush(ctx, &fileproto.BlockPushRequest{
+		resp, err := fx.srvRPC.BlockPush(ctx, &fileproto.BlockPushRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cid:     b.Cid().Bytes(),
@@ -376,14 +377,14 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 			bs            = testutil.NewRandBlocks(3)
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.HasCIDInSpaceFunc = func(key index.Key, k cid.Cid) bool {
+		fx.srvIndex.HasCIDInSpaceFunc = func(key index.Key, k cid.Cid) bool {
 			require.Equal(t, storeKey, key)
 			return k.Equals(bs[0].Cid())
 		}
 
-		fx.indexSrv.HadCIDFunc = func(k cid.Cid) bool {
+		fx.srvIndex.HadCIDFunc = func(k cid.Cid) bool {
 			return k.Equals(bs[1].Cid())
 		}
 
@@ -392,7 +393,7 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 			cids[i] = b.Cid().Bytes()
 		}
 
-		resp, err := fx.rpcSrv.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+		resp, err := fx.srvRPC.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
 			SpaceId: storeKey.SpaceId,
 			Cids:    cids,
 		})
@@ -419,9 +420,9 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		resp, err := fx.rpcSrv.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+		resp, err := fx.srvRPC.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
 			SpaceId: storeKey.SpaceId,
 			Cids:    [][]byte{[]byte("invalid")},
 		})
@@ -439,9 +440,9 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
-		resp, err := fx.rpcSrv.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+		resp, err := fx.srvRPC.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
 			SpaceId: storeKey.SpaceId,
 			Cids:    [][]byte{b.Cid().Bytes()},
 		})
@@ -457,18 +458,18 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 		ctx, storeKey := newRandKey()
 		b := testutil.NewRandBlock(1024)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.HasCIDInSpaceFunc = func(key index.Key, k cid.Cid) bool {
+		fx.srvIndex.HasCIDInSpaceFunc = func(key index.Key, k cid.Cid) bool {
 			require.Equal(t, storeKey, key)
 			return true
 		}
 
-		fx.indexSrv.HadCIDFunc = func(k cid.Cid) bool {
+		fx.srvIndex.HadCIDFunc = func(k cid.Cid) bool {
 			return false
 		}
 
-		resp, err := fx.rpcSrv.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
+		resp, err := fx.srvRPC.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
 			SpaceId: storeKey.SpaceId,
 			// Send same CID twice
 			Cids: [][]byte{b.Cid().Bytes(), b.Cid().Bytes()},
@@ -492,15 +493,15 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 			bs            = testutil.NewRandBlocks(3)
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
@@ -516,14 +517,14 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 
 		var capturedOp *indexpb.Operation
 
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
+		fx.srvIndex.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
 			require.Equal(t, 1, len(operations))
 			capturedOp = operations[0]
 			return nil
 		}
 
-		resp, err := fx.rpcSrv.BlocksBind(ctx, &fileproto.BlocksBindRequest{
+		resp, err := fx.srvRPC.BlocksBind(ctx, &fileproto.BlocksBindRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cids:    cids,
@@ -558,29 +559,29 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
 		cids := [][]byte{b.Cid().Bytes(), b.Cid().Bytes()}
 		var capturedOp *indexpb.Operation
 
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
+		fx.srvIndex.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
 			require.Equal(t, 1, len(operations))
 			capturedOp = operations[0]
 			return nil
 		}
 
-		resp, err := fx.rpcSrv.BlocksBind(ctx, &fileproto.BlocksBindRequest{
+		resp, err := fx.srvRPC.BlocksBind(ctx, &fileproto.BlocksBindRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cids:    cids,
@@ -604,19 +605,19 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 			fileId        = testutil.NewRandCid().String()
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
-		resp, err := fx.rpcSrv.BlocksBind(ctx, &fileproto.BlocksBindRequest{
+		resp, err := fx.srvRPC.BlocksBind(ctx, &fileproto.BlocksBindRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cids:    [][]byte{[]byte("invalid")},
@@ -637,9 +638,9 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 		)
 
 		// Simulate permission denied
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
-		resp, err := fx.rpcSrv.BlocksBind(ctx, &fileproto.BlocksBindRequest{
+		resp, err := fx.srvRPC.BlocksBind(ctx, &fileproto.BlocksBindRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cids:    [][]byte{b.Cid().Bytes()},
@@ -659,9 +660,9 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			limit := uint64(1024)
 			return fileproto.AccountInfoResponse{
 				TotalUsageBytes: limit + 1,
@@ -669,11 +670,11 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
-		resp, err := fx.rpcSrv.BlocksBind(ctx, &fileproto.BlocksBindRequest{
+		resp, err := fx.srvRPC.BlocksBind(ctx, &fileproto.BlocksBindRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cids:    [][]byte{b.Cid().Bytes()},
@@ -693,24 +694,24 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
 		modifyErr := errors.New("modify error")
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
+		fx.srvIndex.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			return modifyErr
 		}
 
-		resp, err := fx.rpcSrv.BlocksBind(ctx, &fileproto.BlocksBindRequest{
+		resp, err := fx.srvRPC.BlocksBind(ctx, &fileproto.BlocksBindRequest{
 			SpaceId: storeKey.SpaceId,
 			FileId:  fileId,
 			Cids:    [][]byte{b.Cid().Bytes()},
@@ -734,7 +735,7 @@ func TestLightFileNodeRpc_FilesInfo(t *testing.T) {
 			}
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
 		// Mock file info response
 		expectedInfos := make([]*fileproto.FileInfo, len(fileIds))
@@ -746,13 +747,13 @@ func TestLightFileNodeRpc_FilesInfo(t *testing.T) {
 			}
 		}
 
-		fx.indexSrv.FileInfoFunc = func(key index.Key, ids ...string) []*fileproto.FileInfo {
+		fx.srvIndex.FileInfoFunc = func(key index.Key, ids ...string) []*fileproto.FileInfo {
 			require.Equal(t, storeKey, key)
 			require.Equal(t, fileIds, ids)
 			return expectedInfos
 		}
 
-		resp, err := fx.rpcSrv.FilesInfo(ctx, &fileproto.FilesInfoRequest{
+		resp, err := fx.srvRPC.FilesInfo(ctx, &fileproto.FilesInfoRequest{
 			SpaceId: storeKey.SpaceId,
 			FileIds: fileIds,
 		})
@@ -767,15 +768,15 @@ func TestLightFileNodeRpc_FilesInfo(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.FileInfoFunc = func(key index.Key, ids ...string) []*fileproto.FileInfo {
+		fx.srvIndex.FileInfoFunc = func(key index.Key, ids ...string) []*fileproto.FileInfo {
 			require.Equal(t, storeKey, key)
 			require.Empty(t, ids)
 			return []*fileproto.FileInfo{}
 		}
 
-		resp, err := fx.rpcSrv.FilesInfo(ctx, &fileproto.FilesInfoRequest{
+		resp, err := fx.srvRPC.FilesInfo(ctx, &fileproto.FilesInfoRequest{
 			SpaceId: storeKey.SpaceId,
 			FileIds: []string{},
 		})
@@ -796,7 +797,7 @@ func TestLightFileNodeRpc_FilesInfo(t *testing.T) {
 			fileIds[i] = testutil.NewRandCid().String()
 		}
 
-		resp, err := fx.rpcSrv.FilesInfo(ctx, &fileproto.FilesInfoRequest{
+		resp, err := fx.srvRPC.FilesInfo(ctx, &fileproto.FilesInfoRequest{
 			SpaceId: storeKey.SpaceId,
 			FileIds: fileIds,
 		})
@@ -817,9 +818,9 @@ func TestLightFileNodeRpc_FilesInfo(t *testing.T) {
 		)
 
 		// Simulate permission denied
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
-		resp, err := fx.rpcSrv.FilesInfo(ctx, &fileproto.FilesInfoRequest{
+		resp, err := fx.srvRPC.FilesInfo(ctx, &fileproto.FilesInfoRequest{
 			SpaceId: storeKey.SpaceId,
 			FileIds: fileIds,
 		})
@@ -843,9 +844,9 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 			}
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.SpaceFilesFunc = func(key index.Key) []string {
+		fx.srvIndex.SpaceFilesFunc = func(key index.Key) []string {
 			require.Equal(t, storeKey, key)
 			return fileIds
 		}
@@ -856,7 +857,7 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 			t:        t,
 		}
 
-		err := fx.rpcSrv.FilesGet(&fileproto.FilesGetRequest{
+		err := fx.srvRPC.FilesGet(&fileproto.FilesGetRequest{
 			SpaceId: storeKey.SpaceId,
 		}, stream)
 
@@ -873,9 +874,9 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.SpaceFilesFunc = func(key index.Key) []string {
+		fx.srvIndex.SpaceFilesFunc = func(key index.Key) []string {
 			require.Equal(t, storeKey, key)
 			return []string{}
 		}
@@ -887,7 +888,7 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 			t:        t,
 		}
 
-		err := fx.rpcSrv.FilesGet(&fileproto.FilesGetRequest{
+		err := fx.srvRPC.FilesGet(&fileproto.FilesGetRequest{
 			SpaceId: storeKey.SpaceId,
 		}, stream)
 
@@ -900,7 +901,7 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
 		stream := &mockFilesGetStream{
 			ctx:      ctx,
@@ -908,7 +909,7 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 			t:        t,
 		}
 
-		err := fx.rpcSrv.FilesGet(&fileproto.FilesGetRequest{
+		err := fx.srvRPC.FilesGet(&fileproto.FilesGetRequest{
 			SpaceId: storeKey.SpaceId,
 		}, stream)
 
@@ -928,9 +929,9 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 			}
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.SpaceFilesFunc = func(key index.Key) []string {
+		fx.srvIndex.SpaceFilesFunc = func(key index.Key) []string {
 			require.Equal(t, storeKey, key)
 			return fileIds
 		}
@@ -942,7 +943,7 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 			t:       t,
 		}
 
-		err := fx.rpcSrv.FilesGet(&fileproto.FilesGetRequest{
+		err := fx.srvRPC.FilesGet(&fileproto.FilesGetRequest{
 			SpaceId: storeKey.SpaceId,
 		}, stream)
 
@@ -963,28 +964,28 @@ func TestLightFileNodeRpc_FilesDelete(t *testing.T) {
 			}
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
 		var capturedOp *indexpb.Operation
 
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
+		fx.srvIndex.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
 			require.Equal(t, 1, len(operations))
 			capturedOp = operations[0]
 			return nil
 		}
 
-		resp, err := fx.rpcSrv.FilesDelete(ctx, &fileproto.FilesDeleteRequest{
+		resp, err := fx.srvRPC.FilesDelete(ctx, &fileproto.FilesDeleteRequest{
 			SpaceId: storeKey.SpaceId,
 			FileIds: fileIds,
 		})
@@ -1002,28 +1003,28 @@ func TestLightFileNodeRpc_FilesDelete(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
 		var capturedOp *indexpb.Operation
 
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
+		fx.srvIndex.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
 			require.Equal(t, 1, len(operations))
 			capturedOp = operations[0]
 			return nil
 		}
 
-		resp, err := fx.rpcSrv.FilesDelete(ctx, &fileproto.FilesDeleteRequest{
+		resp, err := fx.srvRPC.FilesDelete(ctx, &fileproto.FilesDeleteRequest{
 			SpaceId: storeKey.SpaceId,
 			FileIds: []string{},
 		})
@@ -1046,9 +1047,9 @@ func TestLightFileNodeRpc_FilesDelete(t *testing.T) {
 			}
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
-		resp, err := fx.rpcSrv.FilesDelete(ctx, &fileproto.FilesDeleteRequest{
+		resp, err := fx.srvRPC.FilesDelete(ctx, &fileproto.FilesDeleteRequest{
 			SpaceId: storeKey.SpaceId,
 			FileIds: fileIds,
 		})
@@ -1068,24 +1069,24 @@ func TestLightFileNodeRpc_FilesDelete(t *testing.T) {
 			}
 		)
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		fx.indexSrv.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(groupId string) fileproto.AccountInfoResponse {
 			return fileproto.AccountInfoResponse{
 				LimitBytes: 1 << 30,
 			}
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			return fileproto.SpaceInfoResponse{}
 		}
 
 		modifyErr := errors.New("modify error")
-		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
+		fx.srvIndex.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			return modifyErr
 		}
 
-		resp, err := fx.rpcSrv.FilesDelete(ctx, &fileproto.FilesDeleteRequest{
+		resp, err := fx.srvRPC.FilesDelete(ctx, &fileproto.FilesDeleteRequest{
 			SpaceId: storeKey.SpaceId,
 			FileIds: fileIds,
 		})
@@ -1102,7 +1103,7 @@ func TestLightFileNodeRpc_Check(t *testing.T) {
 		defer fx.Finish(t)
 		ctx := context.Background()
 
-		resp, err := fx.rpcSrv.Check(ctx, &fileproto.CheckRequest{})
+		resp, err := fx.srvRPC.Check(ctx, &fileproto.CheckRequest{})
 
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -1117,7 +1118,7 @@ func TestLightFileNodeRpc_SpaceInfo(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
 		expectedInfo := fileproto.SpaceInfoResponse{
 			TotalUsageBytes: 1024,
@@ -1125,12 +1126,12 @@ func TestLightFileNodeRpc_SpaceInfo(t *testing.T) {
 			LimitBytes:      10240,
 		}
 
-		fx.indexSrv.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
+		fx.srvIndex.SpaceInfoFunc = func(key index.Key) fileproto.SpaceInfoResponse {
 			require.Equal(t, storeKey, key)
 			return expectedInfo
 		}
 
-		resp, err := fx.rpcSrv.SpaceInfo(ctx, &fileproto.SpaceInfoRequest{
+		resp, err := fx.srvRPC.SpaceInfo(ctx, &fileproto.SpaceInfoRequest{
 			SpaceId: storeKey.SpaceId,
 		})
 
@@ -1146,9 +1147,9 @@ func TestLightFileNodeRpc_SpaceInfo(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
+		fx.srvACL.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
-		resp, err := fx.rpcSrv.SpaceInfo(ctx, &fileproto.SpaceInfoRequest{
+		resp, err := fx.srvRPC.SpaceInfo(ctx, &fileproto.SpaceInfoRequest{
 			SpaceId: storeKey.SpaceId,
 		})
 
@@ -1162,7 +1163,7 @@ func TestLightFileNodeRpc_SpaceInfo(t *testing.T) {
 		defer fx.Finish(t)
 		ctx := context.Background()
 
-		resp, err := fx.rpcSrv.SpaceInfo(ctx, &fileproto.SpaceInfoRequest{
+		resp, err := fx.srvRPC.SpaceInfo(ctx, &fileproto.SpaceInfoRequest{
 			SpaceId: "",
 		})
 
@@ -1188,12 +1189,12 @@ func TestLightFileNodeRpc_AccountInfo(t *testing.T) {
 			LimitBytes:      102400,
 		}
 
-		fx.indexSrv.GroupInfoFunc = func(id string) fileproto.AccountInfoResponse {
+		fx.srvIndex.GroupInfoFunc = func(id string) fileproto.AccountInfoResponse {
 			require.Equal(t, groupId, id)
 			return expectedInfo
 		}
 
-		resp, err := fx.rpcSrv.AccountInfo(ctx, &fileproto.AccountInfoRequest{})
+		resp, err := fx.srvRPC.AccountInfo(ctx, &fileproto.AccountInfoRequest{})
 
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -1207,7 +1208,7 @@ func TestLightFileNodeRpc_AccountInfo(t *testing.T) {
 
 		ctx := context.Background()
 
-		resp, err := fx.rpcSrv.AccountInfo(ctx, &fileproto.AccountInfoRequest{})
+		resp, err := fx.srvRPC.AccountInfo(ctx, &fileproto.AccountInfoRequest{})
 
 		require.Error(t, err)
 		require.Equal(t, fileprotoerr.ErrForbidden, err)
@@ -1221,7 +1222,7 @@ func TestLightFileNodeRpc_SpaceLimitSet(t *testing.T) {
 		defer fx.Finish(t)
 		ctx := context.Background()
 
-		resp, err := fx.rpcSrv.SpaceLimitSet(ctx, &fileproto.SpaceLimitSetRequest{
+		resp, err := fx.srvRPC.SpaceLimitSet(ctx, &fileproto.SpaceLimitSetRequest{
 			SpaceId: "some-space-id",
 			Limit:   100 << 20, // 100 MiB
 		})
@@ -1239,7 +1240,7 @@ func TestLightFileNodeRpc_AccountLimitSet(t *testing.T) {
 		defer fx.Finish(t)
 		ctx := context.Background()
 
-		resp, err := fx.rpcSrv.AccountLimitSet(ctx, &fileproto.AccountLimitSetRequest{
+		resp, err := fx.srvRPC.AccountLimitSet(ctx, &fileproto.AccountLimitSetRequest{
 			Identity: "some-identity",
 			Limit:    100 << 20, // 100 MiB
 		})
@@ -1293,10 +1294,31 @@ func newFixture(t *testing.T) *fixture {
 	fx := &fixture{
 		ctrl:    ctrl,
 		a:       new(app.App),
-		drpcSrv: server.New(),
-		aclSrv:  mock_acl.NewMockAclService(ctrl),
-		rpcSrv:  New(),
-		storeSrv: &lightfilenodestore.StoreServiceMock{
+		srvDRPC: server.New(),
+		srvACL:  mock_acl.NewMockAclService(ctrl),
+		srvRPC:  New(),
+		srvDB: &moqDBServiceMock{
+			InitFunc: func(a *app.App) error {
+				return nil
+			},
+			NameFunc: func() string {
+				return lightdb.CName
+			},
+			RunFunc: func(ctx context.Context) error {
+				return nil
+			},
+			CloseFunc: func(ctx context.Context) error {
+				return nil
+			},
+			// Default for all DB operations
+			TxViewFunc: func(f func(txn *badger.Txn) error) error {
+				return f(nil)
+			},
+			TxUpdateFunc: func(f func(txn *badger.Txn) error) error {
+				return f(nil)
+			},
+		},
+		srvStore: &moqStoreServiceMock{
 			InitFunc: func(a *app.App) error {
 				return nil
 			},
@@ -1309,15 +1331,8 @@ func newFixture(t *testing.T) *fixture {
 			CloseFunc: func(ctx context.Context) error {
 				return nil
 			},
-			// Default for tests
-			TxViewFunc: func(f func(txn *badger.Txn) error) error {
-				return f(nil)
-			},
-			TxUpdateFunc: func(f func(txn *badger.Txn) error) error {
-				return f(nil)
-			},
 		},
-		indexSrv: &lightfilenodeindex.IndexServiceMock{
+		srvIndex: &moqIndexServiceMock{
 			InitFunc: func(a *app.App) error {
 				return nil
 			},
@@ -1333,17 +1348,18 @@ func newFixture(t *testing.T) *fixture {
 		},
 	}
 
-	fx.aclSrv.EXPECT().Name().Return(acl.CName).AnyTimes()
-	fx.aclSrv.EXPECT().Init(gomock.Any()).AnyTimes()
-	fx.aclSrv.EXPECT().Run(gomock.Any()).AnyTimes()
-	fx.aclSrv.EXPECT().Close(gomock.Any()).AnyTimes()
+	fx.srvACL.EXPECT().Name().Return(acl.CName).AnyTimes()
+	fx.srvACL.EXPECT().Init(gomock.Any()).AnyTimes()
+	fx.srvACL.EXPECT().Run(gomock.Any()).AnyTimes()
+	fx.srvACL.EXPECT().Close(gomock.Any()).AnyTimes()
 
 	fx.a.Register(&lightconfig.LightConfig{}).
-		Register(fx.drpcSrv).
-		Register(fx.aclSrv).
-		Register(fx.storeSrv).
-		Register(fx.indexSrv).
-		Register(fx.rpcSrv)
+		Register(fx.srvDRPC).
+		Register(fx.srvACL).
+		Register(fx.srvDB).
+		Register(fx.srvStore).
+		Register(fx.srvIndex).
+		Register(fx.srvRPC)
 
 	require.NoError(t, fx.a.Start(context.Background()))
 	return fx
@@ -1353,11 +1369,12 @@ type fixture struct {
 	ctrl *gomock.Controller
 	a    *app.App
 
-	drpcSrv  server.DRPCServer
-	aclSrv   *mock_acl.MockAclService
-	rpcSrv   *lightfilenoderpc
-	storeSrv *lightfilenodestore.StoreServiceMock
-	indexSrv *lightfilenodeindex.IndexServiceMock
+	srvDRPC  server.DRPCServer
+	srvACL   *mock_acl.MockAclService
+	srvRPC   *lightfilenoderpc
+	srvDB    *moqDBServiceMock
+	srvStore *moqStoreServiceMock
+	srvIndex *moqIndexServiceMock
 }
 
 func (fx *fixture) Finish(t *testing.T) {
