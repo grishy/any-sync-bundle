@@ -34,7 +34,7 @@ func NewLightConsensusNode(cfg *config.Config) *app.App {
 		Network:         cfg.Network,
 		ListenTCPAddr:   cfg.Yamux.ListenAddrs,
 		ListenUDPAddr:   cfg.Quic.ListenAddrs,
-		ConsensusDBPath: "consensus.db",
+		ConsensusDBPath: "./data/consensus.db",
 	}
 
 	a := new(app.App).

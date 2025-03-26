@@ -21,7 +21,7 @@ type testFixture struct {
 	app      *app.App
 	srvCfg   *configServiceMock
 	srvDB    lightdb.DBService
-	srvStore *lightFileNodeStore
+	srvStore *lightfilenodestore
 }
 
 func newTestFixture(t *testing.T) *testFixture {

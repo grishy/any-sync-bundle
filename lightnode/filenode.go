@@ -24,6 +24,7 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 
 	"github.com/grishy/any-sync-bundle/lightcmp/lightconfig"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightdb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenoderpc"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
@@ -36,13 +37,14 @@ func NewLightFileNode(cfg *config.Config) *app.App {
 		Network:       cfg.Network,
 		ListenTCPAddr: cfg.Yamux.ListenAddrs,
 		ListenUDPAddr: cfg.Quic.ListenAddrs,
-		DBPath:        "./data/filenode_store",
+		DBPath:        "./data/filenode_db",
 	}
 
 	a := new(app.App).
 		Register(lCfg).
 		Register(lightnodeconf.New()).
 		Register(lightfilenodeindex.New()).
+		Register(lightdb.New()).
 		Register(lightfilenodestore.New()).
 		Register(lightfilenoderpc.New()).
 		// Original components

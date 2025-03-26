@@ -28,6 +28,8 @@ import (
 
 	"github.com/grishy/any-sync-bundle/lightcmp/lightconfig"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightcoordinatorrpc"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightcoordinatorstore"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightdb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightnodeconf"
 )
 
@@ -37,12 +39,14 @@ func NewLightCoordinatorNode(cfg *config.Config) *app.App {
 		Network:       cfg.Network,
 		ListenTCPAddr: cfg.Yamux.ListenAddrs,
 		ListenUDPAddr: cfg.Quic.ListenAddrs,
-		DBPath:        "./data/filenode_store",
+		DBPath:        "./data/coordinator_db",
 	}
 
 	a := new(app.App).
 		Register(lCfg).
 		Register(lightnodeconf.New()).
+		Register(lightdb.New()).
+		Register(lightcoordinatorstore.New()).
 		Register(lightcoordinatorrpc.New()).
 		// Original
 		Register(account.New()).

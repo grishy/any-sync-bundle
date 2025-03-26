@@ -1,0 +1,14 @@
+edition = "2023";
+
+package storepb;
+
+option go_package = "store/storepb";
+
+message DeleteLogRecord {
+  string id = 1;
+  int64 timestamp = 2;
+  string space_id = 3;
+  string file_group = 4;
+  int32 status = 5;
+}
+

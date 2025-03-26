@@ -18,7 +18,7 @@ import (
 type testFixture struct {
 	app           *app.App
 	configService *configServiceMock
-	store         *lightstore
+	store         *lightdb
 	tempDir       string
 }
 

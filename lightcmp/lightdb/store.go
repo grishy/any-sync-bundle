@@ -33,7 +33,7 @@ type DBService interface {
 	TxUpdate(f func(txn *badger.Txn) error) error
 }
 
-type lightstore struct {
+type lightdb struct {
 	srvCfg configService
 	cfg    storeConfig
 	db     *badger.DB
@@ -50,8 +50,8 @@ type configService interface {
 	GetDBDir() string
 }
 
-func New() *lightstore {
-	return &lightstore{
+func New() *lightdb {
+	return &lightdb{
 		cfg: storeConfig{
 			gcInterval:    defaultGCInterval,
 			maxGCDuration: defaultMaxGCDuration,
@@ -64,7 +64,7 @@ func New() *lightstore {
 // App Component
 //
 
-func (r *lightstore) Init(a *app.App) error {
+func (r *lightdb) Init(a *app.App) error {
 	log.Info("call Init")
 
 	r.srvCfg = app.MustComponent[configService](a)
@@ -72,7 +72,7 @@ func (r *lightstore) Init(a *app.App) error {
 	return nil
 }
 
-func (r *lightstore) Name() (name string) {
+func (r *lightdb) Name() (name string) {
 	return CName
 }
 
@@ -80,7 +80,7 @@ func (r *lightstore) Name() (name string) {
 // App Component Runnable
 //
 
-func (r *lightstore) Run(ctx context.Context) error {
+func (r *lightdb) Run(ctx context.Context) error {
 	log.Info("call Run")
 
 	storePath := r.srvCfg.GetDBDir()
@@ -101,7 +101,7 @@ func (r *lightstore) Run(ctx context.Context) error {
 	return nil
 }
 
-func (r *lightstore) Close(ctx context.Context) error {
+func (r *lightdb) Close(ctx context.Context) error {
 	log.Info("call Close")
 	return r.db.Close()
 }
@@ -110,11 +110,11 @@ func (r *lightstore) Close(ctx context.Context) error {
 // Component methods
 //
 
-func (r *lightstore) TxView(f func(txn *badger.Txn) error) error {
+func (r *lightdb) TxView(f func(txn *badger.Txn) error) error {
 	return r.db.View(f)
 }
 
-func (r *lightstore) TxUpdate(f func(txn *badger.Txn) error) error {
+func (r *lightdb) TxUpdate(f func(txn *badger.Txn) error) error {
 	return r.db.Update(f)
 }
 

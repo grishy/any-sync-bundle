@@ -17,6 +17,11 @@ import (
 	"github.com/anyproto/any-sync/net/rpc/server"
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/util/crypto"
+	"github.com/dgraph-io/badger/v4"
+	"go.uber.org/zap"
+
+	"github.com/grishy/any-sync-bundle/lightcmp/lightcoordinatorstore"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightdb"
 )
 
 const (
@@ -33,8 +38,10 @@ var (
 type lightcoordinatorrpc struct {
 	account *accountdata.AccountKeys
 
-	srvDRPC server.DRPCServer
-	srvCfg  configService
+	srvCfg   configService
+	srvDB    lightdb.DBService
+	srvStore lightcoordinatorstore.StoreService
+	srvDRPC  server.DRPCServer
 }
 
 type configService interface {
@@ -54,8 +61,10 @@ func New() *lightcoordinatorrpc {
 func (r *lightcoordinatorrpc) Init(a *app.App) error {
 	log.Info("call Init")
 
-	r.srvDRPC = app.MustComponent[server.DRPCServer](a)
 	r.srvCfg = app.MustComponent[configService](a)
+	r.srvDB = app.MustComponent[lightdb.DBService](a)
+	r.srvStore = app.MustComponent[lightcoordinatorstore.StoreService](a)
+	r.srvDRPC = app.MustComponent[server.DRPCServer](a)
 
 	return nil
 }
@@ -108,6 +117,8 @@ func (r *lightcoordinatorrpc) Close(ctx context.Context) error {
 //   - Preventing unauthorized space creation (coordinator signature).
 //   - Maintaining a consistent view of space existence across the network.
 func (r *lightcoordinatorrpc) SpaceSign(ctx context.Context, req *coordinatorproto.SpaceSignRequest) (*coordinatorproto.SpaceSignResponse, error) {
+	log.InfoCtx(ctx, "SpaceSign", zap.String("spaceId", req.GetSpaceId()))
+
 	// TODO: Think about how to make it more evident that account.SignKey is actually a network key on a coordinator level
 	networkKey := r.account.SignKey
 	accountPubKey, err := peer.CtxPubKey(ctx)
@@ -152,32 +163,51 @@ func (r *lightcoordinatorrpc) SpaceSign(ctx context.Context, req *coordinatorpro
 	_ = peerId
 	_ = spaceType
 
+	panic("not implemented yet")
+
 	return &coordinatorproto.SpaceSignResponse{
 		// Receipt: receipt,
 	}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceStatusCheck(ctx context.Context, request *coordinatorproto.SpaceStatusCheckRequest) (*coordinatorproto.SpaceStatusCheckResponse, error) {
+	log.InfoCtx(ctx, "SpaceStatusCheck", zap.String("spaceId", request.GetSpaceId()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.SpaceStatusCheckResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceStatusCheckMany(ctx context.Context, request *coordinatorproto.SpaceStatusCheckManyRequest) (*coordinatorproto.SpaceStatusCheckManyResponse, error) {
+	log.InfoCtx(ctx, "SpaceStatusCheckMany", zap.Int("len(spaces)", len(request.GetSpaceIds())))
+
+	panic("not implemented yet")
 	return &coordinatorproto.SpaceStatusCheckManyResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceStatusChange(ctx context.Context, request *coordinatorproto.SpaceStatusChangeRequest) (*coordinatorproto.SpaceStatusChangeResponse, error) {
+	log.InfoCtx(ctx, "SpaceStatusChange", zap.String("spaceId", request.GetSpaceId()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.SpaceStatusChangeResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceMakeShareable(ctx context.Context, request *coordinatorproto.SpaceMakeShareableRequest) (*coordinatorproto.SpaceMakeShareableResponse, error) {
+	log.InfoCtx(ctx, "SpaceMakeShareable", zap.String("spaceId", request.GetSpaceId()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.SpaceMakeShareableResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceMakeUnshareable(ctx context.Context, request *coordinatorproto.SpaceMakeUnshareableRequest) (*coordinatorproto.SpaceMakeUnshareableResponse, error) {
+	log.InfoCtx(ctx, "SpaceMakeUnshareable", zap.String("spaceId", request.GetSpaceId()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.SpaceMakeUnshareableResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) NetworkConfiguration(ctx context.Context, request *coordinatorproto.NetworkConfigurationRequest) (*coordinatorproto.NetworkConfigurationResponse, error) {
+	log.InfoCtx(ctx, "NetworkConfiguration", zap.String("currentId", request.GetCurrentId()))
+
 	network := r.srvCfg.GetNodeConf()
 	nodes := make([]*coordinatorproto.Node, 0, len(network.Nodes))
 	for _, n := range network.Nodes {
@@ -213,35 +243,97 @@ func (r *lightcoordinatorrpc) NetworkConfiguration(ctx context.Context, request 
 	}, nil
 }
 
-func (r *lightcoordinatorrpc) DeletionLog(ctx context.Context, request *coordinatorproto.DeletionLogRequest) (*coordinatorproto.DeletionLogResponse, error) {
-	return &coordinatorproto.DeletionLogResponse{}, nil
+func (r *lightcoordinatorrpc) DeletionLog(ctx context.Context, req *coordinatorproto.DeletionLogRequest) (*coordinatorproto.DeletionLogResponse, error) {
+	log.InfoCtx(ctx, "DeletionLog", zap.String("afterId", req.GetAfterId()), zap.Int("limit", int(req.GetLimit())))
+
+	peerId, err := peer.CtxPeerId(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get peer id from context: %w", err)
+	}
+
+	// Check that this is request from other node
+	if len(r.nodeTypes(peerId)) == 0 {
+		return nil, fmt.Errorf("client is not a node: %w", coordinatorproto.ErrForbidden)
+	}
+
+	var resp *coordinatorproto.DeletionLogResponse
+	errTx := r.srvDB.TxView(func(txn *badger.Txn) error {
+		recs, hasMore, errGet := r.srvStore.DeleteLogGetAfter(txn, req.AfterId, req.Limit)
+		if errGet != nil {
+			return errGet
+		}
+
+		resp = &coordinatorproto.DeletionLogResponse{
+			Records: make([]*coordinatorproto.DeletionLogRecord, 0, len(recs)),
+			HasMore: hasMore,
+		}
+
+		for _, rec := range recs {
+			resp.Records = append(resp.Records, &coordinatorproto.DeletionLogRecord{
+				Id:        rec.Id,
+				SpaceId:   rec.SpaceId,
+				FileGroup: rec.FileGroup,
+				Status:    rec.Status,
+				Timestamp: rec.Timestamp,
+			})
+		}
+
+		return nil
+	})
+
+	if errTx != nil {
+		return nil, fmt.Errorf("tx view: %w", errTx)
+	}
+
+	return resp, nil
 }
 
 func (r *lightcoordinatorrpc) SpaceDelete(ctx context.Context, request *coordinatorproto.SpaceDeleteRequest) (*coordinatorproto.SpaceDeleteResponse, error) {
+	log.InfoCtx(ctx, "SpaceDelete", zap.String("spaceId", request.GetSpaceId()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.SpaceDeleteResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AccountDelete(ctx context.Context, request *coordinatorproto.AccountDeleteRequest) (*coordinatorproto.AccountDeleteResponse, error) {
+	log.InfoCtx(ctx, "AccountDelete", zap.String("deletePayload", request.GetDeletionPayloadId()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.AccountDeleteResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AccountRevertDeletion(ctx context.Context, request *coordinatorproto.AccountRevertDeletionRequest) (*coordinatorproto.AccountRevertDeletionResponse, error) {
+	log.InfoCtx(ctx, "AccountRevertDeletion")
+
+	panic("not implemented yet")
 	return &coordinatorproto.AccountRevertDeletionResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AclAddRecord(ctx context.Context, request *coordinatorproto.AclAddRecordRequest) (*coordinatorproto.AclAddRecordResponse, error) {
+	log.InfoCtx(ctx, "AclAddRecord", zap.String("spaceId", request.GetSpaceId()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.AclAddRecordResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AclGetRecords(ctx context.Context, request *coordinatorproto.AclGetRecordsRequest) (*coordinatorproto.AclGetRecordsResponse, error) {
+	log.InfoCtx(ctx, "AclGetRecords", zap.String("spaceId", request.GetSpaceId()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.AclGetRecordsResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AccountLimitsSet(ctx context.Context, request *coordinatorproto.AccountLimitsSetRequest) (*coordinatorproto.AccountLimitsSetResponse, error) {
+	log.InfoCtx(ctx, "AccountLimitsSet", zap.String("identity", request.GetIdentity()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.AccountLimitsSetResponse{}, nil
 }
 
 func (r *lightcoordinatorrpc) AclEventLog(ctx context.Context, request *coordinatorproto.AclEventLogRequest) (*coordinatorproto.AclEventLogResponse, error) {
+	log.InfoCtx(ctx, "AclEventLog", zap.String("identity", request.GetAccountIdentity()))
+
+	panic("not implemented yet")
 	return &coordinatorproto.AclEventLogResponse{}, nil
 }
 
@@ -257,6 +349,17 @@ func (r *lightcoordinatorrpc) verifyOldAccount(newAccountKey, oldAccountKey cryp
 
 	if !verify {
 		return coordinator.ErrIncorrectAccountSignature
+	}
+
+	return nil
+}
+
+func (r *lightcoordinatorrpc) nodeTypes(peerId string) []nodeconf.NodeType {
+	nodes := r.srvCfg.GetNodeConf().Nodes
+	for _, n := range nodes {
+		if n.PeerId == peerId {
+			return n.Types
+		}
 	}
 
 	return nil

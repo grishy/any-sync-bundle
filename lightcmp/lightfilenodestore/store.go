@@ -30,7 +30,7 @@ const (
 
 var (
 	// Type assertion
-	_ StoreService = (*lightFileNodeStore)(nil)
+	_ StoreService = (*lightfilenodestore)(nil)
 
 	log = logger.NewNamed(CName)
 
@@ -76,32 +76,32 @@ type configService interface {
 	GetDBDir() string
 }
 
-type lightFileNodeStore struct {
+type lightfilenodestore struct {
 	srvDB dbService
 
 	// TODO: Implement atomic counter for log index, do not calculate on every push
 	// currentIndex atomic.Uint64
 }
 
-func New() *lightFileNodeStore {
-	return &lightFileNodeStore{}
+func New() *lightfilenodestore {
+	return &lightfilenodestore{}
 }
 
-func (s *lightFileNodeStore) Init(a *app.App) error {
+func (s *lightfilenodestore) Init(a *app.App) error {
 	log.Info("initializing light filenode store")
 	s.srvDB = app.MustComponent[dbService](a)
 	return nil
 }
 
-func (s *lightFileNodeStore) Name() string {
+func (s *lightfilenodestore) Name() string {
 	return CName
 }
 
-func (s *lightFileNodeStore) Run(ctx context.Context) error {
+func (s *lightfilenodestore) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *lightFileNodeStore) Close(ctx context.Context) error {
+func (s *lightfilenodestore) Close(ctx context.Context) error {
 	return nil
 }
 
@@ -109,7 +109,7 @@ func (s *lightFileNodeStore) Close(ctx context.Context) error {
 // Component methods
 //
 
-func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error) {
+func (s *lightfilenodestore) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error) {
 	item, err := txn.Get(buildKey(blockType, k.String()))
 	if err != nil {
 		if errors.Is(err, badger.ErrKeyNotFound) {
@@ -121,16 +121,16 @@ func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error
 	return item.ValueCopy(nil)
 }
 
-func (s *lightFileNodeStore) PutBlock(txn *badger.Txn, block blocks.Block) error {
+func (s *lightfilenodestore) PutBlock(txn *badger.Txn, block blocks.Block) error {
 	key := buildKey(blockType, block.Cid().String())
 	return txn.Set(key, block.RawData())
 }
 
-func (s *lightFileNodeStore) DeleteBlock(txn *badger.Txn, c cid.Cid) error {
+func (s *lightfilenodestore) DeleteBlock(txn *badger.Txn, c cid.Cid) error {
 	return txn.Delete(buildKey(blockType, c.String()))
 }
 
-func (s *lightFileNodeStore) GetIndexSnapshot(txn *badger.Txn) ([]byte, error) {
+func (s *lightfilenodestore) GetIndexSnapshot(txn *badger.Txn) ([]byte, error) {
 	item, err := txn.Get(buildKey(snapshotType, currentSnapshotSuffix))
 	if err != nil {
 		if errors.Is(err, badger.ErrKeyNotFound) {
@@ -141,7 +141,7 @@ func (s *lightFileNodeStore) GetIndexSnapshot(txn *badger.Txn) ([]byte, error) {
 	return item.ValueCopy(nil)
 }
 
-func (s *lightFileNodeStore) SaveIndexSnapshot(txn *badger.Txn, data []byte) error {
+func (s *lightfilenodestore) SaveIndexSnapshot(txn *badger.Txn, data []byte) error {
 	key := buildKey(snapshotType, currentSnapshotSuffix)
 	if err := txn.Set(key, data); err != nil {
 		return fmt.Errorf("failed to store index snapshot: %w", err)
@@ -149,7 +149,7 @@ func (s *lightFileNodeStore) SaveIndexSnapshot(txn *badger.Txn, data []byte) err
 	return nil
 }
 
-func (s *lightFileNodeStore) GetIndexLogs(txn *badger.Txn) ([]IndexLog, error) {
+func (s *lightfilenodestore) GetIndexLogs(txn *badger.Txn) ([]IndexLog, error) {
 	prefix := buildKeyPrefix(logType)
 	opts := badger.DefaultIteratorOptions
 	opts.PrefetchValues = true
@@ -176,7 +176,7 @@ func (s *lightFileNodeStore) GetIndexLogs(txn *badger.Txn) ([]IndexLog, error) {
 	return logs, nil
 }
 
-func (s *lightFileNodeStore) DeleteIndexLogs(txn *badger.Txn, indices []uint64) error {
+func (s *lightfilenodestore) DeleteIndexLogs(txn *badger.Txn, indices []uint64) error {
 	if len(indices) == 0 {
 		return nil
 	}
@@ -190,7 +190,7 @@ func (s *lightFileNodeStore) DeleteIndexLogs(txn *badger.Txn, indices []uint64) 
 	return nil
 }
 
-func (s *lightFileNodeStore) PushIndexLog(txn *badger.Txn, logData []byte) error {
+func (s *lightfilenodestore) PushIndexLog(txn *badger.Txn, logData []byte) error {
 	idx, err := s.getNextLogIndex(txn)
 	if err != nil {
 		return fmt.Errorf("failed to get next log index: %w", err)
@@ -239,7 +239,7 @@ func parseIdxFromKey(key []byte) (uint64, error) {
 	return idx, nil
 }
 
-func (s *lightFileNodeStore) getNextLogIndex(txn *badger.Txn) (uint64, error) {
+func (s *lightfilenodestore) getNextLogIndex(txn *badger.Txn) (uint64, error) {
 	opts := badger.DefaultIteratorOptions
 	opts.PrefetchValues = false
 	opts.Reverse = true
