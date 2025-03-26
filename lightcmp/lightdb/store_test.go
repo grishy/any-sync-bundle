@@ -157,6 +157,12 @@ func TestLightStoreClose(t *testing.T) {
 }
 
 func TestLightStoreRunOpenError(t *testing.T) {
+	// // TODO: Fix file handle cleanup issue on Windows where the temporary file remains in use
+	// // causing "The process cannot access the file because it is being used by another process" errors
+	// if runtime.GOOS == "windows" {
+	// 	t.Skip("Skipping test on Windows due to file handle cleanup issues")
+	// }
+
 	store := New()
 	a := new(app.App)
 
@@ -165,8 +171,9 @@ func TestLightStoreRunOpenError(t *testing.T) {
 		GetDBDirFunc: func() string {
 			// Create a directory and a file, so we can't create the DB in file
 			dbFilepath := filepath.Join(t.TempDir(), "not-a-directory")
-			_, err := os.Create(dbFilepath)
+			file, err := os.Create(dbFilepath)
 			require.NoError(t, err)
+			require.NoError(t, file.Close())
 
 			return dbFilepath
 		},
