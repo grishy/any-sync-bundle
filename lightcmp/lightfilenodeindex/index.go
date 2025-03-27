@@ -1,4 +1,4 @@
-//go:generate moq -fmt gofumpt -rm -out index_mock.go . configService IndexService
+//go:generate go tool moq -fmt gofumpt -rm -out index_moq_test.go . configService moqStoreService IndexService
 package lightfilenodeindex
 
 // Only public methods should lock the mutex
@@ -45,6 +45,10 @@ var (
 type configService interface {
 	app.Component
 	GetFilenodeDefaultLimitBytes() uint64
+}
+
+type moqStoreService interface {
+	lightfilenodestore.StoreService
 }
 
 // TODO: Avoid using badger.Txn directly

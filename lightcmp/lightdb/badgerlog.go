@@ -1,4 +1,4 @@
-package lightfilenodestore
+package lightdb
 
 import (
 	"fmt"

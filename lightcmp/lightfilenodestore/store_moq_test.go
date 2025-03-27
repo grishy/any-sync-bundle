@@ -22,8 +22,8 @@ var _ configService = &configServiceMock{}
 //
 //		// make and configure a mocked configService
 //		mockedconfigService := &configServiceMock{
-//			GetFilenodeStoreDirFunc: func() string {
-//				panic("mock out the GetFilenodeStoreDir method")
+//			GetDBDirFunc: func() string {
+//				panic("mock out the GetDBDir method")
 //			},
 //			InitFunc: func(a *app.App) error {
 //				panic("mock out the Init method")
@@ -38,8 +38,8 @@ var _ configService = &configServiceMock{}
 //
 //	}
 type configServiceMock struct {
-	// GetFilenodeStoreDirFunc mocks the GetFilenodeStoreDir method.
-	GetFilenodeStoreDirFunc func() string
+	// GetDBDirFunc mocks the GetDBDir method.
+	GetDBDirFunc func() string
 
 	// InitFunc mocks the Init method.
 	InitFunc func(a *app.App) error
@@ -49,8 +49,8 @@ type configServiceMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// GetFilenodeStoreDir holds details about calls to the GetFilenodeStoreDir method.
-		GetFilenodeStoreDir []struct {
+		// GetDBDir holds details about calls to the GetDBDir method.
+		GetDBDir []struct {
 		}
 		// Init holds details about calls to the Init method.
 		Init []struct {
@@ -61,35 +61,35 @@ type configServiceMock struct {
 		Name []struct {
 		}
 	}
-	lockGetFilenodeStoreDir sync.RWMutex
-	lockInit                sync.RWMutex
-	lockName                sync.RWMutex
+	lockGetDBDir sync.RWMutex
+	lockInit     sync.RWMutex
+	lockName     sync.RWMutex
 }
 
-// GetFilenodeStoreDir calls GetFilenodeStoreDirFunc.
-func (mock *configServiceMock) GetFilenodeStoreDir() string {
-	if mock.GetFilenodeStoreDirFunc == nil {
-		panic("configServiceMock.GetFilenodeStoreDirFunc: method is nil but configService.GetFilenodeStoreDir was just called")
+// GetDBDir calls GetDBDirFunc.
+func (mock *configServiceMock) GetDBDir() string {
+	if mock.GetDBDirFunc == nil {
+		panic("configServiceMock.GetDBDirFunc: method is nil but configService.GetDBDir was just called")
 	}
 	callInfo := struct {
 	}{}
-	mock.lockGetFilenodeStoreDir.Lock()
-	mock.calls.GetFilenodeStoreDir = append(mock.calls.GetFilenodeStoreDir, callInfo)
-	mock.lockGetFilenodeStoreDir.Unlock()
-	return mock.GetFilenodeStoreDirFunc()
+	mock.lockGetDBDir.Lock()
+	mock.calls.GetDBDir = append(mock.calls.GetDBDir, callInfo)
+	mock.lockGetDBDir.Unlock()
+	return mock.GetDBDirFunc()
 }
 
-// GetFilenodeStoreDirCalls gets all the calls that were made to GetFilenodeStoreDir.
+// GetDBDirCalls gets all the calls that were made to GetDBDir.
 // Check the length with:
 //
-//	len(mockedconfigService.GetFilenodeStoreDirCalls())
-func (mock *configServiceMock) GetFilenodeStoreDirCalls() []struct {
+//	len(mockedconfigService.GetDBDirCalls())
+func (mock *configServiceMock) GetDBDirCalls() []struct {
 } {
 	var calls []struct {
 	}
-	mock.lockGetFilenodeStoreDir.RLock()
-	calls = mock.calls.GetFilenodeStoreDir
-	mock.lockGetFilenodeStoreDir.RUnlock()
+	mock.lockGetDBDir.RLock()
+	calls = mock.calls.GetDBDir
+	mock.lockGetDBDir.RUnlock()
 	return calls
 }
 
@@ -152,6 +152,116 @@ func (mock *configServiceMock) NameCalls() []struct {
 	return calls
 }
 
+// Ensure, that dbServiceMock does implement dbService.
+// If this is not the case, regenerate this file with moq.
+var _ dbService = &dbServiceMock{}
+
+// dbServiceMock is a mock implementation of dbService.
+//
+//	func TestSomethingThatUsesdbService(t *testing.T) {
+//
+//		// make and configure a mocked dbService
+//		mockeddbService := &dbServiceMock{
+//			TxUpdateFunc: func(f func(txn *badger.Txn) error) error {
+//				panic("mock out the TxUpdate method")
+//			},
+//			TxViewFunc: func(f func(txn *badger.Txn) error) error {
+//				panic("mock out the TxView method")
+//			},
+//		}
+//
+//		// use mockeddbService in code that requires dbService
+//		// and then make assertions.
+//
+//	}
+type dbServiceMock struct {
+	// TxUpdateFunc mocks the TxUpdate method.
+	TxUpdateFunc func(f func(txn *badger.Txn) error) error
+
+	// TxViewFunc mocks the TxView method.
+	TxViewFunc func(f func(txn *badger.Txn) error) error
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// TxUpdate holds details about calls to the TxUpdate method.
+		TxUpdate []struct {
+			// F is the f argument value.
+			F func(txn *badger.Txn) error
+		}
+		// TxView holds details about calls to the TxView method.
+		TxView []struct {
+			// F is the f argument value.
+			F func(txn *badger.Txn) error
+		}
+	}
+	lockTxUpdate sync.RWMutex
+	lockTxView   sync.RWMutex
+}
+
+// TxUpdate calls TxUpdateFunc.
+func (mock *dbServiceMock) TxUpdate(f func(txn *badger.Txn) error) error {
+	if mock.TxUpdateFunc == nil {
+		panic("dbServiceMock.TxUpdateFunc: method is nil but dbService.TxUpdate was just called")
+	}
+	callInfo := struct {
+		F func(txn *badger.Txn) error
+	}{
+		F: f,
+	}
+	mock.lockTxUpdate.Lock()
+	mock.calls.TxUpdate = append(mock.calls.TxUpdate, callInfo)
+	mock.lockTxUpdate.Unlock()
+	return mock.TxUpdateFunc(f)
+}
+
+// TxUpdateCalls gets all the calls that were made to TxUpdate.
+// Check the length with:
+//
+//	len(mockeddbService.TxUpdateCalls())
+func (mock *dbServiceMock) TxUpdateCalls() []struct {
+	F func(txn *badger.Txn) error
+} {
+	var calls []struct {
+		F func(txn *badger.Txn) error
+	}
+	mock.lockTxUpdate.RLock()
+	calls = mock.calls.TxUpdate
+	mock.lockTxUpdate.RUnlock()
+	return calls
+}
+
+// TxView calls TxViewFunc.
+func (mock *dbServiceMock) TxView(f func(txn *badger.Txn) error) error {
+	if mock.TxViewFunc == nil {
+		panic("dbServiceMock.TxViewFunc: method is nil but dbService.TxView was just called")
+	}
+	callInfo := struct {
+		F func(txn *badger.Txn) error
+	}{
+		F: f,
+	}
+	mock.lockTxView.Lock()
+	mock.calls.TxView = append(mock.calls.TxView, callInfo)
+	mock.lockTxView.Unlock()
+	return mock.TxViewFunc(f)
+}
+
+// TxViewCalls gets all the calls that were made to TxView.
+// Check the length with:
+//
+//	len(mockeddbService.TxViewCalls())
+func (mock *dbServiceMock) TxViewCalls() []struct {
+	F func(txn *badger.Txn) error
+} {
+	var calls []struct {
+		F func(txn *badger.Txn) error
+	}
+	mock.lockTxView.RLock()
+	calls = mock.calls.TxView
+	mock.lockTxView.RUnlock()
+	return calls
+}
+
 // Ensure, that StoreServiceMock does implement StoreService.
 // If this is not the case, regenerate this file with moq.
 var _ StoreService = &StoreServiceMock{}
@@ -198,12 +308,6 @@ var _ StoreService = &StoreServiceMock{}
 //			SaveIndexSnapshotFunc: func(txn *badger.Txn, data []byte) error {
 //				panic("mock out the SaveIndexSnapshot method")
 //			},
-//			TxUpdateFunc: func(f func(txn *badger.Txn) error) error {
-//				panic("mock out the TxUpdate method")
-//			},
-//			TxViewFunc: func(f func(txn *badger.Txn) error) error {
-//				panic("mock out the TxView method")
-//			},
 //		}
 //
 //		// use mockedStoreService in code that requires StoreService
@@ -246,12 +350,6 @@ type StoreServiceMock struct {
 
 	// SaveIndexSnapshotFunc mocks the SaveIndexSnapshot method.
 	SaveIndexSnapshotFunc func(txn *badger.Txn, data []byte) error
-
-	// TxUpdateFunc mocks the TxUpdate method.
-	TxUpdateFunc func(f func(txn *badger.Txn) error) error
-
-	// TxViewFunc mocks the TxView method.
-	TxViewFunc func(f func(txn *badger.Txn) error) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -325,16 +423,6 @@ type StoreServiceMock struct {
 			// Data is the data argument value.
 			Data []byte
 		}
-		// TxUpdate holds details about calls to the TxUpdate method.
-		TxUpdate []struct {
-			// F is the f argument value.
-			F func(txn *badger.Txn) error
-		}
-		// TxView holds details about calls to the TxView method.
-		TxView []struct {
-			// F is the f argument value.
-			F func(txn *badger.Txn) error
-		}
 	}
 	lockClose             sync.RWMutex
 	lockDeleteBlock       sync.RWMutex
@@ -348,8 +436,6 @@ type StoreServiceMock struct {
 	lockPutBlock          sync.RWMutex
 	lockRun               sync.RWMutex
 	lockSaveIndexSnapshot sync.RWMutex
-	lockTxUpdate          sync.RWMutex
-	lockTxView            sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -752,69 +838,5 @@ func (mock *StoreServiceMock) SaveIndexSnapshotCalls() []struct {
 	mock.lockSaveIndexSnapshot.RLock()
 	calls = mock.calls.SaveIndexSnapshot
 	mock.lockSaveIndexSnapshot.RUnlock()
-	return calls
-}
-
-// TxUpdate calls TxUpdateFunc.
-func (mock *StoreServiceMock) TxUpdate(f func(txn *badger.Txn) error) error {
-	if mock.TxUpdateFunc == nil {
-		panic("StoreServiceMock.TxUpdateFunc: method is nil but StoreService.TxUpdate was just called")
-	}
-	callInfo := struct {
-		F func(txn *badger.Txn) error
-	}{
-		F: f,
-	}
-	mock.lockTxUpdate.Lock()
-	mock.calls.TxUpdate = append(mock.calls.TxUpdate, callInfo)
-	mock.lockTxUpdate.Unlock()
-	return mock.TxUpdateFunc(f)
-}
-
-// TxUpdateCalls gets all the calls that were made to TxUpdate.
-// Check the length with:
-//
-//	len(mockedStoreService.TxUpdateCalls())
-func (mock *StoreServiceMock) TxUpdateCalls() []struct {
-	F func(txn *badger.Txn) error
-} {
-	var calls []struct {
-		F func(txn *badger.Txn) error
-	}
-	mock.lockTxUpdate.RLock()
-	calls = mock.calls.TxUpdate
-	mock.lockTxUpdate.RUnlock()
-	return calls
-}
-
-// TxView calls TxViewFunc.
-func (mock *StoreServiceMock) TxView(f func(txn *badger.Txn) error) error {
-	if mock.TxViewFunc == nil {
-		panic("StoreServiceMock.TxViewFunc: method is nil but StoreService.TxView was just called")
-	}
-	callInfo := struct {
-		F func(txn *badger.Txn) error
-	}{
-		F: f,
-	}
-	mock.lockTxView.Lock()
-	mock.calls.TxView = append(mock.calls.TxView, callInfo)
-	mock.lockTxView.Unlock()
-	return mock.TxViewFunc(f)
-}
-
-// TxViewCalls gets all the calls that were made to TxView.
-// Check the length with:
-//
-//	len(mockedStoreService.TxViewCalls())
-func (mock *StoreServiceMock) TxViewCalls() []struct {
-	F func(txn *badger.Txn) error
-} {
-	var calls []struct {
-		F func(txn *badger.Txn) error
-	}
-	mock.lockTxView.RLock()
-	calls = mock.calls.TxView
-	mock.lockTxView.RUnlock()
 	return calls
 }

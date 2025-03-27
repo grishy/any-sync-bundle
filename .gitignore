@@ -34,6 +34,5 @@ go.work.sum
 # Local build data
 /dist/
 /data/
-/any-sync-bundle
-/consensus.db*
 /tmp/
+/any-sync-bundle

@@ -17,6 +17,9 @@ const (
 
 var log = logger.NewNamed("light." + CName)
 
+// TODO: Currently each node has its own configuration and fill related to the node type fields
+// After it will be possible to use only one instance
+// TODO: Implify after merge DB in light node
 type LightConfig struct {
 	// Global
 	Account       commonaccount.Config
@@ -25,9 +28,12 @@ type LightConfig struct {
 	ListenUDPAddr []string
 	// Consensus
 	ConsensusDBPath string
+	// Coordinator
+	// ...
 	// Filenode
-	FilenodeStoreDir          string
 	FilenodeDefaultLimitBytes uint64
+	// General
+	DBPath string
 }
 
 //
@@ -96,14 +102,14 @@ func (c *LightConfig) GetConsensusDBPath() string {
 	return c.ConsensusDBPath
 }
 
-func (c *LightConfig) GetFilenodeStoreDir() string {
-	log.Info("call GetFilenodeStoreDir")
-
-	return c.FilenodeStoreDir
-}
-
 func (c *LightConfig) GetFilenodeDefaultLimitBytes() uint64 {
 	log.Info("call GetFilenodeDefaultLimitBytes")
 
 	return c.FilenodeDefaultLimitBytes
+}
+
+func (c *LightConfig) GetDBDir() string {
+	log.Info("call GetDBDir")
+
+	return c.DBPath
 }

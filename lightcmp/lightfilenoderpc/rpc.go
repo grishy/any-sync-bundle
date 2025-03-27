@@ -1,3 +1,5 @@
+//go:generate go tool moq -fmt gofumpt -rm -out rpc_moq_test.go . moqDBService moqIndexService moqStoreService
+
 package lightfilenoderpc
 
 import (
@@ -19,6 +21,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 
+	"github.com/grishy/any-sync-bundle/lightcmp/lightdb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex/indexpb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
@@ -56,8 +59,21 @@ var (
 type lightfilenoderpc struct {
 	srvAcl   acl.AclService
 	srvDRPC  server.DRPCServer
-	srvIndex lightfilenodeindex.IndexService
+	srvDB    lightdb.DBService
 	srvStore lightfilenodestore.StoreService
+	srvIndex lightfilenodeindex.IndexService
+}
+
+type moqDBService interface {
+	lightdb.DBService
+}
+
+type moqIndexService interface {
+	lightfilenodeindex.IndexService
+}
+
+type moqStoreService interface {
+	lightfilenodestore.StoreService
 }
 
 func New() *lightfilenoderpc {
@@ -73,8 +89,9 @@ func (r *lightfilenoderpc) Init(a *app.App) error {
 
 	r.srvAcl = app.MustComponent[acl.AclService](a)
 	r.srvDRPC = app.MustComponent[server.DRPCServer](a)
-	r.srvIndex = app.MustComponent[lightfilenodeindex.IndexService](a)
+	r.srvDB = app.MustComponent[lightdb.DBService](a)
 	r.srvStore = app.MustComponent[lightfilenodestore.StoreService](a)
+	r.srvIndex = app.MustComponent[lightfilenodeindex.IndexService](a)
 
 	return nil
 }
@@ -115,7 +132,7 @@ func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGet
 
 	var blockData []byte
 	for {
-		errTx := r.srvStore.TxView(func(txn *badger.Txn) error {
+		errTx := r.srvDB.TxView(func(txn *badger.Txn) error {
 			var errGet error
 			blockData, errGet = r.srvStore.GetBlock(txn, c)
 			return errGet
@@ -191,7 +208,7 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 
 	cidString := c.String()
 
-	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
+	errTx := r.srvDB.TxUpdate(func(txn *badger.Txn) error {
 		// Check if CID exists before storing to avoid duplicate storage
 		hadCid := r.srvIndex.HadCID(c)
 		if !hadCid {
@@ -309,7 +326,7 @@ func (r *lightfilenoderpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 	op := &indexpb.Operation{}
 	op.SetBindFile(bindOp)
 
-	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
+	errTx := r.srvDB.TxUpdate(func(txn *badger.Txn) error {
 		return r.srvIndex.Modify(txn, storageKey, op)
 	})
 
@@ -385,7 +402,7 @@ func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.F
 	op := &indexpb.Operation{}
 	op.SetDeleteFile(deleteOp)
 
-	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
+	errTx := r.srvDB.TxUpdate(func(txn *badger.Txn) error {
 		return r.srvIndex.Modify(txn, storageKey, op)
 	})
 

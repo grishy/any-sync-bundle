@@ -10,6 +10,8 @@ import (
 	"github.com/anyproto/any-sync/commonfile/fileproto"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex/indexpb"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
+	"github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"sync"
 )
@@ -151,6 +153,585 @@ func (mock *configServiceMock) NameCalls() []struct {
 	mock.lockName.RLock()
 	calls = mock.calls.Name
 	mock.lockName.RUnlock()
+	return calls
+}
+
+// Ensure, that moqStoreServiceMock does implement moqStoreService.
+// If this is not the case, regenerate this file with moq.
+var _ moqStoreService = &moqStoreServiceMock{}
+
+// moqStoreServiceMock is a mock implementation of moqStoreService.
+//
+//	func TestSomethingThatUsesmoqStoreService(t *testing.T) {
+//
+//		// make and configure a mocked moqStoreService
+//		mockedmoqStoreService := &moqStoreServiceMock{
+//			CloseFunc: func(ctx context.Context) error {
+//				panic("mock out the Close method")
+//			},
+//			DeleteBlockFunc: func(txn *badger.Txn, c cid.Cid) error {
+//				panic("mock out the DeleteBlock method")
+//			},
+//			DeleteIndexLogsFunc: func(txn *badger.Txn, idxs []uint64) error {
+//				panic("mock out the DeleteIndexLogs method")
+//			},
+//			GetBlockFunc: func(txn *badger.Txn, k cid.Cid) ([]byte, error) {
+//				panic("mock out the GetBlock method")
+//			},
+//			GetIndexLogsFunc: func(txn *badger.Txn) ([]lightfilenodestore.IndexLog, error) {
+//				panic("mock out the GetIndexLogs method")
+//			},
+//			GetIndexSnapshotFunc: func(txn *badger.Txn) ([]byte, error) {
+//				panic("mock out the GetIndexSnapshot method")
+//			},
+//			InitFunc: func(a *app.App) error {
+//				panic("mock out the Init method")
+//			},
+//			NameFunc: func() string {
+//				panic("mock out the Name method")
+//			},
+//			PushIndexLogFunc: func(txn *badger.Txn, logData []byte) error {
+//				panic("mock out the PushIndexLog method")
+//			},
+//			PutBlockFunc: func(txn *badger.Txn, block blocks.Block) error {
+//				panic("mock out the PutBlock method")
+//			},
+//			RunFunc: func(ctx context.Context) error {
+//				panic("mock out the Run method")
+//			},
+//			SaveIndexSnapshotFunc: func(txn *badger.Txn, data []byte) error {
+//				panic("mock out the SaveIndexSnapshot method")
+//			},
+//		}
+//
+//		// use mockedmoqStoreService in code that requires moqStoreService
+//		// and then make assertions.
+//
+//	}
+type moqStoreServiceMock struct {
+	// CloseFunc mocks the Close method.
+	CloseFunc func(ctx context.Context) error
+
+	// DeleteBlockFunc mocks the DeleteBlock method.
+	DeleteBlockFunc func(txn *badger.Txn, c cid.Cid) error
+
+	// DeleteIndexLogsFunc mocks the DeleteIndexLogs method.
+	DeleteIndexLogsFunc func(txn *badger.Txn, idxs []uint64) error
+
+	// GetBlockFunc mocks the GetBlock method.
+	GetBlockFunc func(txn *badger.Txn, k cid.Cid) ([]byte, error)
+
+	// GetIndexLogsFunc mocks the GetIndexLogs method.
+	GetIndexLogsFunc func(txn *badger.Txn) ([]lightfilenodestore.IndexLog, error)
+
+	// GetIndexSnapshotFunc mocks the GetIndexSnapshot method.
+	GetIndexSnapshotFunc func(txn *badger.Txn) ([]byte, error)
+
+	// InitFunc mocks the Init method.
+	InitFunc func(a *app.App) error
+
+	// NameFunc mocks the Name method.
+	NameFunc func() string
+
+	// PushIndexLogFunc mocks the PushIndexLog method.
+	PushIndexLogFunc func(txn *badger.Txn, logData []byte) error
+
+	// PutBlockFunc mocks the PutBlock method.
+	PutBlockFunc func(txn *badger.Txn, block blocks.Block) error
+
+	// RunFunc mocks the Run method.
+	RunFunc func(ctx context.Context) error
+
+	// SaveIndexSnapshotFunc mocks the SaveIndexSnapshot method.
+	SaveIndexSnapshotFunc func(txn *badger.Txn, data []byte) error
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// Close holds details about calls to the Close method.
+		Close []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
+		// DeleteBlock holds details about calls to the DeleteBlock method.
+		DeleteBlock []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// C is the c argument value.
+			C cid.Cid
+		}
+		// DeleteIndexLogs holds details about calls to the DeleteIndexLogs method.
+		DeleteIndexLogs []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// Idxs is the idxs argument value.
+			Idxs []uint64
+		}
+		// GetBlock holds details about calls to the GetBlock method.
+		GetBlock []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// K is the k argument value.
+			K cid.Cid
+		}
+		// GetIndexLogs holds details about calls to the GetIndexLogs method.
+		GetIndexLogs []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+		}
+		// GetIndexSnapshot holds details about calls to the GetIndexSnapshot method.
+		GetIndexSnapshot []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+		}
+		// Init holds details about calls to the Init method.
+		Init []struct {
+			// A is the a argument value.
+			A *app.App
+		}
+		// Name holds details about calls to the Name method.
+		Name []struct {
+		}
+		// PushIndexLog holds details about calls to the PushIndexLog method.
+		PushIndexLog []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// LogData is the logData argument value.
+			LogData []byte
+		}
+		// PutBlock holds details about calls to the PutBlock method.
+		PutBlock []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// Block is the block argument value.
+			Block blocks.Block
+		}
+		// Run holds details about calls to the Run method.
+		Run []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
+		// SaveIndexSnapshot holds details about calls to the SaveIndexSnapshot method.
+		SaveIndexSnapshot []struct {
+			// Txn is the txn argument value.
+			Txn *badger.Txn
+			// Data is the data argument value.
+			Data []byte
+		}
+	}
+	lockClose             sync.RWMutex
+	lockDeleteBlock       sync.RWMutex
+	lockDeleteIndexLogs   sync.RWMutex
+	lockGetBlock          sync.RWMutex
+	lockGetIndexLogs      sync.RWMutex
+	lockGetIndexSnapshot  sync.RWMutex
+	lockInit              sync.RWMutex
+	lockName              sync.RWMutex
+	lockPushIndexLog      sync.RWMutex
+	lockPutBlock          sync.RWMutex
+	lockRun               sync.RWMutex
+	lockSaveIndexSnapshot sync.RWMutex
+}
+
+// Close calls CloseFunc.
+func (mock *moqStoreServiceMock) Close(ctx context.Context) error {
+	if mock.CloseFunc == nil {
+		panic("moqStoreServiceMock.CloseFunc: method is nil but moqStoreService.Close was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockClose.Lock()
+	mock.calls.Close = append(mock.calls.Close, callInfo)
+	mock.lockClose.Unlock()
+	return mock.CloseFunc(ctx)
+}
+
+// CloseCalls gets all the calls that were made to Close.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.CloseCalls())
+func (mock *moqStoreServiceMock) CloseCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockClose.RLock()
+	calls = mock.calls.Close
+	mock.lockClose.RUnlock()
+	return calls
+}
+
+// DeleteBlock calls DeleteBlockFunc.
+func (mock *moqStoreServiceMock) DeleteBlock(txn *badger.Txn, c cid.Cid) error {
+	if mock.DeleteBlockFunc == nil {
+		panic("moqStoreServiceMock.DeleteBlockFunc: method is nil but moqStoreService.DeleteBlock was just called")
+	}
+	callInfo := struct {
+		Txn *badger.Txn
+		C   cid.Cid
+	}{
+		Txn: txn,
+		C:   c,
+	}
+	mock.lockDeleteBlock.Lock()
+	mock.calls.DeleteBlock = append(mock.calls.DeleteBlock, callInfo)
+	mock.lockDeleteBlock.Unlock()
+	return mock.DeleteBlockFunc(txn, c)
+}
+
+// DeleteBlockCalls gets all the calls that were made to DeleteBlock.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.DeleteBlockCalls())
+func (mock *moqStoreServiceMock) DeleteBlockCalls() []struct {
+	Txn *badger.Txn
+	C   cid.Cid
+} {
+	var calls []struct {
+		Txn *badger.Txn
+		C   cid.Cid
+	}
+	mock.lockDeleteBlock.RLock()
+	calls = mock.calls.DeleteBlock
+	mock.lockDeleteBlock.RUnlock()
+	return calls
+}
+
+// DeleteIndexLogs calls DeleteIndexLogsFunc.
+func (mock *moqStoreServiceMock) DeleteIndexLogs(txn *badger.Txn, idxs []uint64) error {
+	if mock.DeleteIndexLogsFunc == nil {
+		panic("moqStoreServiceMock.DeleteIndexLogsFunc: method is nil but moqStoreService.DeleteIndexLogs was just called")
+	}
+	callInfo := struct {
+		Txn  *badger.Txn
+		Idxs []uint64
+	}{
+		Txn:  txn,
+		Idxs: idxs,
+	}
+	mock.lockDeleteIndexLogs.Lock()
+	mock.calls.DeleteIndexLogs = append(mock.calls.DeleteIndexLogs, callInfo)
+	mock.lockDeleteIndexLogs.Unlock()
+	return mock.DeleteIndexLogsFunc(txn, idxs)
+}
+
+// DeleteIndexLogsCalls gets all the calls that were made to DeleteIndexLogs.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.DeleteIndexLogsCalls())
+func (mock *moqStoreServiceMock) DeleteIndexLogsCalls() []struct {
+	Txn  *badger.Txn
+	Idxs []uint64
+} {
+	var calls []struct {
+		Txn  *badger.Txn
+		Idxs []uint64
+	}
+	mock.lockDeleteIndexLogs.RLock()
+	calls = mock.calls.DeleteIndexLogs
+	mock.lockDeleteIndexLogs.RUnlock()
+	return calls
+}
+
+// GetBlock calls GetBlockFunc.
+func (mock *moqStoreServiceMock) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error) {
+	if mock.GetBlockFunc == nil {
+		panic("moqStoreServiceMock.GetBlockFunc: method is nil but moqStoreService.GetBlock was just called")
+	}
+	callInfo := struct {
+		Txn *badger.Txn
+		K   cid.Cid
+	}{
+		Txn: txn,
+		K:   k,
+	}
+	mock.lockGetBlock.Lock()
+	mock.calls.GetBlock = append(mock.calls.GetBlock, callInfo)
+	mock.lockGetBlock.Unlock()
+	return mock.GetBlockFunc(txn, k)
+}
+
+// GetBlockCalls gets all the calls that were made to GetBlock.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.GetBlockCalls())
+func (mock *moqStoreServiceMock) GetBlockCalls() []struct {
+	Txn *badger.Txn
+	K   cid.Cid
+} {
+	var calls []struct {
+		Txn *badger.Txn
+		K   cid.Cid
+	}
+	mock.lockGetBlock.RLock()
+	calls = mock.calls.GetBlock
+	mock.lockGetBlock.RUnlock()
+	return calls
+}
+
+// GetIndexLogs calls GetIndexLogsFunc.
+func (mock *moqStoreServiceMock) GetIndexLogs(txn *badger.Txn) ([]lightfilenodestore.IndexLog, error) {
+	if mock.GetIndexLogsFunc == nil {
+		panic("moqStoreServiceMock.GetIndexLogsFunc: method is nil but moqStoreService.GetIndexLogs was just called")
+	}
+	callInfo := struct {
+		Txn *badger.Txn
+	}{
+		Txn: txn,
+	}
+	mock.lockGetIndexLogs.Lock()
+	mock.calls.GetIndexLogs = append(mock.calls.GetIndexLogs, callInfo)
+	mock.lockGetIndexLogs.Unlock()
+	return mock.GetIndexLogsFunc(txn)
+}
+
+// GetIndexLogsCalls gets all the calls that were made to GetIndexLogs.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.GetIndexLogsCalls())
+func (mock *moqStoreServiceMock) GetIndexLogsCalls() []struct {
+	Txn *badger.Txn
+} {
+	var calls []struct {
+		Txn *badger.Txn
+	}
+	mock.lockGetIndexLogs.RLock()
+	calls = mock.calls.GetIndexLogs
+	mock.lockGetIndexLogs.RUnlock()
+	return calls
+}
+
+// GetIndexSnapshot calls GetIndexSnapshotFunc.
+func (mock *moqStoreServiceMock) GetIndexSnapshot(txn *badger.Txn) ([]byte, error) {
+	if mock.GetIndexSnapshotFunc == nil {
+		panic("moqStoreServiceMock.GetIndexSnapshotFunc: method is nil but moqStoreService.GetIndexSnapshot was just called")
+	}
+	callInfo := struct {
+		Txn *badger.Txn
+	}{
+		Txn: txn,
+	}
+	mock.lockGetIndexSnapshot.Lock()
+	mock.calls.GetIndexSnapshot = append(mock.calls.GetIndexSnapshot, callInfo)
+	mock.lockGetIndexSnapshot.Unlock()
+	return mock.GetIndexSnapshotFunc(txn)
+}
+
+// GetIndexSnapshotCalls gets all the calls that were made to GetIndexSnapshot.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.GetIndexSnapshotCalls())
+func (mock *moqStoreServiceMock) GetIndexSnapshotCalls() []struct {
+	Txn *badger.Txn
+} {
+	var calls []struct {
+		Txn *badger.Txn
+	}
+	mock.lockGetIndexSnapshot.RLock()
+	calls = mock.calls.GetIndexSnapshot
+	mock.lockGetIndexSnapshot.RUnlock()
+	return calls
+}
+
+// Init calls InitFunc.
+func (mock *moqStoreServiceMock) Init(a *app.App) error {
+	if mock.InitFunc == nil {
+		panic("moqStoreServiceMock.InitFunc: method is nil but moqStoreService.Init was just called")
+	}
+	callInfo := struct {
+		A *app.App
+	}{
+		A: a,
+	}
+	mock.lockInit.Lock()
+	mock.calls.Init = append(mock.calls.Init, callInfo)
+	mock.lockInit.Unlock()
+	return mock.InitFunc(a)
+}
+
+// InitCalls gets all the calls that were made to Init.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.InitCalls())
+func (mock *moqStoreServiceMock) InitCalls() []struct {
+	A *app.App
+} {
+	var calls []struct {
+		A *app.App
+	}
+	mock.lockInit.RLock()
+	calls = mock.calls.Init
+	mock.lockInit.RUnlock()
+	return calls
+}
+
+// Name calls NameFunc.
+func (mock *moqStoreServiceMock) Name() string {
+	if mock.NameFunc == nil {
+		panic("moqStoreServiceMock.NameFunc: method is nil but moqStoreService.Name was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockName.Lock()
+	mock.calls.Name = append(mock.calls.Name, callInfo)
+	mock.lockName.Unlock()
+	return mock.NameFunc()
+}
+
+// NameCalls gets all the calls that were made to Name.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.NameCalls())
+func (mock *moqStoreServiceMock) NameCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockName.RLock()
+	calls = mock.calls.Name
+	mock.lockName.RUnlock()
+	return calls
+}
+
+// PushIndexLog calls PushIndexLogFunc.
+func (mock *moqStoreServiceMock) PushIndexLog(txn *badger.Txn, logData []byte) error {
+	if mock.PushIndexLogFunc == nil {
+		panic("moqStoreServiceMock.PushIndexLogFunc: method is nil but moqStoreService.PushIndexLog was just called")
+	}
+	callInfo := struct {
+		Txn     *badger.Txn
+		LogData []byte
+	}{
+		Txn:     txn,
+		LogData: logData,
+	}
+	mock.lockPushIndexLog.Lock()
+	mock.calls.PushIndexLog = append(mock.calls.PushIndexLog, callInfo)
+	mock.lockPushIndexLog.Unlock()
+	return mock.PushIndexLogFunc(txn, logData)
+}
+
+// PushIndexLogCalls gets all the calls that were made to PushIndexLog.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.PushIndexLogCalls())
+func (mock *moqStoreServiceMock) PushIndexLogCalls() []struct {
+	Txn     *badger.Txn
+	LogData []byte
+} {
+	var calls []struct {
+		Txn     *badger.Txn
+		LogData []byte
+	}
+	mock.lockPushIndexLog.RLock()
+	calls = mock.calls.PushIndexLog
+	mock.lockPushIndexLog.RUnlock()
+	return calls
+}
+
+// PutBlock calls PutBlockFunc.
+func (mock *moqStoreServiceMock) PutBlock(txn *badger.Txn, block blocks.Block) error {
+	if mock.PutBlockFunc == nil {
+		panic("moqStoreServiceMock.PutBlockFunc: method is nil but moqStoreService.PutBlock was just called")
+	}
+	callInfo := struct {
+		Txn   *badger.Txn
+		Block blocks.Block
+	}{
+		Txn:   txn,
+		Block: block,
+	}
+	mock.lockPutBlock.Lock()
+	mock.calls.PutBlock = append(mock.calls.PutBlock, callInfo)
+	mock.lockPutBlock.Unlock()
+	return mock.PutBlockFunc(txn, block)
+}
+
+// PutBlockCalls gets all the calls that were made to PutBlock.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.PutBlockCalls())
+func (mock *moqStoreServiceMock) PutBlockCalls() []struct {
+	Txn   *badger.Txn
+	Block blocks.Block
+} {
+	var calls []struct {
+		Txn   *badger.Txn
+		Block blocks.Block
+	}
+	mock.lockPutBlock.RLock()
+	calls = mock.calls.PutBlock
+	mock.lockPutBlock.RUnlock()
+	return calls
+}
+
+// Run calls RunFunc.
+func (mock *moqStoreServiceMock) Run(ctx context.Context) error {
+	if mock.RunFunc == nil {
+		panic("moqStoreServiceMock.RunFunc: method is nil but moqStoreService.Run was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockRun.Lock()
+	mock.calls.Run = append(mock.calls.Run, callInfo)
+	mock.lockRun.Unlock()
+	return mock.RunFunc(ctx)
+}
+
+// RunCalls gets all the calls that were made to Run.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.RunCalls())
+func (mock *moqStoreServiceMock) RunCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockRun.RLock()
+	calls = mock.calls.Run
+	mock.lockRun.RUnlock()
+	return calls
+}
+
+// SaveIndexSnapshot calls SaveIndexSnapshotFunc.
+func (mock *moqStoreServiceMock) SaveIndexSnapshot(txn *badger.Txn, data []byte) error {
+	if mock.SaveIndexSnapshotFunc == nil {
+		panic("moqStoreServiceMock.SaveIndexSnapshotFunc: method is nil but moqStoreService.SaveIndexSnapshot was just called")
+	}
+	callInfo := struct {
+		Txn  *badger.Txn
+		Data []byte
+	}{
+		Txn:  txn,
+		Data: data,
+	}
+	mock.lockSaveIndexSnapshot.Lock()
+	mock.calls.SaveIndexSnapshot = append(mock.calls.SaveIndexSnapshot, callInfo)
+	mock.lockSaveIndexSnapshot.Unlock()
+	return mock.SaveIndexSnapshotFunc(txn, data)
+}
+
+// SaveIndexSnapshotCalls gets all the calls that were made to SaveIndexSnapshot.
+// Check the length with:
+//
+//	len(mockedmoqStoreService.SaveIndexSnapshotCalls())
+func (mock *moqStoreServiceMock) SaveIndexSnapshotCalls() []struct {
+	Txn  *badger.Txn
+	Data []byte
+} {
+	var calls []struct {
+		Txn  *badger.Txn
+		Data []byte
+	}
+	mock.lockSaveIndexSnapshot.RLock()
+	calls = mock.calls.SaveIndexSnapshot
+	mock.lockSaveIndexSnapshot.RUnlock()
 	return calls
 }
 

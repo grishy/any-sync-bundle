@@ -20,7 +20,7 @@ import (
 type testFixture struct {
 	app       *app.App
 	srvConfig *configServiceMock
-	srvStore  *lightfilenodestore.StoreServiceMock
+	srvStore  *moqStoreServiceMock
 	srvIndex  *lightfileindex
 }
 
@@ -44,7 +44,7 @@ func newTestFixture(t *testing.T) *testFixture {
 			InitFunc:                         func(a *app.App) error { return nil },
 			NameFunc:                         func() string { return "config" },
 		},
-		srvStore: &lightfilenodestore.StoreServiceMock{
+		srvStore: &moqStoreServiceMock{
 			InitFunc: func(a *app.App) error {
 				return nil
 			},
@@ -56,13 +56,6 @@ func newTestFixture(t *testing.T) *testFixture {
 			},
 			CloseFunc: func(ctx context.Context) error {
 				return nil
-			},
-			// Default for tests
-			TxViewFunc: func(f func(txn *badger.Txn) error) error {
-				return f(nil)
-			},
-			TxUpdateFunc: func(f func(txn *badger.Txn) error) error {
-				return f(nil)
 			},
 			PushIndexLogFunc: func(txn *badger.Txn, logData []byte) error {
 				require.NotEmpty(t, logData)

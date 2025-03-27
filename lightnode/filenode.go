@@ -1,4 +1,4 @@
-package filenode
+package lightnode
 
 import (
 	"github.com/anyproto/any-sync-filenode/account"
@@ -24,26 +24,27 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 
 	"github.com/grishy/any-sync-bundle/lightcmp/lightconfig"
+	"github.com/grishy/any-sync-bundle/lightcmp/lightdb"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenoderpc"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightnodeconf"
-	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
-func NewApp(cfg *config.Config, fileDir string) *app.App {
+func NewLightFileNode(cfg *config.Config) *app.App {
 	lCfg := &lightconfig.LightConfig{
-		Account:          cfg.Account,
-		Network:          cfg.Network,
-		ListenTCPAddr:    cfg.Yamux.ListenAddrs,
-		ListenUDPAddr:    cfg.Quic.ListenAddrs,
-		FilenodeStoreDir: "./data/filenode_store",
+		Account:       cfg.Account,
+		Network:       cfg.Network,
+		ListenTCPAddr: cfg.Yamux.ListenAddrs,
+		ListenUDPAddr: cfg.Quic.ListenAddrs,
+		DBPath:        "./data/filenode_db",
 	}
 
 	a := new(app.App).
 		Register(lCfg).
 		Register(lightnodeconf.New()).
 		Register(lightfilenodeindex.New()).
+		Register(lightdb.New()).
 		Register(lightfilenodestore.New()).
 		Register(lightfilenoderpc.New()).
 		// Original components
@@ -62,8 +63,8 @@ func NewApp(cfg *config.Config, fileDir string) *app.App {
 	return a
 }
 
-func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
-	lightnode.MustMkdirAll(cfg.NetworkStorePath)
+func NewFileNode(cfg *config.Config, fileDir string) *app.App {
+	MustMkdirAll(cfg.NetworkStorePath)
 
 	a := new(app.App).
 		Register(cfg).

@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.5
 // 	protoc        v5.29.3
-// source: store.proto
+// source: index.proto
 
 package indexpb
 
@@ -35,7 +35,7 @@ type CidEntry struct {
 
 func (x *CidEntry) Reset() {
 	*x = CidEntry{}
-	mi := &file_store_proto_msgTypes[0]
+	mi := &file_index_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -47,7 +47,7 @@ func (x *CidEntry) String() string {
 func (*CidEntry) ProtoMessage() {}
 
 func (x *CidEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_store_proto_msgTypes[0]
+	mi := &file_index_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -233,7 +233,7 @@ type GroupEntry struct {
 
 func (x *GroupEntry) Reset() {
 	*x = GroupEntry{}
-	mi := &file_store_proto_msgTypes[1]
+	mi := &file_index_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -245,7 +245,7 @@ func (x *GroupEntry) String() string {
 func (*GroupEntry) ProtoMessage() {}
 
 func (x *GroupEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_store_proto_msgTypes[1]
+	mi := &file_index_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -504,7 +504,7 @@ type SpaceEntry struct {
 
 func (x *SpaceEntry) Reset() {
 	*x = SpaceEntry{}
-	mi := &file_store_proto_msgTypes[2]
+	mi := &file_index_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -516,7 +516,7 @@ func (x *SpaceEntry) String() string {
 func (*SpaceEntry) ProtoMessage() {}
 
 func (x *SpaceEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_store_proto_msgTypes[2]
+	mi := &file_index_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +759,7 @@ type FileEntry struct {
 
 func (x *FileEntry) Reset() {
 	*x = FileEntry{}
-	mi := &file_store_proto_msgTypes[3]
+	mi := &file_index_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -771,7 +771,7 @@ func (x *FileEntry) String() string {
 func (*FileEntry) ProtoMessage() {}
 
 func (x *FileEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_store_proto_msgTypes[3]
+	mi := &file_index_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -909,7 +909,7 @@ type Store struct {
 
 func (x *Store) Reset() {
 	*x = Store{}
-	mi := &file_store_proto_msgTypes[4]
+	mi := &file_index_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -921,7 +921,7 @@ func (x *Store) String() string {
 func (*Store) ProtoMessage() {}
 
 func (x *Store) ProtoReflect() protoreflect.Message {
-	mi := &file_store_proto_msgTypes[4]
+	mi := &file_index_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1033,10 +1033,10 @@ func (b0 Store_builder) Build() *Store {
 	return m0
 }
 
-var File_store_proto protoreflect.FileDescriptor
+var File_index_proto protoreflect.FileDescriptor
 
-var file_store_proto_rawDesc = string([]byte{
-	0x0a, 0x0b, 0x73, 0x74, 0x6f, 0x72, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x07, 0x69,
+var file_index_proto_rawDesc = string([]byte{
+	0x0a, 0x0b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x07, 0x69,
 	0x6e, 0x64, 0x65, 0x78, 0x70, 0x62, 0x22, 0x8c, 0x01, 0x0a, 0x08, 0x43, 0x69, 0x64, 0x45, 0x6e,
 	0x74, 0x72, 0x79, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x04, 0x52, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x12, 0x1e, 0x0a, 0x0a, 0x63, 0x72, 0x65, 0x61, 0x74,
@@ -1099,15 +1099,15 @@ var file_store_proto_rawDesc = string([]byte{
 	0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x70, 0xe8, 0x07,
 })
 
-var file_store_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
-var file_store_proto_goTypes = []any{
+var file_index_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_index_proto_goTypes = []any{
 	(*CidEntry)(nil),   // 0: indexpb.CidEntry
 	(*GroupEntry)(nil), // 1: indexpb.GroupEntry
 	(*SpaceEntry)(nil), // 2: indexpb.SpaceEntry
 	(*FileEntry)(nil),  // 3: indexpb.FileEntry
 	(*Store)(nil),      // 4: indexpb.Store
 }
-var file_store_proto_depIdxs = []int32{
+var file_index_proto_depIdxs = []int32{
 	0, // 0: indexpb.Store.cids:type_name -> indexpb.CidEntry
 	1, // 1: indexpb.Store.groups:type_name -> indexpb.GroupEntry
 	2, // 2: indexpb.Store.spaces:type_name -> indexpb.SpaceEntry
@@ -1119,26 +1119,26 @@ var file_store_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_store_proto_init() }
-func file_store_proto_init() {
-	if File_store_proto != nil {
+func init() { file_index_proto_init() }
+func file_index_proto_init() {
+	if File_index_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_store_proto_rawDesc), len(file_store_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_index_proto_rawDesc), len(file_index_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_store_proto_goTypes,
-		DependencyIndexes: file_store_proto_depIdxs,
-		MessageInfos:      file_store_proto_msgTypes,
+		GoTypes:           file_index_proto_goTypes,
+		DependencyIndexes: file_index_proto_depIdxs,
+		MessageInfos:      file_index_proto_msgTypes,
 	}.Build()
-	File_store_proto = out.File
-	file_store_proto_goTypes = nil
-	file_store_proto_depIdxs = nil
+	File_index_proto = out.File
+	file_index_proto_goTypes = nil
+	file_index_proto_depIdxs = nil
 }
