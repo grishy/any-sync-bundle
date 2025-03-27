@@ -53,6 +53,36 @@ func newTestFixture(t *testing.T) *testFixture {
 	return f
 }
 
+// reusableFixture creates a new fixture that reuses the database from an existing fixture.
+// This simulates restarting the app with the same underlying database.
+func reusableFixture(t *testing.T, sourceFixture *testFixture) *testFixture {
+	t.Helper()
+
+	newFixture := &testFixture{
+		app: new(app.App),
+		srvCfg: &configServiceMock{
+			dbStore: sourceFixture.srvCfg.dbStore, // Reuse the same DB directory
+		},
+		srvDB:    lightdb.New(),
+		srvStore: New(),
+	}
+
+	newFixture.app.
+		Register(newFixture.srvCfg).
+		Register(newFixture.srvDB).
+		Register(newFixture.srvStore)
+
+	require.NoError(t, newFixture.app.Start(context.TODO()))
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, newFixture.app.Close(ctx))
+	})
+
+	return newFixture
+}
+
 type configServiceMock struct {
 	dbStore string
 }
@@ -275,4 +305,75 @@ func TestDeleteLogGetAfter(t *testing.T) {
 		// Should respect defaultDeleteLogLimit
 		assert.LessOrEqual(t, len(records), defaultDeleteLogLimit)
 	})
+}
+
+func TestDeleteLogIndexOnStart(t *testing.T) {
+	// Create first fixture with initial data
+	fx1 := newTestFixture(t)
+	const recordCount = 5
+
+	// Add records in a single transaction for efficiency
+	recordIds := make([]string, recordCount)
+	err := fx1.srvDB.TxUpdate(func(txn *badger.Txn) error {
+		for i := 0; i < recordCount; i++ {
+			id, err := fx1.srvStore.DeleteLogAdd(
+				txn,
+				fmt.Sprintf("indexSpace%d", i),
+				fmt.Sprintf("indexFileGroup%d", i),
+				coordinatorproto.DeletionLogRecordStatus_Ok,
+			)
+			if err != nil {
+				return err
+			}
+			recordIds[i] = id
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Get highest record ID to verify continuity after restart
+	lastId, err := strconv.ParseUint(recordIds[recordCount-1], 10, 64)
+	require.NoError(t, err)
+
+	// Close first fixture to simulate app shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	require.NoError(t, fx1.app.Close(ctx))
+	cancel()
+
+	// Create second fixture with same database to simulate restart
+	fx2 := reusableFixture(t, fx1)
+
+	// Test index recovery: add new record and verify ID continuity
+	var newId string
+	err = fx2.srvDB.TxUpdate(func(txn *badger.Txn) error {
+		newId, err = fx2.srvStore.DeleteLogAdd(
+			txn,
+			"newSpace",
+			"newFileGroup",
+			coordinatorproto.DeletionLogRecordStatus_RemovePrepare,
+		)
+		return err
+	})
+	require.NoError(t, err)
+
+	// Verify new ID continues from previous highest ID
+	newIdNum, err := strconv.ParseUint(newId, 10, 64)
+	require.NoError(t, err)
+	assert.Greater(t, newIdNum, lastId, "New record ID should continue from previous highest ID")
+
+	// Verify all records are retrievable and correctly sorted
+	var records []DeleteLogRecord
+	err = fx2.srvDB.TxView(func(txn *badger.Txn) error {
+		records, _, err = fx2.srvStore.DeleteLogGetAfter(txn, "", 0)
+		return err
+	})
+	require.NoError(t, err)
+	assert.Len(t, records, recordCount+1, "Should contain all original records plus the new one")
+
+	// Check records are sorted by ID
+	for i := 1; i < len(records); i++ {
+		prevId, _ := strconv.ParseUint(records[i-1].Id, 10, 64)
+		curId, _ := strconv.ParseUint(records[i].Id, 10, 64)
+		assert.Less(t, prevId, curId, "Records should be in ascending ID order")
+	}
 }

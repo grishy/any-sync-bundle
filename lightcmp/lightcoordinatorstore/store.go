@@ -14,6 +14,7 @@ import (
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/coordinator/coordinatorproto"
 	"github.com/dgraph-io/badger/v4"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/grishy/any-sync-bundle/lightcmp/lightcoordinatorstore/storepb"
@@ -124,9 +125,10 @@ func (r *lightcoordinatorstore) Name() (name string) {
 func (r *lightcoordinatorstore) Run(ctx context.Context) error {
 	log.Info("call Run")
 
-	// TODO: Calculate the last index from the database
-	// - delete log
-	// - acl event log
+	// Calculate the last index from the database
+	if err := r.initializeLastIndices(); err != nil {
+		return fmt.Errorf("failed to initialize indices: %w", err)
+	}
 
 	return nil
 }
@@ -157,7 +159,6 @@ func (r *lightcoordinatorstore) DeleteLogAdd(txn *badger.Txn, spaceId, fileGroup
 	r.deleteLastIndex++
 	recordId := fmt.Sprintf("%d", r.deleteLastIndex)
 
-	// Create protobuf record
 	pbRecord := &storepb.DeleteLogRecord{}
 	pbRecord.SetTimestamp(time.Now().UnixNano())
 	pbRecord.SetId(recordId)
@@ -165,18 +166,15 @@ func (r *lightcoordinatorstore) DeleteLogAdd(txn *badger.Txn, spaceId, fileGroup
 	pbRecord.SetSpaceId(spaceId)
 	pbRecord.SetStatus(int32(status))
 
-	// Marshal to bytes
 	data, err := proto.Marshal(pbRecord)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal deletion log record: %w", err)
 	}
 
-	// Create a key for the record
 	var recordIdBytes [8]byte
 	binary.BigEndian.PutUint64(recordIdBytes[:], r.deleteLastIndex)
 	key := buildKey(deleteLog, recordIdBytes[:])
 
-	// Add to database
 	if errTx := txn.Set(key, data); errTx != nil {
 		return "", fmt.Errorf("failed to store deletion log record: %w", errTx)
 	}
@@ -188,7 +186,6 @@ func (r *lightcoordinatorstore) DeleteLogGetAfter(txn *badger.Txn, afterId strin
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	// Apply default or max limit if needed
 	if limit == 0 || limit > defaultDeleteLogLimit {
 		limit = defaultDeleteLogLimit
 	}
@@ -196,24 +193,20 @@ func (r *lightcoordinatorstore) DeleteLogGetAfter(txn *badger.Txn, afterId strin
 	// Add 1 to detect if there are more records
 	fetchLimit := limit + 1
 
-	// Determine start key based on afterId
 	startKey, err := buildDeleteLogStartKey(afterId)
 	if err != nil {
 		return nil, false, err
 	}
 
-	// Prefetch the iterator values for better performance
 	opts := badger.DefaultIteratorOptions
 	opts.PrefetchValues = true
 
 	it := txn.NewIterator(opts)
 	defer it.Close()
 
-	// Pre-allocate the records slice with expected capacity
 	collectedRecords := make([]DeleteLogRecord, 0, fetchLimit)
 	prefixKey := buildKey(deleteLog, nil)
 
-	// Collect records
 	for it.Seek(startKey); it.Valid(); it.Next() {
 		item := it.Item()
 		key := item.Key()
@@ -228,19 +221,16 @@ func (r *lightcoordinatorstore) DeleteLogGetAfter(txn *badger.Txn, afterId strin
 			break
 		}
 
-		// Copy value since it's only valid within this iteration
 		val, errCp := item.ValueCopy(nil)
 		if errCp != nil {
 			return nil, false, fmt.Errorf("failed to copy value: %w", errCp)
 		}
 
-		// Unmarshal protobuf
 		pbRecord := &storepb.DeleteLogRecord{}
 		if errUnm := proto.Unmarshal(val, pbRecord); errUnm != nil {
 			return nil, false, fmt.Errorf("failed to unmarshal deletion log record: %w", errUnm)
 		}
 
-		// Convert to domain model
 		record := DeleteLogRecord{
 			Id:        pbRecord.GetId(),
 			Timestamp: pbRecord.GetTimestamp(),
@@ -252,7 +242,6 @@ func (r *lightcoordinatorstore) DeleteLogGetAfter(txn *badger.Txn, afterId strin
 		collectedRecords = append(collectedRecords, record)
 	}
 
-	// Determine if there are more records than requested
 	size := len(collectedRecords)
 	if size > int(limit) {
 		return collectedRecords[:limit], true, nil
@@ -261,8 +250,6 @@ func (r *lightcoordinatorstore) DeleteLogGetAfter(txn *badger.Txn, afterId strin
 	return collectedRecords, false, nil
 }
 
-// buildDeleteLogStartKey creates the appropriate start key for DeleteLogGetAfter
-// based on whether an afterId was provided
 func buildDeleteLogStartKey(afterId string) ([]byte, error) {
 	if afterId == "" {
 		// Start from the beginning
@@ -292,4 +279,70 @@ func buildKey(keyType string, suffix []byte) []byte {
 	key = append(key, separator...)
 	key = append(key, suffix...)
 	return key
+}
+
+func (r *lightcoordinatorstore) initializeLastIndices() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.deleteLastIndex = 0
+
+	return r.db.TxView(func(txn *badger.Txn) error {
+		maxDeleteIndex, err := findMaxDeleteLogIndex(txn)
+		if err != nil {
+			return err
+		}
+
+		r.deleteLastIndex = maxDeleteIndex
+
+		log.Info("initialized indices",
+			zap.Uint64("deleteLastIndex", r.deleteLastIndex),
+		)
+
+		return nil
+	})
+}
+
+func findMaxDeleteLogIndex(txn *badger.Txn) (uint64, error) {
+	var maxIndex uint64 = 0
+
+	opts := badger.DefaultIteratorOptions
+	opts.PrefetchValues = true
+	opts.Reverse = true
+
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	prefixKey := buildKey(deleteLog, nil)
+
+	// No loop, because we need only need the highest ID (first record),
+	it.Seek(append(prefixKey, 0xFF))
+	if !it.Valid() {
+		// No delete log records found
+		return 0, nil
+	}
+
+	item := it.Item()
+	key := item.Key()
+
+	if !bytes.HasPrefix(key, prefixKey) {
+		return 0, fmt.Errorf("unexpected key: %s", key)
+	}
+
+	// Extract the numeric ID from the key format is prefixCoordinator:deleteLog:<8-byte-uint64>
+	keyParts := bytes.Split(key, []byte(separator))
+	if len(keyParts) < 3 {
+		return 0, fmt.Errorf("malformed key: %s", key)
+	}
+
+	// Get the ID part (last part of the key)
+	idBytes := keyParts[len(keyParts)-1]
+	if len(idBytes) >= 8 {
+		currentId := binary.BigEndian.Uint64(idBytes)
+		if currentId > maxIndex {
+			maxIndex = currentId
+		}
+	}
+
+	return maxIndex, nil
 }

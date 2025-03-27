@@ -194,19 +194,21 @@ func TestLightStoreRunOpenError(t *testing.T) {
 }
 
 func TestStartRunGC(t *testing.T) {
-	// Create a mock DB that implements the dbGC interface
+	done := make(chan struct{})
+	expectedCalls := 4
+
 	mockDB := newMockBadgerDB(t, []error{
-		nil,                 // First call succeeds
-		nil,                 // Second call succeeds
-		nil,                 // Fourth call succeeds
-		badger.ErrNoRewrite, // Fifth call indicates no more files to GC
-		nil,                 // Sixth call succeeds (shouldn't be reached)
-	})
+		nil,                 // 1 call succeeds
+		nil,                 // 2 call succeeds
+		nil,                 // 3 call succeeds
+		badger.ErrNoRewrite, // 4 call indicates no more files to GC
+		nil,                 // 5 shouldn't be reached
+	}, done, expectedCalls)
 
 	// Create a configuration for testing with short durations
 	cfg := storeConfig{
-		gcInterval:    10 * time.Millisecond, // Short interval for testing
-		maxGCDuration: 1000 * time.Millisecond,
+		gcInterval:    10 * time.Millisecond,  // Short interval for testing
+		maxGCDuration: 100 * time.Millisecond, // Shorter to reduce test time
 		gcThreshold:   0.5,
 	}
 
@@ -219,28 +221,37 @@ func TestStartRunGC(t *testing.T) {
 		startRunGC(ctx, cfg, mockDB)
 	}()
 
-	// Give it time to process at least one GC cycle
-	time.Sleep(cfg.gcInterval + cfg.gcInterval/2)
+	// Wait for the expected number of calls or timeout
+	select {
+	case <-done:
+		// Expected number of calls reached
+	case <-time.After(cfg.maxGCDuration):
+		t.Fatalf("Test timed out waiting for GC calls")
+	}
+
 	cancel()
 	wg.Wait()
 
-	assert.Equal(t, 4, mockDB.gcCalls)
+	assert.Equal(t, expectedCalls, mockDB.gcCalls)
 }
 
 func TestStartRunGCError(t *testing.T) {
-	// Create a mock DB that implements the dbGC interface
+	// Create a mock DB that implements the dbGC interface with a channel to track calls
+	done := make(chan struct{})
+	expectedCalls := 3
+
 	mockDB := newMockBadgerDB(t, []error{
-		nil,                    // First call succeeds
-		nil,                    // Second call succeeds
-		errors.New("gc error"), // Third call fails
-		nil,                    // Fourth call succeeds (but shouldn't be reached if we stop on error)
-		badger.ErrNoRewrite,    // Fifth call indicates no more files to GC (shouldn't be reached)
-	})
+		nil,                    // 1 call succeeds
+		nil,                    // 2 call succeeds
+		errors.New("gc error"), // 3 call fails
+		nil,                    // 4 call succeeds (but shouldn't be reached if we stop on error)
+		badger.ErrNoRewrite,    // 5 call indicates no more files to GC (shouldn't be reached)
+	}, done, expectedCalls)
 
 	// Create a configuration for testing with short durations
 	cfg := storeConfig{
-		gcInterval:    10 * time.Millisecond, // Short interval for testing
-		maxGCDuration: 1000 * time.Millisecond,
+		gcInterval:    10 * time.Millisecond,  // Short interval for testing
+		maxGCDuration: 100 * time.Millisecond, // Shorter to reduce test time
 		gcThreshold:   0.5,
 	}
 
@@ -253,26 +264,36 @@ func TestStartRunGCError(t *testing.T) {
 		startRunGC(ctx, cfg, mockDB)
 	}()
 
-	// Give it time to process at least one GC cycle
-	time.Sleep(cfg.gcInterval + cfg.gcInterval/2)
+	// Wait for the expected number of calls or timeout
+	select {
+	case <-done:
+		// Expected number of calls reached
+	case <-time.After(cfg.maxGCDuration):
+		t.Fatalf("Test timed out waiting for GC calls")
+	}
+
 	cancel()
 	wg.Wait()
 
-	assert.Equal(t, 3, mockDB.gcCalls)
+	assert.Equal(t, expectedCalls, mockDB.gcCalls)
 }
 
 // mockBadgerDB implements the dbGC interface for testing
 type mockBadgerDB struct {
-	t         *testing.T
-	gcCalls   int
-	gcResults []error
-	mu        sync.Mutex
+	t             *testing.T
+	gcCalls       int
+	gcResults     []error
+	mu            sync.Mutex
+	done          chan struct{}
+	expectedCalls int
 }
 
-func newMockBadgerDB(t *testing.T, gcResults []error) *mockBadgerDB {
+func newMockBadgerDB(t *testing.T, gcResults []error, done chan struct{}, expectedCalls int) *mockBadgerDB {
 	return &mockBadgerDB{
-		t:         t,
-		gcResults: gcResults,
+		t:             t,
+		gcResults:     gcResults,
+		done:          done,
+		expectedCalls: expectedCalls,
 	}
 }
 
@@ -289,6 +310,9 @@ func (m *mockBadgerDB) RunValueLogGC(threshold float64) error {
 		err = errors.New("unexpected gc call")
 	}
 	m.gcCalls++
+	if m.gcCalls == m.expectedCalls {
+		close(m.done)
+	}
 	return err
 }
 
