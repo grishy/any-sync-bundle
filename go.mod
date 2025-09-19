@@ -4,7 +4,6 @@ go 1.25.1
 
 tool (
 	github.com/matryer/moq
-	google.golang.org/protobuf/cmd/protoc-gen-go
 )
 
 // https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/

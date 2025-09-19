@@ -95,11 +95,6 @@ jobs:
       - name: Fix Segmentation fault or QEMU - https://github.com/docker/buildx/issues/1170
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes -c yes
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "32.1"
-
       - run: go mod download
       - run: go install tool
       - run: go generate ./...
