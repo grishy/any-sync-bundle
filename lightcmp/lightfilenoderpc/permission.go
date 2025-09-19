@@ -56,6 +56,9 @@ func (r *lightfilenoderpc) canRead(ctx context.Context, spaceID string) (index.K
 		aclrecordproto.AclUserPermissions_Admin,
 		aclrecordproto.AclUserPermissions_Owner:
 		return storageKey, nil
+	case aclrecordproto.AclUserPermissions_None:
+		// Explicitly handle None permission - no access
+		return storageKey, fileprotoerr.ErrForbidden
 	default:
 		return storageKey, fileprotoerr.ErrForbidden
 	}

@@ -8,18 +8,18 @@ import (
 // to our application logger
 type badgerLogger struct{}
 
-func (b badgerLogger) Errorf(s string, i ...interface{}) {
+func (b badgerLogger) Errorf(s string, i ...any) {
 	log.Error("badger: " + fmt.Sprintf(s, i...))
 }
 
-func (b badgerLogger) Warningf(s string, i ...interface{}) {
+func (b badgerLogger) Warningf(s string, i ...any) {
 	log.Warn("badger: " + fmt.Sprintf(s, i...))
 }
 
-func (b badgerLogger) Infof(s string, i ...interface{}) {
+func (b badgerLogger) Infof(s string, i ...any) {
 	log.Info("badger: " + fmt.Sprintf(s, i...))
 }
 
-func (b badgerLogger) Debugf(s string, i ...interface{}) {
+func (b badgerLogger) Debugf(s string, i ...any) {
 	log.Debug("badger: " + fmt.Sprintf(s, i...))
 }

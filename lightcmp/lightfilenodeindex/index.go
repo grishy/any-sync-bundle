@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -363,10 +364,12 @@ func (i *lightfileindex) FileInfo(key index.Key, fileIds ...string) (result []*f
 	result = make([]*fileproto.FileInfo, 0, len(fileIds))
 	for _, fileId := range fileIds {
 		f := i.getFileEntry(sp, fileId, false)
+		// Ensure safe conversion to uint32
+		cidsCount := min(len(f.cids), math.MaxUint32)
 		result = append(result, &fileproto.FileInfo{
 			FileId:     fileId,
 			UsageBytes: f.sizeBytes,
-			CidsCount:  uint32(len(f.cids)),
+			CidsCount:  uint32(cidsCount), //nolint:gosec // Bounds already checked above
 		})
 	}
 
@@ -483,7 +486,12 @@ func (i *lightfileindex) handleCIDAdd(group *group, space *space, op *indexpb.Ci
 		return ErrInvalidCID
 	}
 
-	size := uint32(op.GetDataSize())
+	// Check for integer overflow before conversion
+	dataSize := op.GetDataSize()
+	if dataSize > math.MaxUint32 {
+		return fmt.Errorf("data size %d exceeds maximum uint32 value", dataSize)
+	}
+	size := uint32(dataSize)
 	b, exists := i.blocksLake[c]
 	if !exists {
 		b = &cidBlock{

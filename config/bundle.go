@@ -102,11 +102,11 @@ func CreateWrite(cfg *CreateOptions) *Config {
 		log.Panic("can't marshal config", zap.Error(err))
 	}
 
-	if err := os.MkdirAll(filepath.Dir(cfg.CfgPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cfg.CfgPath), 0o750); err != nil {
 		log.Panic("can't create config directory", zap.Error(err))
 	}
 
-	if err := os.WriteFile(cfg.CfgPath, createCfgYaml, 0o644); err != nil {
+	if err := os.WriteFile(cfg.CfgPath, createCfgYaml, 0o600); err != nil {
 		log.Panic("can't write config file", zap.Error(err))
 	}
 

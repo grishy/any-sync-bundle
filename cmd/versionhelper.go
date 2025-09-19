@@ -50,9 +50,9 @@ func getHostOS() (string, error) {
 			return "", err
 		}
 
-		for _, line := range strings.Split(string(data), "\n") {
-			if strings.HasPrefix(line, "PRETTY_NAME=") {
-				return strings.Trim(strings.TrimPrefix(line, "PRETTY_NAME="), "\""), nil
+		for line := range strings.SplitSeq(string(data), "\n") {
+			if after, ok := strings.CutPrefix(line, "PRETTY_NAME="); ok {
+				return strings.Trim(after, "\""), nil
 			}
 		}
 
@@ -80,7 +80,7 @@ func getHostMem() (string, error) {
 			return "", err
 		}
 
-		for _, line := range strings.Split(string(data), "\n") {
+		for line := range strings.SplitSeq(string(data), "\n") {
 			if strings.HasPrefix(line, "MemTotal:") {
 				fields := strings.Fields(line)
 				if len(fields) == 3 && fields[2] == "kB" {

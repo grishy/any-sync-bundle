@@ -349,7 +349,7 @@ func (c *lightConsensusRpc) LogWatch(stream consensusproto.DRPCConsensus_LogWatc
 func (c *lightConsensusRpc) broadcast(update *recordUpdate) {
 	var slowWatchers []chan *recordUpdate
 
-	c.watchers.Range(func(key, _ interface{}) bool {
+	c.watchers.Range(func(key, _ any) bool {
 		ch, ok := key.(chan *recordUpdate)
 		if !ok {
 			panic("invalid watcher type: expected chan *recordUpdate")
@@ -392,6 +392,14 @@ func (c *lightConsensusRpc) checkRead(ctx context.Context) (err error) {
 			nodeconf.NodeTypeTree,
 			nodeconf.NodeTypeFile:
 			return nil
+		case nodeconf.NodeTypeConsensus,
+			nodeconf.NodeTypeNamingNode,
+			nodeconf.NodeTypePaymentProcessingNode:
+			// These node types don't have read permissions
+			continue
+		default:
+			// Unknown node type, deny access
+			continue
 		}
 	}
 
@@ -410,6 +418,15 @@ func (c *lightConsensusRpc) checkWrite(ctx context.Context) (err error) {
 		case nodeconf.NodeTypeCoordinator,
 			nodeconf.NodeTypeTree:
 			return nil
+		case nodeconf.NodeTypeConsensus,
+			nodeconf.NodeTypeFile,
+			nodeconf.NodeTypeNamingNode,
+			nodeconf.NodeTypePaymentProcessingNode:
+			// These node types don't have write permissions
+			continue
+		default:
+			// Unknown node type, deny access
+			continue
 		}
 	}
 

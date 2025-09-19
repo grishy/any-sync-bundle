@@ -13,7 +13,7 @@ var log = logger.NewNamed("node")
 func MustMkdirAll(p string) {
 	// TODO: Remove when merged https://github.com/anyproto/any-sync/pull/374
 
-	if err := os.MkdirAll(p, 0o775); err != nil {
+	if err := os.MkdirAll(p, 0o750); err != nil {
 		log.Panic("can't create directory network store", zap.Error(err))
 	}
 }

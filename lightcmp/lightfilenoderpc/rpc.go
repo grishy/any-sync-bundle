@@ -161,6 +161,10 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	)
 
 	dataSize := len(req.Data)
+	if dataSize < 0 {
+		// This should never happen, but check for safety
+		return nil, fmt.Errorf("invalid data size: %d", dataSize)
+	}
 
 	// Check that CID is valid for the data.
 	c, err := cid.Cast(req.Cid)
@@ -204,9 +208,9 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		}
 
 		cidOp := &indexpb.CidAddOperation{}
-		cidOp.SetFileId(req.FileId)
+		cidOp.SetFileId(req.GetFileId())
 		cidOp.SetCid(cidString)
-		cidOp.SetDataSize(uint64(dataSize))
+		cidOp.SetDataSize(uint64(dataSize)) //nolint:gosec // dataSize is from len() which is always non-negative
 
 		op := &indexpb.Operation{}
 		op.SetCidAdd(cidOp)
@@ -309,7 +313,7 @@ func (r *lightfilenoderpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 	}
 
 	bindOp := &indexpb.FileBindOperation{}
-	bindOp.SetFileId(req.FileId)
+	bindOp.SetFileId(req.GetFileId())
 	bindOp.SetCids(cidStrings)
 
 	op := &indexpb.Operation{}
@@ -395,7 +399,7 @@ func (r *lightfilenoderpc) FilesDelete(
 	}
 
 	deleteOp := &indexpb.FileDeleteOperation{}
-	deleteOp.SetFileIds(request.FileIds)
+	deleteOp.SetFileIds(request.GetFileIds())
 
 	op := &indexpb.Operation{}
 	op.SetDeleteFile(deleteOp)
