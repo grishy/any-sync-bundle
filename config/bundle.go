@@ -49,14 +49,14 @@ type NodeShared struct {
 }
 
 type NodeCoordinator struct {
-	NodeShared    `yaml:",inline"`
+	NodeShared `yaml:",inline"`
 
 	MongoConnect  string `yaml:"mongoConnect"`
 	MongoDatabase string `yaml:"mongoDatabase"`
 }
 
 type NodeConsensus struct {
-	NodeShared    `yaml:",inline"`
+	NodeShared `yaml:",inline"`
 
 	MongoConnect  string `yaml:"mongoConnect"`
 	MongoDatabase string `yaml:"mongoDatabase"`
@@ -67,7 +67,7 @@ type Tree struct {
 }
 
 type NodeFile struct {
-	NodeShared   `yaml:",inline"`
+	NodeShared `yaml:",inline"`
 
 	RedisConnect string `yaml:"redisConnect"`
 }

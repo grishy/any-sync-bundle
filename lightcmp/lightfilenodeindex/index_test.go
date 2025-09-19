@@ -994,7 +994,7 @@ func TestFileDeleteWithReferenceTracking(t *testing.T) {
 
 		// Check initial state.
 		initialGroupInfo := f.srvIndex.GroupInfo(key1.GroupId)
-		require.Len(t, initialGroupInfo.Spaces, 2)         // Both spaces
+		require.Len(t, initialGroupInfo.Spaces, 2)                // Both spaces
 		require.Equal(t, 1, int(initialGroupInfo.TotalCidsCount)) // One unique CID
 
 		// Delete file in first space.
