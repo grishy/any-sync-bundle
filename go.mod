@@ -2,9 +2,7 @@ module github.com/grishy/any-sync-bundle
 
 go 1.25.1
 
-tool (
-	github.com/matryer/moq
-)
+tool github.com/matryer/moq
 
 // https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
 // "1757347920": {
