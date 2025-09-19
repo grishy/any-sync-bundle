@@ -101,7 +101,10 @@ func (r *lightfilenoderpc) Close(ctx context.Context) error {
 
 // BlockGet returns block data by CID
 // It does not check permissions, just returns the block data, if it exists
-func (r *lightfilenoderpc) BlockGet(ctx context.Context, req *fileproto.BlockGetRequest) (*fileproto.BlockGetResponse, error) {
+func (r *lightfilenoderpc) BlockGet(
+	ctx context.Context,
+	req *fileproto.BlockGetRequest,
+) (*fileproto.BlockGetResponse, error) {
 	log.InfoCtx(ctx, "BlockGet",
 		zap.String("spaceId", req.SpaceId),
 		zap.Strings("cid", cidsToStrings(req.Cid)),
@@ -223,7 +226,10 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 }
 
 // BlocksCheck checks if the given CIDs exist in the space or in general in storage.
-func (r *lightfilenoderpc) BlocksCheck(ctx context.Context, request *fileproto.BlocksCheckRequest) (*fileproto.BlocksCheckResponse, error) {
+func (r *lightfilenoderpc) BlocksCheck(
+	ctx context.Context,
+	request *fileproto.BlocksCheckRequest,
+) (*fileproto.BlocksCheckResponse, error) {
 	log.InfoCtx(ctx, "BlocksCheck",
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("cids", cidsToStrings(request.Cids...)),
@@ -321,7 +327,10 @@ func (r *lightfilenoderpc) BlocksBind(ctx context.Context, req *fileproto.Blocks
 }
 
 // FilesInfo returns information about a file in the space.
-func (r *lightfilenoderpc) FilesInfo(ctx context.Context, req *fileproto.FilesInfoRequest) (*fileproto.FilesInfoResponse, error) {
+func (r *lightfilenoderpc) FilesInfo(
+	ctx context.Context,
+	req *fileproto.FilesInfoRequest,
+) (*fileproto.FilesInfoResponse, error) {
 	log.InfoCtx(ctx, "FilesInfo",
 		zap.String("spaceId", req.SpaceId),
 		zap.Strings("fileIds", req.FileIds),
@@ -344,7 +353,10 @@ func (r *lightfilenoderpc) FilesInfo(ctx context.Context, req *fileproto.FilesIn
 }
 
 // FilesGet returns a stream of file IDs in the space.
-func (r *lightfilenoderpc) FilesGet(request *fileproto.FilesGetRequest, stream fileproto.DRPCFile_FilesGetStream) error {
+func (r *lightfilenoderpc) FilesGet(
+	request *fileproto.FilesGetRequest,
+	stream fileproto.DRPCFile_FilesGetStream,
+) error {
 	ctx := stream.Context()
 	log.InfoCtx(ctx, "FilesGet", zap.String("spaceId", request.SpaceId))
 
@@ -368,7 +380,10 @@ func (r *lightfilenoderpc) FilesGet(request *fileproto.FilesGetRequest, stream f
 }
 
 // FilesDelete removes a list of files from the space.
-func (r *lightfilenoderpc) FilesDelete(ctx context.Context, request *fileproto.FilesDeleteRequest) (*fileproto.FilesDeleteResponse, error) {
+func (r *lightfilenoderpc) FilesDelete(
+	ctx context.Context,
+	request *fileproto.FilesDeleteRequest,
+) (*fileproto.FilesDeleteResponse, error) {
 	log.InfoCtx(ctx, "FilesDelete",
 		zap.String("spaceId", request.SpaceId),
 		zap.Strings("fileIds", request.FileIds),
@@ -407,7 +422,10 @@ func (r *lightfilenoderpc) Check(ctx context.Context, _ *fileproto.CheckRequest)
 }
 
 // SpaceInfo returns information about the space.
-func (r *lightfilenoderpc) SpaceInfo(ctx context.Context, request *fileproto.SpaceInfoRequest) (*fileproto.SpaceInfoResponse, error) {
+func (r *lightfilenoderpc) SpaceInfo(
+	ctx context.Context,
+	request *fileproto.SpaceInfoRequest,
+) (*fileproto.SpaceInfoResponse, error) {
 	log.InfoCtx(ctx, "SpaceInfo",
 		zap.String("spaceId", request.SpaceId),
 	)
@@ -422,7 +440,10 @@ func (r *lightfilenoderpc) SpaceInfo(ctx context.Context, request *fileproto.Spa
 }
 
 // AccountInfo returns information about the account/group.
-func (r *lightfilenoderpc) AccountInfo(ctx context.Context, req *fileproto.AccountInfoRequest) (*fileproto.AccountInfoResponse, error) {
+func (r *lightfilenoderpc) AccountInfo(
+	ctx context.Context,
+	req *fileproto.AccountInfoRequest,
+) (*fileproto.AccountInfoResponse, error) {
 	log.InfoCtx(ctx, "AccountInfo")
 
 	identity, err := peer.CtxPubKey(ctx)
@@ -438,7 +459,10 @@ func (r *lightfilenoderpc) AccountInfo(ctx context.Context, req *fileproto.Accou
 
 // AccountLimitSet sets the account/group storage limit.
 // NOTE: Logic is changed for self-hosted version
-func (r *lightfilenoderpc) AccountLimitSet(ctx context.Context, request *fileproto.AccountLimitSetRequest) (*fileproto.Ok, error) {
+func (r *lightfilenoderpc) AccountLimitSet(
+	ctx context.Context,
+	request *fileproto.AccountLimitSetRequest,
+) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "AccountLimitSet",
 		zap.String("identity", request.Identity),
 		zap.Uint64("limit", request.Limit),
@@ -453,7 +477,10 @@ func (r *lightfilenoderpc) AccountLimitSet(ctx context.Context, request *filepro
 }
 
 // SpaceLimitSet sets the space storage limit.
-func (r *lightfilenoderpc) SpaceLimitSet(ctx context.Context, request *fileproto.SpaceLimitSetRequest) (*fileproto.Ok, error) {
+func (r *lightfilenoderpc) SpaceLimitSet(
+	ctx context.Context,
+	request *fileproto.SpaceLimitSetRequest,
+) (*fileproto.Ok, error) {
 	log.InfoCtx(ctx, "SpaceLimitSet",
 		zap.String("spaceId", request.SpaceId),
 		zap.Uint64("limit", request.Limit),

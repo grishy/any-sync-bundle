@@ -99,7 +99,10 @@ func (c *lightConsensusRpc) Close(ctx context.Context) error {
 // Component RPC
 //
 
-func (c *lightConsensusRpc) LogAdd(ctx context.Context, req *consensusproto.LogAddRequest) (resp *consensusproto.Ok, err error) {
+func (c *lightConsensusRpc) LogAdd(
+	ctx context.Context,
+	req *consensusproto.LogAddRequest,
+) (resp *consensusproto.Ok, err error) {
 	log.InfoCtx(ctx, "call LogAdd",
 		zap.String("logId", req.LogId),
 		zap.String("recordId", req.Record.Id),
@@ -132,7 +135,10 @@ func (c *lightConsensusRpc) LogAdd(ctx context.Context, req *consensusproto.LogA
 	return okResp, nil
 }
 
-func (c *lightConsensusRpc) LogDelete(ctx context.Context, req *consensusproto.LogDeleteRequest) (resp *consensusproto.Ok, err error) {
+func (c *lightConsensusRpc) LogDelete(
+	ctx context.Context,
+	req *consensusproto.LogDeleteRequest,
+) (resp *consensusproto.Ok, err error) {
 	log.InfoCtx(ctx, "call LogDelete", zap.String("request", req.String()))
 
 	if err = c.checkWrite(ctx); err != nil {
@@ -145,7 +151,10 @@ func (c *lightConsensusRpc) LogDelete(ctx context.Context, req *consensusproto.L
 	return okResp, nil
 }
 
-func (c *lightConsensusRpc) RecordAdd(ctx context.Context, req *consensusproto.RecordAddRequest) (resp *consensusproto.RawRecordWithId, err error) {
+func (c *lightConsensusRpc) RecordAdd(
+	ctx context.Context,
+	req *consensusproto.RecordAddRequest,
+) (resp *consensusproto.RawRecordWithId, err error) {
 	log.InfoCtx(ctx, "call RecordAdd", zap.String("request", req.String()))
 
 	if err = c.checkWrite(ctx); err != nil {

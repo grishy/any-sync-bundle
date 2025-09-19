@@ -50,7 +50,11 @@ func cmdConfigBundle() *cli.Command {
 			// Prevent accidental config overwrite
 			if !forceOverwrite {
 				if _, err := os.Stat(cfgPath); err == nil {
-					return fmt.Errorf("configuration file already exists at '%s', use --%s to overwrite", cfgPath, fForce)
+					return fmt.Errorf(
+						"configuration file already exists at '%s', use --%s to overwrite",
+						cfgPath,
+						fForce,
+					)
 				}
 			}
 

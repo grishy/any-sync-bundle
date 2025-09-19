@@ -130,13 +130,23 @@ func TestCidAddOperation(t *testing.T) {
 
 		// Verify space info was updated
 		spaceInfo := f.srvIndex.SpaceInfo(key)
-		require.Equal(t, len(b.RawData()), int(spaceInfo.TotalUsageBytes), "Space usage bytes should match cidBlock size")
+		require.Equal(
+			t,
+			len(b.RawData()),
+			int(spaceInfo.TotalUsageBytes),
+			"Space usage bytes should match cidBlock size",
+		)
 		require.Equal(t, 1, int(spaceInfo.CidsCount))
 		require.Equal(t, 1, int(spaceInfo.FilesCount))
 
 		// Verify group statistics were updated
 		groupInfo := f.srvIndex.GroupInfo(key.GroupId)
-		require.Equal(t, len(b.RawData()), int(groupInfo.TotalUsageBytes), "Group usage bytes should match cidBlock size")
+		require.Equal(
+			t,
+			len(b.RawData()),
+			int(groupInfo.TotalUsageBytes),
+			"Group usage bytes should match cidBlock size",
+		)
 		require.Equal(t, 1, int(groupInfo.TotalCidsCount))
 	})
 
@@ -292,17 +302,32 @@ func TestCidAddOperation(t *testing.T) {
 		fileInfos := f.srvIndex.FileInfo(key, fileId)
 		require.Len(t, fileInfos, 1)
 		require.Equal(t, 2, int(fileInfos[0].CidsCount))
-		require.Equal(t, len(b1.RawData())+len(b2.RawData()), int(fileInfos[0].UsageBytes), "File usage should be sum of both blocks")
+		require.Equal(
+			t,
+			len(b1.RawData())+len(b2.RawData()),
+			int(fileInfos[0].UsageBytes),
+			"File usage should be sum of both blocks",
+		)
 
 		// Verify space info shows correct counts
 		spaceInfo := f.srvIndex.SpaceInfo(key)
-		require.Equal(t, len(b1.RawData())+len(b2.RawData()), int(spaceInfo.TotalUsageBytes), "Space should have correct total usage")
+		require.Equal(
+			t,
+			len(b1.RawData())+len(b2.RawData()),
+			int(spaceInfo.TotalUsageBytes),
+			"Space should have correct total usage",
+		)
 		require.Equal(t, 2, int(spaceInfo.CidsCount))
 		require.Equal(t, 1, int(spaceInfo.FilesCount))
 
 		// Verify group info
 		groupInfo := f.srvIndex.GroupInfo(key.GroupId)
-		require.Equal(t, len(b1.RawData())+len(b2.RawData()), int(groupInfo.TotalUsageBytes), "Group should have correct total usage")
+		require.Equal(
+			t,
+			len(b1.RawData())+len(b2.RawData()),
+			int(groupInfo.TotalUsageBytes),
+			"Group should have correct total usage",
+		)
 	})
 }
 
@@ -685,13 +710,23 @@ func TestReadMethodsAfterBind(t *testing.T) {
 
 	// 3. Test GroupInfo method
 	groupInfo := f.srvIndex.GroupInfo(key.GroupId)
-	require.Equal(t, len(b1.RawData())+len(b2.RawData()), int(groupInfo.TotalUsageBytes), "Group usage count only unique CIDs")
+	require.Equal(
+		t,
+		len(b1.RawData())+len(b2.RawData()),
+		int(groupInfo.TotalUsageBytes),
+		"Group usage count only unique CIDs",
+	)
 	require.Equal(t, 2, int(groupInfo.TotalCidsCount), "Group should have 2 unique CIDs")
 	require.Equal(t, key.SpaceId, groupInfo.Spaces[0].SpaceId, "Group should include the correct space ID")
 
 	// 4. Test SpaceInfo method
 	spaceInfo := f.srvIndex.SpaceInfo(key)
-	require.Equal(t, len(b1.RawData())+len(b2.RawData()), int(spaceInfo.TotalUsageBytes), "Space should count only unique CIDs")
+	require.Equal(
+		t,
+		len(b1.RawData())+len(b2.RawData()),
+		int(spaceInfo.TotalUsageBytes),
+		"Space should count only unique CIDs",
+	)
 	require.Equal(t, 2, int(spaceInfo.CidsCount), "Space should have 2 unique CIDs")
 	require.Equal(t, 3, int(spaceInfo.FilesCount), "Space should have 3 files (temp-file + 2 bind targets)")
 
@@ -808,10 +843,20 @@ func TestReadMethodsAfterMultiBindAndDelete(t *testing.T) {
 
 	require.Equal(t, 2, int(afterSpaceInfo.FilesCount), "Space should have 2 files after deletion")
 	require.Equal(t, 2, int(afterSpaceInfo.CidsCount), "Space should still have 2 unique CIDs")
-	require.Equal(t, totalSize, int(afterSpaceInfo.TotalUsageBytes), "Space should be same, because CIDs used in other file")
+	require.Equal(
+		t,
+		totalSize,
+		int(afterSpaceInfo.TotalUsageBytes),
+		"Space should be same, because CIDs used in other file",
+	)
 
 	require.Equal(t, 2, int(afterGroupInfo.TotalCidsCount), "Group should still have 2 unique CIDs")
-	require.Equal(t, totalSize, int(afterGroupInfo.TotalUsageBytes), "Group usage should be same, because CIDs used in other file")
+	require.Equal(
+		t,
+		totalSize,
+		int(afterGroupInfo.TotalUsageBytes),
+		"Group usage should be same, because CIDs used in other file",
+	)
 
 	// Check files in space
 	files := f.srvIndex.SpaceFiles(key)
