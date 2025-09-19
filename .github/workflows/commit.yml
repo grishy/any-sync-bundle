@@ -30,24 +30,23 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Check on all supported GitHub Actions OS
     # https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+    # https://github.com/actions/runner-images
+    # https://github.com/actions/partner-runner-images
     strategy:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
-          - ubuntu-24.04
           - ubuntu-22.04
-          - ubuntu-20.04
-          - ubuntu-24.04-arm
+          - ubuntu-24.04
           - ubuntu-22.04-arm
-          - windows-latest
+          - ubuntu-24.04-arm
           - windows-2022
-          - windows-2019
           - windows-2025
-          - macos-latest
+          - windows-11-arm
+          - macos-13
           - macos-14
           - macos-15
-          - macos-13
+          - macos-26
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
