@@ -18,20 +18,20 @@ const (
 var log = logger.NewNamed("light." + CName)
 
 type LightConfig struct {
-	// Global
+	// Global.
 	Account       commonaccount.Config
 	Network       nodeconf.Configuration
 	ListenTCPAddr []string
 	ListenUDPAddr []string
-	// Consensus
+	// Consensus.
 	ConsensusDBPath string
-	// Filenode
+	// Filenode.
 	FilenodeStoreDir          string
 	FilenodeDefaultLimitBytes uint64
 }
 
 //
-// App Component
+// App Component.
 //
 
 func (c *LightConfig) Init(a *app.App) error {
@@ -45,7 +45,7 @@ func (c *LightConfig) Name() (name string) {
 }
 
 //
-// Component
+// Component.
 //
 
 func (c *LightConfig) GetDrpc() rpc.Config {
@@ -87,7 +87,7 @@ func (c *LightConfig) GetQuic() quic.Config {
 }
 
 //
-// Custom
+// Custom.
 //
 
 func (c *LightConfig) GetConsensusDBPath() string {

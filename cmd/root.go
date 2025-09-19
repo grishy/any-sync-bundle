@@ -8,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// Build-time version information
+// Build-time version information.
 var (
 	version = "dev"
 	commit  = "none"
@@ -19,7 +19,7 @@ const (
 	appName = "any-sync-bundle"
 )
 
-// Global CLI flags
+// Global CLI flags.
 const (
 	fGlobalIsDbg             = "debug"
 	fGlobalStoragePath       = "storage"
@@ -32,13 +32,13 @@ const (
 
 var log = logger.NewNamed("cli")
 
-// Root returns the main CLI application with all commands and flags configured
+// Root returns the main CLI application with all commands and flags configured.
 func Root(ctx context.Context) *cli.App {
 	cli.VersionPrinter = versionPrinter
 
-	// Any-sync package, used in network communication but just for info
+	// Any-sync package, used in network communication but just for info.
 	// Yes, this is global between all instances of the app...
-	// TODO: Create issue to avoid global app and use app instance instead
+	// TODO: Create issue to avoid global app and use app instance instead.
 	app.AppName = appName
 	app.GitSummary = version
 	app.GitCommit = commit

@@ -20,7 +20,7 @@ type testFixture struct {
 func newTestFixture(t *testing.T) *testFixture {
 	t.Helper()
 
-	// Create mock node configuration
+	// Create mock node configuration.
 	nodes := []nodeconf.Node{
 		{
 			PeerId:    "peer1",
@@ -43,7 +43,7 @@ func newTestFixture(t *testing.T) *testFixture {
 		Nodes: nodes,
 	}
 
-	// Create config service mock
+	// Create config service mock.
 	cfgMock := &cfgSrvMock{
 		GetNodeConfFunc: func() nodeconf.Configuration {
 			return mockConfig
@@ -56,7 +56,7 @@ func newTestFixture(t *testing.T) *testFixture {
 		},
 	}
 
-	// Create and init app
+	// Create and init app.
 	a := new(app.App)
 	service := New().(*lightNodeconf)
 
@@ -158,7 +158,7 @@ func TestUnimplementedMethods(t *testing.T) {
 	fx := newTestFixture(t)
 	defer fx.cleanup(t)
 
-	// Test that unimplemented methods panic as expected
+	// Test that unimplemented methods panic as expected.
 	assert.Panics(t, func() { fx.service.CHash() })
 	assert.Panics(t, func() { fx.service.Configuration() })
 	assert.Panics(t, func() { fx.service.Id() })
@@ -170,7 +170,7 @@ func TestUnimplementedMethods(t *testing.T) {
 	assert.Panics(t, func() { fx.service.PaymentProcessingNodePeers() })
 }
 
-// Mock implementation of the cfgSrv interface
+// Mock implementation of the cfgSrv interface.
 type cfgSrvMock struct {
 	GetNodeConfFunc func() nodeconf.Configuration
 	InitFunc        func(a *app.App) error

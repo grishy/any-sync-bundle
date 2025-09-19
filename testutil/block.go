@@ -9,7 +9,7 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-// TODO: Replace with original function from Anytype after fixing the issue on Windowns
+// TODO: Replace with original function from Anytype after fixing the issue on Windowns.
 // https://github.com/anyproto/any-sync-filenode/issues/142
 
 func NewRandSpaceId() string {

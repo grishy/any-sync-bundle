@@ -47,7 +47,7 @@ func cmdConfigBundle() *cli.Command {
 			externalAddrs := cCtx.StringSlice(fGlobalInitExternalAddrs)
 			forceOverwrite := cCtx.Bool(fForce)
 
-			// Prevent accidental config overwrite
+			// Prevent accidental config overwrite.
 			if !forceOverwrite {
 				if _, err := os.Stat(cfgPath); err == nil {
 					return fmt.Errorf(
@@ -65,7 +65,7 @@ func cmdConfigBundle() *cli.Command {
 				zap.Strings("external_addrs", externalAddrs),
 			)
 
-			// Create and write bundle configuration
+			// Create and write bundle configuration.
 			cfg := bundleCfg.CreateWrite(&bundleCfg.CreateOptions{
 				CfgPath:       cfgPath,
 				StorePath:     storagePath,
@@ -94,7 +94,7 @@ func cmdConfigClient() *cli.Command {
 				zap.String("client_config", clientCfgPath),
 			)
 
-			// Generate and write client configuration
+			// Generate and write client configuration.
 			bundleConfig := bundleCfg.Load(bundleCfgPath)
 			clientCfgData, err := bundleConfig.YamlClientConfig()
 			if err != nil {

@@ -53,10 +53,10 @@ func startAction(ctx context.Context) cli.ActionFunc {
 
 		printWelcomeMsg()
 
-		// Load or create bundle configuration
+		// Load or create bundle configuration.
 		bundleCfg := loadOrCreateConfig(cCtx, log)
 
-		// Create client configuration if not exists
+		// Create client configuration if not exists.
 		if _, err := os.Stat(clientCfgPath); err != nil {
 			log.Warn("client configuration not found, creating new one")
 			yamlData, err := bundleCfg.YamlClientConfig()
@@ -79,7 +79,7 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			}
 		}
 
-		// Initialize nodes' instances
+		// Initialize nodes' instances.
 		cfgNodes := bundleCfg.NodeConfigs()
 
 		apps := []node{
@@ -107,7 +107,7 @@ func startAction(ctx context.Context) cli.ActionFunc {
 
 		printStartupMsg()
 
-		// Wait for shutdown signal
+		// Wait for shutdown signal.
 		<-ctx.Done()
 
 		shutdownServices(apps)

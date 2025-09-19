@@ -226,7 +226,7 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 
-		require.Equal(t, 1, len(capturedOps))
+		require.Len(t, capturedOps, 1)
 
 		cidAddOp := capturedOps[0].GetCidAdd()
 		require.NotNil(t, cidAddOp)
@@ -351,7 +351,7 @@ func TestLightFileNodeRpc_BlockPush(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		// Simulate permission denied
+		// Simulate permission denied.
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
 		resp, err := fx.rpcSrv.BlockPush(ctx, &fileproto.BlockPushRequest{
@@ -401,15 +401,15 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 		require.NotNil(t, resp)
 		require.Len(t, resp.BlocksAvailability, len(bs))
 
-		// First block exists in space
+		// First block exists in space.
 		require.Equal(t, fileproto.AvailabilityStatus_ExistsInSpace, resp.BlocksAvailability[0].Status)
 		require.Equal(t, bs[0].Cid().Bytes(), resp.BlocksAvailability[0].Cid)
 
-		// Second block exists but not in space
+		// Second block exists but not in space.
 		require.Equal(t, fileproto.AvailabilityStatus_Exists, resp.BlocksAvailability[1].Status)
 		require.Equal(t, bs[1].Cid().Bytes(), resp.BlocksAvailability[1].Cid)
 
-		// Third block does not exist
+		// Third block does not exist.
 		require.Equal(t, fileproto.AvailabilityStatus_NotExists, resp.BlocksAvailability[2].Status)
 		require.Equal(t, bs[2].Cid().Bytes(), resp.BlocksAvailability[2].Cid)
 	})
@@ -470,7 +470,7 @@ func TestLightFileNodeRpc_BlocksCheck(t *testing.T) {
 
 		resp, err := fx.rpcSrv.BlocksCheck(ctx, &fileproto.BlocksCheckRequest{
 			SpaceId: storeKey.SpaceId,
-			// Send same CID twice
+			// Send same CID twice.
 			Cids: [][]byte{b.Cid().Bytes(), b.Cid().Bytes()},
 		})
 
@@ -504,7 +504,7 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 			return fileproto.SpaceInfoResponse{}
 		}
 
-		// Prepare CIDs for request
+		// Prepare CIDs for request.
 		cids := make([][]byte, 0, len(bs))
 		cidStrings := make([]string, 0, len(bs))
 		for _, b := range bs {
@@ -518,7 +518,7 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 
 		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
-			require.Equal(t, 1, len(operations))
+			require.Len(t, operations, 1)
 			capturedOp = operations[0]
 			return nil
 		}
@@ -532,13 +532,13 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 
-		// Verify the operation was correct
+		// Verify the operation was correct.
 		bindOp := capturedOp.GetBindFile()
 		require.NotNil(t, bindOp)
 		require.Equal(t, fileId, bindOp.GetFileId())
-		require.Equal(t, len(bs), len(bindOp.GetCids()))
+		require.Len(t, bindOp.GetCids(), len(bs))
 
-		// Verify all CIDs were included in the operation
+		// Verify all CIDs were included in the operation.
 		cidMap := make(map[string]bool)
 		for _, cidStr := range cidStrings {
 			cidMap[cidStr] = true
@@ -575,7 +575,7 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 
 		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
-			require.Equal(t, 1, len(operations))
+			require.Len(t, operations, 1)
 			capturedOp = operations[0]
 			return nil
 		}
@@ -592,7 +592,7 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 		bindOp := capturedOp.GetBindFile()
 		require.NotNil(t, bindOp)
 		require.Equal(t, fileId, bindOp.GetFileId())
-		require.Equal(t, 1, len(bindOp.GetCids()), "Should have deduplicated the CIDs")
+		require.Len(t, bindOp.GetCids(), 1, "Should have deduplicated the CIDs")
 		require.Equal(t, b.Cid().String(), bindOp.GetCids()[0])
 	})
 
@@ -636,7 +636,7 @@ func TestLightFileNodeRpc_BlocksBind(t *testing.T) {
 			b             = testutil.NewRandBlock(1024)
 		)
 
-		// Simulate permission denied
+		// Simulate permission denied.
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
 		resp, err := fx.rpcSrv.BlocksBind(ctx, &fileproto.BlocksBindRequest{
@@ -736,7 +736,7 @@ func TestLightFileNodeRpc_FilesInfo(t *testing.T) {
 
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(mustPubKey(ctx), nil)
 
-		// Mock file info response
+		// Mock file info response.
 		expectedInfos := make([]*fileproto.FileInfo, len(fileIds))
 		for i, fileId := range fileIds {
 			expectedInfos[i] = &fileproto.FileInfo{
@@ -790,7 +790,7 @@ func TestLightFileNodeRpc_FilesInfo(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, storeKey := newRandKey()
 
-		// Create a slice of file IDs that exceeds the limit
+		// Create a slice of file IDs that exceeds the limit.
 		fileIds := make([]string, 2000)
 		for i := range fileIds {
 			fileIds[i] = testutil.NewRandCid().String()
@@ -816,7 +816,7 @@ func TestLightFileNodeRpc_FilesInfo(t *testing.T) {
 			}
 		)
 
-		// Simulate permission denied
+		// Simulate permission denied.
 		fx.aclSrv.EXPECT().OwnerPubKey(ctx, storeKey.SpaceId).Return(nil, fileprotoerr.ErrForbidden)
 
 		resp, err := fx.rpcSrv.FilesInfo(ctx, &fileproto.FilesInfoRequest{
@@ -861,7 +861,7 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 		}, stream)
 
 		require.NoError(t, err)
-		require.Equal(t, len(fileIds), len(stream.received))
+		require.Len(t, stream.received, len(fileIds))
 
 		for i, resp := range stream.received {
 			require.Equal(t, fileIds[i], resp.FileId)
@@ -880,7 +880,7 @@ func TestLightFileNodeRpc_FilesGet(t *testing.T) {
 			return []string{}
 		}
 
-		// Create a mock stream for testing
+		// Create a mock stream for testing.
 		stream := &mockFilesGetStream{
 			ctx:      ctx,
 			received: make([]*fileproto.FilesGetResponse, 0),
@@ -979,7 +979,7 @@ func TestLightFileNodeRpc_FilesDelete(t *testing.T) {
 
 		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
-			require.Equal(t, 1, len(operations))
+			require.Len(t, operations, 1)
 			capturedOp = operations[0]
 			return nil
 		}
@@ -1018,7 +1018,7 @@ func TestLightFileNodeRpc_FilesDelete(t *testing.T) {
 
 		fx.indexSrv.ModifyFunc = func(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) error {
 			require.Equal(t, storeKey, key)
-			require.Equal(t, 1, len(operations))
+			require.Len(t, operations, 1)
 			capturedOp = operations[0]
 			return nil
 		}
@@ -1178,7 +1178,7 @@ func TestLightFileNodeRpc_AccountInfo(t *testing.T) {
 		defer fx.Finish(t)
 		ctx, _ := newRandKey()
 
-		// Get the actual public key from context
+		// Get the actual public key from context.
 		ctxPubKey, err := peer.CtxPubKey(ctx)
 		require.NoError(t, err)
 		groupId := ctxPubKey.Account()
@@ -1309,7 +1309,7 @@ func newFixture(t *testing.T) *fixture {
 			CloseFunc: func(ctx context.Context) error {
 				return nil
 			},
-			// Default for tests
+			// Default for tests.
 			TxViewFunc: func(f func(txn *badger.Txn) error) error {
 				return f(nil)
 			},

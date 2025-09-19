@@ -23,21 +23,21 @@ import (
 
 const CName = "light.consensus.rpc"
 
-// TODO: Maybe use original RPC and just implement Database Interface
+// TODO: Maybe use original RPC and just implement Database Interface.
 var (
 	log    = logger.NewNamed(CName)
 	okResp = &consensusproto.Ok{}
 )
 
 type dbSrv interface {
-	// AddLog adds new log db
+	// AddLog adds new log db.
 	AddLog(ctx context.Context, log consensus.Log) (err error)
-	// DeleteLog deletes the log
+	// DeleteLog deletes the log.
 	DeleteLog(ctx context.Context, logId string) error
-	// AddRecord adds new record to existing log
+	// AddRecord adds new record to existing log.
 	// returns consensuserr.ErrConflict if record didn't match or log not found
 	AddRecord(ctx context.Context, logId string, record consensus.Record) (err error)
-	// FetchLog gets log by id
+	// FetchLog gets log by id.
 	FetchLog(ctx context.Context, logId string) (log consensus.Log, err error)
 }
 
@@ -60,7 +60,7 @@ func New() *lightConsensusRpc {
 }
 
 //
-// App Component
+// App Component.
 //
 
 func (c *lightConsensusRpc) Init(a *app.App) error {
@@ -79,13 +79,13 @@ func (c *lightConsensusRpc) Name() (name string) {
 }
 
 //
-// App Component Runnable
+// App Component Runnable.
 //
 
 func (c *lightConsensusRpc) Run(_ context.Context) error {
 	log.Info("call Run")
 
-	// TODO: Create a ticket to move call of this in original code to the Run stage, to avoid call any logic in Init
+	// TODO: Create a ticket to move call of this in original code to the Run stage, to avoid call any logic in Init.
 	return consensusproto.DRPCRegisterConsensus(c.dRPC, c)
 }
 
@@ -207,7 +207,7 @@ func (c *lightConsensusRpc) RecordAdd(
 		return
 	}
 
-	// Add broadcast for LogWatch
+	// Add broadcast for LogWatch.
 	c.broadcast(&recordUpdate{
 		logId:  req.LogId,
 		record: record,
@@ -219,9 +219,9 @@ func (c *lightConsensusRpc) RecordAdd(
 	}, nil
 }
 
-// LogWatch watches for new records in the log
-// Receive: logIDs that need to be watched or unwatched
-// Send: initially all records for logID and records that will be added to the selected log in the future
+// LogWatch watches for new records in the log.
+// Receive: logIDs that need to be watched or unwatched.
+// Send: initially all records for logID and records that will be added to the selected log in the future.
 func (c *lightConsensusRpc) LogWatch(stream consensusproto.DRPCConsensus_LogWatchStream) error {
 	log.Info("call LogWatch")
 
@@ -294,7 +294,7 @@ func (c *lightConsensusRpc) LogWatch(stream consensusproto.DRPCConsensus_LogWatc
 		return nil
 	}
 
-	// Start watch request handler
+	// Start watch request handler.
 	go func() {
 		for {
 			select {
@@ -316,7 +316,7 @@ func (c *lightConsensusRpc) LogWatch(stream consensusproto.DRPCConsensus_LogWatc
 		}
 	}()
 
-	// Main update loop
+	// Main update loop.
 	for {
 		select {
 		case <-ctx.Done():
@@ -331,7 +331,7 @@ func (c *lightConsensusRpc) LogWatch(stream consensusproto.DRPCConsensus_LogWatc
 			watchMu.RUnlock()
 
 			if !watching {
-				// Not related update for us
+				// Not related update for us.
 				continue
 			}
 
@@ -343,7 +343,7 @@ func (c *lightConsensusRpc) LogWatch(stream consensusproto.DRPCConsensus_LogWatc
 }
 
 //
-// Helper from original code
+// Helper from original code.
 //
 
 func (c *lightConsensusRpc) broadcast(update *recordUpdate) {

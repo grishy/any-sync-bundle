@@ -22,7 +22,7 @@ import (
 const CName = "light.filenode.store"
 
 const (
-	// Key prefixes and structure
+	// Key prefixes and structure.
 	prefixFileNode        = "fn"
 	separator             = ":"
 	blockType             = "b"
@@ -30,19 +30,19 @@ const (
 	logType               = "l"
 	currentSnapshotSuffix = "current"
 
-	// GC configuration
+	// GC configuration.
 	defaultGCInterval    = 29 * time.Hour // Prime number to avoid alignment
 	defaultMaxGCDuration = time.Minute
 	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
 )
 
 var (
-	// Type assertion
+	// Type assertion.
 	_ StoreService = (*lightFileNodeStore)(nil)
 
 	log = logger.NewNamed(CName)
 
-	// Errors
+	// Errors.
 	ErrNoSnapshot    = errors.New("no index snapshot found")
 	ErrBlockNotFound = errors.New("block not found")
 	ErrInvalidKey    = errors.New("invalid key format")
@@ -53,31 +53,31 @@ type configService interface {
 	GetFilenodeStoreDir() string
 }
 
-// StoreService defines operations for persistent storage
-// NOTE: Perfectly we should have a separate badger.Txn to interface
+// StoreService defines operations for persistent storage.
+// NOTE: Perfectly we should have a separate badger.Txn to interface.
 type StoreService interface {
 	app.ComponentRunnable
 
-	// Transaction operations
+	// Transaction operations.
 	TxView(f func(txn *badger.Txn) error) error
 	TxUpdate(f func(txn *badger.Txn) error) error
 
-	// Block operations
+	// Block operations.
 	GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error)
 	PutBlock(txn *badger.Txn, block blocks.Block) error
 	DeleteBlock(txn *badger.Txn, c cid.Cid) error
 
-	// Index snapshot operations
+	// Index snapshot operations.
 	GetIndexSnapshot(txn *badger.Txn) ([]byte, error)
 	SaveIndexSnapshot(txn *badger.Txn, data []byte) error
 
-	// Index log operations
+	// Index log operations.
 	GetIndexLogs(txn *badger.Txn) ([]IndexLog, error)
 	DeleteIndexLogs(txn *badger.Txn, idxs []uint64) error
 	PushIndexLog(txn *badger.Txn, logData []byte) error
 }
 
-// IndexLog represents a single WAL entry for index changes
+// IndexLog represents a single WAL entry for index changes.
 type IndexLog struct {
 	Idx  uint64
 	Data []byte
@@ -94,7 +94,7 @@ type lightFileNodeStore struct {
 	cfg    storeConfig
 	db     *badger.DB
 
-	// TODO: Implement atomic counter for log index, do not calculate on every push
+	// TODO: Implement atomic counter for log index, do not calculate on every push.
 	// currentIndex atomic.Uint64
 }
 
@@ -289,7 +289,7 @@ func (s *lightFileNodeStore) getNextLogIndex(txn *badger.Txn) (uint64, error) {
 	it := txn.NewIterator(opts)
 	defer it.Close()
 
-	// Start with index 1 if no existing items
+	// Start with index 1 if no existing items.
 	idx := uint64(1)
 
 	it.Seek(append(prefix, 0xFF))

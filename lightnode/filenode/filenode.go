@@ -46,9 +46,9 @@ func NewApp(cfg *config.Config, fileDir string) *app.App {
 		Register(lightfilenodeindex.New()).
 		Register(lightfilenodestore.New()).
 		Register(lightfilenoderpc.New()).
-		// Original components
+		// Original components.
 		Register(account.New()).
-		// TODO: Use direct call for all clients
+		// TODO: Use direct call for all clients.
 		Register(coordinatorclient.New()).
 		Register(consensusclient.New()).
 		Register(acl.New()).
@@ -78,8 +78,8 @@ func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
 		Register(coordinatorclient.New()).
 		Register(consensusclient.New()).
 		Register(acl.New()).
-		// Register(store()). // Original component replaced with storeBadger
-		// TODO: Path is not working
+		// Register(store()). // Original component replaced with storeBadger.
+		// TODO: Path is not working.
 		Register(lightfilenodestore.New()). // Bundle component
 		Register(redisprovider.New()).
 		Register(index.New()).

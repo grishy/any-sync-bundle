@@ -39,7 +39,7 @@ func (r *lightfilenoderpc) canRead(ctx context.Context, spaceID string) (index.K
 		return storageKey, fmt.Errorf("failed to get identity: %w", err)
 	}
 
-	// Owner has full permissions
+	// Owner has full permissions.
 	if identity.Account() == storageKey.GroupId {
 		return storageKey, nil
 	}
@@ -49,7 +49,7 @@ func (r *lightfilenoderpc) canRead(ctx context.Context, spaceID string) (index.K
 		return storageKey, fmt.Errorf("failed to get permissions: %w", err)
 	}
 
-	// TODO: Create a PR to add CanRead to any-sync
+	// TODO: Create a PR to add CanRead to any-sync.
 	switch aclrecordproto.AclUserPermissions(permissions) {
 	case aclrecordproto.AclUserPermissions_Reader,
 		aclrecordproto.AclUserPermissions_Writer,
@@ -73,7 +73,7 @@ func (r *lightfilenoderpc) canWrite(ctx context.Context, spaceID string) (index.
 			return fmt.Errorf("failed to get identity: %w", errKey)
 		}
 
-		// Owner has full permissions
+		// Owner has full permissions.
 		if identity.Account() == storageKey.GroupId {
 			return nil
 		}
@@ -105,7 +105,7 @@ func (r *lightfilenoderpc) hasEnoughSpace(storageKey index.Key) error {
 	group := r.srvIndex.GroupInfo(storageKey.GroupId)
 	space := r.srvIndex.SpaceInfo(storageKey)
 
-	// For non-isolated spaces, check space-specific limit first
+	// For non-isolated spaces, check space-specific limit first.
 	if spaceLimit := space.LimitBytes; spaceLimit > 0 {
 		if group.TotalUsageBytes >= spaceLimit {
 			return fileprotoerr.ErrSpaceLimitExceeded
@@ -113,7 +113,7 @@ func (r *lightfilenoderpc) hasEnoughSpace(storageKey index.Key) error {
 		return nil
 	}
 
-	// For isolated spaces, check group limit
+	// For isolated spaces, check group limit.
 	if group.TotalUsageBytes >= group.LimitBytes {
 		return fileprotoerr.ErrSpaceLimitExceeded
 	}

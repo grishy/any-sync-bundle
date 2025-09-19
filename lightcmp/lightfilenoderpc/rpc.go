@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	// Type assertion
+	// Type assertion.
 	_ fileproto.DRPCFileServer = (*lightfilenoderpc)(nil)
 
 	log = logger.NewNamed(CName)
@@ -65,7 +65,7 @@ func New() *lightfilenoderpc {
 }
 
 //
-// App Component
+// App Component.
 //
 
 func (r *lightfilenoderpc) Init(a *app.App) error {
@@ -84,7 +84,7 @@ func (r *lightfilenoderpc) Name() (name string) {
 }
 
 //
-// App Component Runnable
+// App Component Runnable.
 //
 
 func (r *lightfilenoderpc) Run(ctx context.Context) error {
@@ -96,11 +96,11 @@ func (r *lightfilenoderpc) Close(ctx context.Context) error {
 }
 
 //
-// Component methods
+// Component methods.
 //
 
 // BlockGet returns block data by CID
-// It does not check permissions, just returns the block data, if it exists
+// It does not check permissions, just returns the block data, if it exists.
 func (r *lightfilenoderpc) BlockGet(
 	ctx context.Context,
 	req *fileproto.BlockGetRequest,
@@ -162,7 +162,7 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 
 	dataSize := len(req.Data)
 
-	// Check that CID is valid for the data
+	// Check that CID is valid for the data.
 	c, err := cid.Cast(req.Cid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cast CID: %w", err)
@@ -177,7 +177,7 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 		return nil, fileprotoerr.ErrQuerySizeExceeded
 	}
 
-	// Check that the block data checksum matches the provided checksum
+	// Check that the block data checksum matches the provided checksum.
 	chkc, err := c.Prefix().Sum(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate block data checksum: %w", err)
@@ -195,7 +195,7 @@ func (r *lightfilenoderpc) BlockPush(ctx context.Context, req *fileproto.BlockPu
 	cidString := c.String()
 
 	errTx := r.srvStore.TxUpdate(func(txn *badger.Txn) error {
-		// Check if CID exists before storing to avoid duplicate storage
+		// Check if CID exists before storing to avoid duplicate storage.
 		hadCid := r.srvIndex.HadCID(c)
 		if !hadCid {
 			if errPush := r.srvStore.PutBlock(txn, blk); errPush != nil {
@@ -249,7 +249,7 @@ func (r *lightfilenoderpc) BlocksCheck(
 			return nil, fmt.Errorf("failed to cast CID='%s': %w", string(rawCid), errCast)
 		}
 
-		// Skip duplicates
+		// Skip duplicates.
 		if _, exists := seen[c]; exists {
 			continue
 		}
@@ -458,7 +458,7 @@ func (r *lightfilenoderpc) AccountInfo(
 }
 
 // AccountLimitSet sets the account/group storage limit.
-// NOTE: Logic is changed for self-hosted version
+// NOTE: Logic is changed for self-hosted version.
 func (r *lightfilenoderpc) AccountLimitSet(
 	ctx context.Context,
 	request *fileproto.AccountLimitSetRequest,
@@ -468,7 +468,7 @@ func (r *lightfilenoderpc) AccountLimitSet(
 		zap.Uint64("limit", request.Limit),
 	)
 
-	// Because we are using self-hosted version, we simplify the logic here
+	// Because we are using self-hosted version, we simplify the logic here.
 	// We don't have payment system, so we can't set account limit,
 	// and we don't have any option from Anytype to set account limit.
 	// It may be implemented in the future, but for now we just return error.

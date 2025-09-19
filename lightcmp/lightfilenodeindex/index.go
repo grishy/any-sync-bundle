@@ -1,8 +1,8 @@
 //go:generate moq -fmt gofumpt -rm -out index_mock.go . configService IndexService
 package lightfilenodeindex
 
-// Only public methods should lock the mutex
-// All private methods assume the mutex is already locked
+// Only public methods should lock the mutex.
+// All private methods assume the mutex is already locked.
 
 import (
 	"context"
@@ -24,8 +24,8 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
-// TODO: Implement restore on start from badger
-// TODO: Implement log compaction
+// TODO: Implement restore on start from badger.
+// TODO: Implement log compaction.
 
 const (
 	CName = "light.filenode.index"
@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	// Type assertion
+	// Type assertion.
 	_ IndexService = (*lightfileindex)(nil)
 
 	log = logger.NewNamed(CName)
@@ -47,11 +47,11 @@ type configService interface {
 	GetFilenodeDefaultLimitBytes() uint64
 }
 
-// TODO: Avoid using badger.Txn directly
+// TODO: Avoid using badger.Txn directly.
 type IndexService interface {
 	app.ComponentRunnable
 
-	// Read-only operations
+	// Read-only operations.
 	HasCIDInSpace(key index.Key, k cid.Cid) bool
 	HadCID(k cid.Cid) bool
 	GroupInfo(groupId string) fileproto.AccountInfoResponse
@@ -59,7 +59,7 @@ type IndexService interface {
 	SpaceFiles(key index.Key) []string
 	FileInfo(key index.Key, fileIds ...string) []*fileproto.FileInfo
 
-	// Modify operation - the only method that can modify the index
+	// Modify operation - the only method that can modify the index.
 	Modify(txn *badger.Txn, key index.Key, query ...*indexpb.Operation) error
 }
 
@@ -110,6 +110,7 @@ type lightfileindex struct {
 	defaultLimitBytes uint64
 
 	sync.RWMutex
+
 	groups     map[string]*group
 	blocksLake map[cid.Cid]*cidBlock
 }
@@ -119,7 +120,7 @@ func New() *lightfileindex {
 }
 
 //
-// App Component
+// App Component.
 //
 
 func (i *lightfileindex) Init(a *app.App) error {
@@ -136,7 +137,7 @@ func (i *lightfileindex) Name() (name string) {
 }
 
 //
-// App Component Runnable
+// App Component Runnable.
 //
 
 func (i *lightfileindex) Run(ctx context.Context) error {
@@ -159,10 +160,10 @@ func (i *lightfileindex) Close(_ context.Context) error {
 }
 
 //
-// Component methods
+// Component methods.
 //
 
-// HasCIDInSpace checks if a CID exists in a specific space
+// HasCIDInSpace checks if a CID exists in a specific space.
 func (i *lightfileindex) HasCIDInSpace(key index.Key, k cid.Cid) (exists bool) {
 	defer func(start time.Time) {
 		log.Info("HasCIDInSpace",
@@ -196,7 +197,7 @@ func (i *lightfileindex) HasCIDInSpace(key index.Key, k cid.Cid) (exists bool) {
 	return false
 }
 
-// HadCID checks if a CID exists anywhere in the index
+// HadCID checks if a CID exists anywhere in the index.
 func (i *lightfileindex) HadCID(k cid.Cid) (exists bool) {
 	defer func(start time.Time) {
 		log.Info("HadCID",
@@ -388,7 +389,7 @@ func (i *lightfileindex) getFileEntry(space *space, fileId string, saveCreated b
 	return
 }
 
-// Modify applies operations to modify the index
+// Modify applies operations to modify the index.
 func (i *lightfileindex) Modify(txn *badger.Txn, key index.Key, operations ...*indexpb.Operation) (err error) {
 	defer func(start time.Time) {
 		log.Info("Modify",
@@ -528,17 +529,17 @@ func (i *lightfileindex) handleBindFile(group *group, space *space, op *indexpb.
 	fileId := op.GetFileId()
 	cids := op.GetCids()
 
-	// Get or create the file entry
+	// Get or create the file entry.
 	fileEntry := i.getFileEntry(space, fileId, true)
 
-	// Process each CID in the bind operation
+	// Process each CID in the bind operation.
 	for _, cidStr := range cids {
 		c, err := cid.Parse(cidStr)
 		if err != nil {
 			return ErrInvalidCID
 		}
 
-		// Check if the cidBlock exists in the global blocks lake
+		// Check if the cidBlock exists in the global blocks lake.
 		blk, exists := i.blocksLake[c]
 		if !exists {
 			log.Warn("attempted to bind non-existent CID",
@@ -584,7 +585,7 @@ func (i *lightfileindex) handleDeleteFile(group *group, space *space, op *indexp
 			if blk != nil {
 				blk.refCount--
 
-				// Check if this CID is still used by other files in this space
+				// Check if this CID is still used by other files in this space.
 				isStillUsedInSpace := false
 				for _, otherFile := range space.files {
 					if _, used := otherFile.cids[c]; used {
@@ -599,10 +600,10 @@ func (i *lightfileindex) handleDeleteFile(group *group, space *space, op *indexp
 					space.sizeBytes -= uint64(blk.size)
 				}
 
-				// Check if this CID is still used in any space in this group
+				// Check if this CID is still used in any space in this group.
 				isStillUsedInGroup := false
 				if !isStillUsedInSpace {
-					// Only check other spaces if it's not used in the current space
+					// Only check other spaces if it's not used in the current space.
 					for _, sp := range group.spaces {
 						if sp != space { // We already checked the current space
 							for _, otherFile := range sp.files {
@@ -618,7 +619,7 @@ func (i *lightfileindex) handleDeleteFile(group *group, space *space, op *indexp
 						}
 					}
 				} else {
-					// If it's still used in this space, it's definitely still used in the group
+					// If it's still used in this space, it's definitely still used in the group.
 					isStillUsedInGroup = true
 				}
 

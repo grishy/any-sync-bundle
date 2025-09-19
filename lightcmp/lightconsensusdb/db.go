@@ -44,7 +44,7 @@ type lightConsensusDB struct {
 }
 
 //
-// App Component
+// App Component.
 //
 
 func (d *lightConsensusDB) Init(a *app.App) (err error) {
@@ -59,7 +59,7 @@ func (d *lightConsensusDB) Name() (name string) {
 }
 
 //
-// App Component Runnable
+// App Component Runnable.
 //
 
 func (d *lightConsensusDB) Run(ctx context.Context) error {
@@ -72,22 +72,22 @@ func (d *lightConsensusDB) Run(ctx context.Context) error {
 
 	log.Info("sqlite db path", zap.String("dbPath", d.dbPath))
 
-	// Ensure directory exists
+	// Ensure directory exists.
 	if err := os.MkdirAll(filepath.Dir(d.dbPath), 0o700); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Open database connection
+	// Open database connection.
 	db, err := sql.Open("sqlite", d.dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	d.db = db
 
-	// Configure connection pool
+	// Configure connection pool.
 	d.configureConnPool()
 
-	// Configure SQLite settings
+	// Configure SQLite settings.
 	if err := d.configureSQLite(); err != nil {
 		_ = d.db.Close()
 		return fmt.Errorf("failed to configure SQLite: %w", err)
@@ -140,7 +140,7 @@ func (d *lightConsensusDB) Close(ctx context.Context) error {
 }
 
 //
-// Component
+// Component.
 //
 
 func (d *lightConsensusDB) AddLog(ctx context.Context, l consensus.Log) error {
@@ -160,7 +160,7 @@ func (d *lightConsensusDB) AddLog(ctx context.Context, l consensus.Log) error {
 		}
 	}(tx)
 
-	// Check if log already exists
+	// Check if log already exists.
 	var exists bool
 	err = tx.QueryRowContext(ctx, "SELECT 1 FROM logs WHERE id = ?", l.Id).Scan(&exists)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -170,7 +170,7 @@ func (d *lightConsensusDB) AddLog(ctx context.Context, l consensus.Log) error {
 		return consensuserr.ErrLogExists
 	}
 
-	// Insert log
+	// Insert log.
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO logs (id, created_at) VALUES (?, datetime('now'))",
 		l.Id,
@@ -179,7 +179,7 @@ func (d *lightConsensusDB) AddLog(ctx context.Context, l consensus.Log) error {
 		return fmt.Errorf("insert log failed: %w", err)
 	}
 
-	// Insert initial records if any
+	// Insert initial records if any.
 	if len(l.Records) > 0 {
 		stmt, err := tx.PrepareContext(ctx,
 			"INSERT INTO records (id, log_id, prev_id, payload, created_at) VALUES (?, ?, ?, ?, datetime('now'))")
@@ -220,7 +220,7 @@ func (d *lightConsensusDB) DeleteLog(ctx context.Context, logId string) error {
 		}
 	}(tx)
 
-	// Check if log exists before deletion
+	// Check if log exists before deletion.
 	var exists bool
 	err = tx.QueryRowContext(ctx, "SELECT 1 FROM logs WHERE id = ?", logId).Scan(&exists)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -230,7 +230,7 @@ func (d *lightConsensusDB) DeleteLog(ctx context.Context, logId string) error {
 		return consensuserr.ErrLogNotFound
 	}
 
-	// Delete the log (records will be automatically deleted due to ON DELETE CASCADE)
+	// Delete the log (records will be automatically deleted due to ON DELETE CASCADE).
 	_, err = tx.ExecContext(ctx, "DELETE FROM logs WHERE id = ?", logId)
 	if err != nil {
 		return fmt.Errorf("delete log failed: %w", err)
@@ -264,7 +264,7 @@ func (d *lightConsensusDB) AddRecord(ctx context.Context, logId string, record c
 		}
 	}(tx)
 
-	// Check if log exists
+	// Check if log exists.
 	var exists bool
 	err = tx.QueryRowContext(ctx, "SELECT 1 FROM logs WHERE id = ?", logId).Scan(&exists)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -274,7 +274,7 @@ func (d *lightConsensusDB) AddRecord(ctx context.Context, logId string, record c
 		return consensuserr.ErrConflict
 	}
 
-	// Get the latest record for this log
+	// Get the latest record for this log.
 	var lastRecordId *string
 	err = tx.QueryRowContext(ctx, `
         SELECT id 
@@ -286,13 +286,13 @@ func (d *lightConsensusDB) AddRecord(ctx context.Context, logId string, record c
 		return fmt.Errorf("query last record failed: %w", err)
 	}
 
-	// Check if the record chain is valid
+	// Check if the record chain is valid.
 	if (lastRecordId == nil && record.PrevId != "") ||
 		(lastRecordId != nil && *lastRecordId != record.PrevId) {
 		return consensuserr.ErrConflict
 	}
 
-	// Check if record already exists
+	// Check if record already exists.
 	var recordExists bool
 	err = tx.QueryRowContext(ctx, "SELECT 1 FROM records WHERE id = ?", record.Id).Scan(&recordExists)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -302,7 +302,7 @@ func (d *lightConsensusDB) AddRecord(ctx context.Context, logId string, record c
 		return consensuserr.ErrConflict
 	}
 
-	// Insert the new record
+	// Insert the new record.
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO records (id, log_id, prev_id, payload, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
 		record.Id, logId, record.PrevId, record.Payload)
@@ -336,7 +336,7 @@ func (d *lightConsensusDB) FetchLog(ctx context.Context, logId string) (consensu
 		}
 	}(tx)
 
-	// First check if log exists and get its details
+	// First check if log exists and get its details.
 	var l consensus.Log
 	err = tx.QueryRowContext(ctx, `
         SELECT id 
@@ -349,7 +349,7 @@ func (d *lightConsensusDB) FetchLog(ctx context.Context, logId string) (consensu
 		return consensus.Log{}, fmt.Errorf("query log failed: %w", err)
 	}
 
-	// Fetch all records for this log
+	// Fetch all records for this log.
 	rows, err := tx.QueryContext(ctx, `
         SELECT id, prev_id, payload, created_at 
         FROM records 
@@ -360,7 +360,7 @@ func (d *lightConsensusDB) FetchLog(ctx context.Context, logId string) (consensu
 	}
 	defer rows.Close()
 
-	// Scan all records
+	// Scan all records.
 	l.Records = make([]consensus.Record, 0)
 	for rows.Next() {
 		var record consensus.Record
@@ -382,11 +382,11 @@ func (d *lightConsensusDB) FetchLog(ctx context.Context, logId string) (consensu
 }
 
 //
-// Helper
+// Helper.
 //
 
 func (d *lightConsensusDB) createTables(ctx context.Context) error {
-	// TODO: Add migrations later go-migrate or similar
+	// TODO: Add migrations later go-migrate or similar.
 	schema, err := sqlSchema.ReadFile("schema.sql")
 	if err != nil {
 		return fmt.Errorf("failed to read schema.sql: %w", err)

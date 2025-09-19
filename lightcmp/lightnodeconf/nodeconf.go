@@ -27,7 +27,7 @@ func New() nodeconf.Service {
 }
 
 //
-// App Component
+// App Component.
 //
 
 func (nc *lightNodeconf) Init(a *app.App) error {
@@ -43,7 +43,7 @@ func (nc *lightNodeconf) Name() (name string) {
 }
 
 //
-// App Component Runnable
+// App Component Runnable.
 //
 
 func (nc *lightNodeconf) Run(_ context.Context) error {
@@ -59,11 +59,11 @@ func (nc *lightNodeconf) Close(ctx context.Context) error {
 }
 
 //
-// Component
+// Component.
 //
 
-// NodeTypes returns list of known nodeTypes by nodeId, if node not registered in configuration will return empty list
-// Implemented for secureservice
+// NodeTypes returns list of known nodeTypes by nodeId, if node not registered in configuration will return empty list.
+// Implemented for secureservice.
 func (nc *lightNodeconf) NodeTypes(nodeId string) []nodeconf.NodeType {
 	log.Info("call NodeTypes", zap.String("nodeId", nodeId))
 
@@ -76,8 +76,8 @@ func (nc *lightNodeconf) NodeTypes(nodeId string) []nodeconf.NodeType {
 	return nil
 }
 
-// PeerAddresses returns peer addresses by peer id
-// Implemented for peerservice
+// PeerAddresses returns peer addresses by peer id.
+// Implemented for peerservice.
 func (nc *lightNodeconf) PeerAddresses(peerId string) (addrs []string, ok bool) {
 	log.Info("call PeerAddresses", zap.String("peerId", peerId))
 
@@ -90,8 +90,8 @@ func (nc *lightNodeconf) PeerAddresses(peerId string) (addrs []string, ok bool) 
 	return nil, false
 }
 
-// TODO: Check that this is not called
-// Auto generated code to panic if called
+// TODO: Check that this is not called.
+// Auto generated code to panic if called.
 
 // CHash implements nodeconf.Service.
 func (nc *lightNodeconf) CHash() chash.CHash {

@@ -29,14 +29,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// NodeConfigs holds configuration for all node types in the system
+// NodeConfigs holds configuration for all node types in the system.
 type NodeConfigs struct {
 	Coordinator *coordinatorconfig.Config
 	Consensus   *consensusconfig.Config
 	Filenode    *filenodeconfig.Config
 	Sync        *syncconfig.Config
 
-	// Used for our component and we can't add this into existing configs
+	// Used for our component and we can't add this into existing configs.
 	FilenodeStorePath string
 }
 
@@ -52,7 +52,7 @@ type nodeConfigOpts struct {
 	metricCfg  metric.Config
 }
 
-// NodeConfigs generates configurations for all node types based on the base config
+// NodeConfigs generates configurations for all node types based on the base config.
 func (bc *Config) NodeConfigs() *NodeConfigs {
 	opts := &nodeConfigOpts{
 		pathNetworkStoreCoordinator: filepath.Join(bc.StoragePath, "network-store/coordinator"),
@@ -62,7 +62,7 @@ func (bc *Config) NodeConfigs() *NodeConfigs {
 		pathStorageSync:             filepath.Join(bc.StoragePath, "storage-sync"),
 		pathStorageFilenode:         filepath.Join(bc.StoragePath, "storage-file"),
 		networkCfg:                  bc.networkCfg(),
-		// TODO: Don't turn on metrics
+		// TODO: Don't turn on metrics.
 		// https://github.com/anyproto/any-sync/issues/373
 		metricCfg: metric.Config{},
 	}

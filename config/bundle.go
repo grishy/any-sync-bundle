@@ -1,4 +1,4 @@
-// Package config build on top of https://github.com/anyproto/any-sync-tools/tree/72b131eaf4d6dc299ecf87dad60648e68054b35a/anyconf
+// Package config build on top of https://github.com/anyproto/any-sync-tools/tree/72b131eaf4d6dc299ecf87dad60648e68054b35a/anyconf.
 package config
 
 import (
@@ -50,12 +50,14 @@ type NodeShared struct {
 
 type NodeCoordinator struct {
 	NodeShared    `yaml:",inline"`
+
 	MongoConnect  string `yaml:"mongoConnect"`
 	MongoDatabase string `yaml:"mongoDatabase"`
 }
 
 type NodeConsensus struct {
 	NodeShared    `yaml:",inline"`
+
 	MongoConnect  string `yaml:"mongoConnect"`
 	MongoDatabase string `yaml:"mongoDatabase"`
 }
@@ -66,6 +68,7 @@ type Tree struct {
 
 type NodeFile struct {
 	NodeShared   `yaml:",inline"`
+
 	RedisConnect string `yaml:"redisConnect"`
 }
 
@@ -111,7 +114,7 @@ func CreateWrite(cfg *CreateOptions) *Config {
 }
 
 // newBundleConfig creates a new configuration for any-bundle that contain all info base of which internal services are created
-// Base on https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options
+// Base on https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
 // But docs above are not accurate, so I used also source code as reference...
 func newBundleConfig(cfg *CreateOptions) *Config {
 	cfgId := bson.NewObjectId().Hex()
@@ -123,8 +126,8 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 
 	netId := netKey.GetPublic().Network()
 
-	// Parse MongoDB URI and add w=majority if not already present
-	// Base on Anytype dockercompose version
+	// Parse MongoDB URI and add w=majority if not already present.
+	// Base on Anytype dockercompose version.
 	mongoConsensusURI, err := url.Parse(cfg.MongoURI)
 	if err != nil {
 		log.Panic("invalid mongo URI", zap.Error(err))
@@ -182,7 +185,7 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		},
 	}
 
-	// Base on docs https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options
+	// Base on docs https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
 	// "Signing key of coordinator is private key of the network and sync and file nodes use their peerKey"
 	privNetKey, err := crypto.EncodeKeyToString(netKey)
 	if err != nil {

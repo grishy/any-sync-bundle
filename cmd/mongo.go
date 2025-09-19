@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	// Timeouts for MongoDB operations
+	// Timeouts for MongoDB operations.
 	mongoConnectTimeout    = 10 * time.Second
 	mongoCommandTimeout    = 5 * time.Second
 	mongoStabilizeWaitTime = 5 * time.Second
 
-	// Default MongoDB parameters
+	// Default MongoDB parameters.
 	defaultMongoReplica = "rs0"
 	defaultMongoURI     = "mongodb://127.0.0.1:27017/"
 )
@@ -62,14 +62,14 @@ func cmdMongoInit(ctx context.Context) *cli.Command {
 }
 
 func initReplicaSetAction(ctx context.Context, replica, mongoURI string) error {
-	// For exponential backoff, limit number of attempts
+	// For exponential backoff, limit number of attempts.
 	retryDelays := []int{1, 2, 3, 5, 8, 13, 21, 34, 55, 89}
 
 	log.Info("initializing mongo replica set",
 		zap.String("uri", mongoURI),
 		zap.String("replica", replica))
 
-	// Direct - before we have a replica set, we need it
+	// Direct - before we have a replica set, we need it.
 	clientOpts := options.Client().ApplyURI(mongoURI).SetDirect(true)
 
 	for _, delay := range retryDelays {

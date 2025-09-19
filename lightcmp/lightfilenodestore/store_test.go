@@ -194,7 +194,7 @@ func TestIndexLogOperations(t *testing.T) {
 	})
 
 	t.Run("delete logs", func(t *testing.T) {
-		// Delete middle log
+		// Delete middle log.
 		err := fx.store.TxUpdate(func(txn *badger.Txn) error {
 			return fx.store.DeleteIndexLogs(txn, []uint64{2})
 		})
@@ -205,7 +205,7 @@ func TestIndexLogOperations(t *testing.T) {
 		assert.Equal(t, uint64(1), logs[0].Idx)
 		assert.Equal(t, uint64(3), logs[1].Idx)
 
-		// Delete empty list should not error
+		// Delete empty list should not error.
 		err = fx.store.TxUpdate(func(txn *badger.Txn) error {
 			return fx.store.DeleteIndexLogs(txn, nil)
 		})

@@ -62,7 +62,7 @@ func TestLightFileNodeRpc_canRead(t *testing.T) {
 		ctx := peer.CtxWithIdentity(context.Background(), protoPub)
 		spaceId := testutil.NewRandSpaceId()
 
-		// Get the actual public key from context that will be used in canRead
+		// Get the actual public key from context that will be used in canRead.
 		ctxPubKey, err := peer.CtxPubKey(ctx)
 		require.NoError(t, err)
 
@@ -89,7 +89,7 @@ func TestLightFileNodeRpc_canRead(t *testing.T) {
 		ctx := peer.CtxWithIdentity(context.Background(), protoPub)
 		spaceId := testutil.NewRandSpaceId()
 
-		// Get the actual public key from context that will be used in canRead
+		// Get the actual public key from context that will be used in canRead.
 		ctxPubKey, err := peer.CtxPubKey(ctx)
 		require.NoError(t, err)
 
@@ -138,7 +138,7 @@ func TestLightFileNodeRpc_canWrite(t *testing.T) {
 		ctx := peer.CtxWithIdentity(context.Background(), protoPub)
 		spaceId := testutil.NewRandSpaceId()
 
-		// Get the actual public key from context that will be used in canRead
+		// Get the actual public key from context that will be used in canRead.
 		ctxPubKey, err := peer.CtxPubKey(ctx)
 		require.NoError(t, err)
 
@@ -175,7 +175,7 @@ func TestLightFileNodeRpc_canWrite(t *testing.T) {
 		ctx := peer.CtxWithIdentity(context.Background(), protoPub)
 		spaceId := testutil.NewRandSpaceId()
 
-		// Get the actual public key from context that will be used in canRead
+		// Get the actual public key from context that will be used in canRead.
 		ctxPubKey, err := peer.CtxPubKey(ctx)
 		require.NoError(t, err)
 

@@ -64,7 +64,7 @@ func getHostOS() (string, error) {
 
 		return "macOS", nil
 	default:
-		// I will skip Windows for god sake, if I will see someone using Windows then I will add it
+		// I will skip Windows for god sake, if I will see someone using Windows then I will add it.
 		return runtime.GOOS, nil
 	}
 }
