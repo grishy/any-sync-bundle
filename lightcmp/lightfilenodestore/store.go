@@ -125,6 +125,7 @@ func (s *lightFileNodeStore) Get(ctx context.Context, k cid.Cid) (blocks.Block, 
 		zap.Int("kbytes", len(val)/1024),
 		zap.String("key", k.String()),
 	)
+
 	return blocks.NewBlockWithCid(val, k)
 }
 
@@ -139,27 +140,24 @@ func (s *lightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan b
 
 		err := s.db.View(func(txn *badger.Txn) error {
 			for _, k := range ks {
-				// TODO: Check lateer, not needed in new Go 1.24?
-				k := k // Capture loop variable
-
 				g.Go(func() error {
 					item, err := txn.Get([]byte(k.String()))
 					if err != nil {
 						if !errors.Is(err, badger.ErrKeyNotFound) {
-							log.Info("failed to get block", zap.Error(err), zap.String("key", k.String()))
+							log.Warn("failed to get block", zap.Error(err), zap.String("key", k.String()))
 						}
 						return nil
 					}
 
 					val, err := item.ValueCopy(nil)
 					if err != nil {
-						log.Info("failed to copy block value", zap.Error(err), zap.String("key", k.String()))
+						log.Warn("failed to copy block value", zap.Error(err), zap.String("key", k.String()))
 						return nil
 					}
 
 					bl, err := blocks.NewBlockWithCid(val, k)
 					if err != nil {
-						log.Info("failed to create block", zap.Error(err), zap.String("key", k.String()))
+						log.Warn("failed to create block", zap.Error(err), zap.String("key", k.String()))
 						return nil
 					}
 
@@ -288,6 +286,7 @@ func (s *lightFileNodeStore) IndexGet(ctx context.Context, key string) (value []
 		return nil
 	})
 
+	log.Debug("badger index get", zap.String("key", indexKey))
 	return
 }
 
