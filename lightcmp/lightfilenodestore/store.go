@@ -70,7 +70,7 @@ func New(storePath string) *lightFileNodeStore {
 	}
 }
 
-func (s *lightFileNodeStore) Init(a *app.App) error {
+func (s *lightFileNodeStore) Init(_ *app.App) error {
 	log.Info("initializing light filenode store")
 	return nil
 }
@@ -97,11 +97,11 @@ func (s *lightFileNodeStore) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *lightFileNodeStore) Close(ctx context.Context) error {
+func (s *lightFileNodeStore) Close(_ context.Context) error {
 	return s.db.Close()
 }
 
-func (s *lightFileNodeStore) Get(ctx context.Context, k cid.Cid) (blocks.Block, error) {
+func (s *lightFileNodeStore) Get(_ context.Context, k cid.Cid) (blocks.Block, error) {
 	start := time.Now()
 	var val []byte
 
@@ -182,7 +182,7 @@ func (s *lightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan b
 	return res
 }
 
-func (s *lightFileNodeStore) Add(ctx context.Context, bs []blocks.Block) error {
+func (s *lightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
 	start := time.Now()
 	wb := s.db.NewWriteBatch()
 	defer wb.Cancel()
@@ -216,7 +216,7 @@ func (s *lightFileNodeStore) Add(ctx context.Context, bs []blocks.Block) error {
 	return nil
 }
 
-func (s *lightFileNodeStore) Delete(ctx context.Context, c cid.Cid) error {
+func (s *lightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 	// TODO: Create an issue that no Delete call after clean up of Bin in Anytype.
 	// Check before, that here is no deferred call to Delete
 
@@ -233,7 +233,7 @@ func (s *lightFileNodeStore) Delete(ctx context.Context, c cid.Cid) error {
 	return err
 }
 
-func (s *lightFileNodeStore) DeleteMany(ctx context.Context, toDelete []cid.Cid) error {
+func (s *lightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) error {
 	start := time.Now()
 	wb := s.db.NewWriteBatch()
 	defer wb.Cancel()
@@ -262,7 +262,7 @@ func (s *lightFileNodeStore) DeleteMany(ctx context.Context, toDelete []cid.Cid)
 	return nil
 }
 
-func (s *lightFileNodeStore) IndexGet(ctx context.Context, key string) (value []byte, err error) {
+func (s *lightFileNodeStore) IndexGet(_ context.Context, key string) (value []byte, err error) {
 	indexKey := indexKeyPrefix + key
 
 	err = s.db.View(func(txn *badger.Txn) error {
@@ -291,7 +291,7 @@ func (s *lightFileNodeStore) IndexGet(ctx context.Context, key string) (value []
 }
 
 // IndexPut stores a value in the index with the given key.
-func (s *lightFileNodeStore) IndexPut(ctx context.Context, key string, value []byte) error {
+func (s *lightFileNodeStore) IndexPut(_ context.Context, key string, value []byte) error {
 	indexKey := indexKeyPrefix + key
 
 	err := s.db.Update(func(txn *badger.Txn) error {
@@ -303,7 +303,7 @@ func (s *lightFileNodeStore) IndexPut(ctx context.Context, key string, value []b
 }
 
 // IndexDelete deletes a value from the index with the given key.
-func (s *lightFileNodeStore) IndexDelete(ctx context.Context, key string) error {
+func (s *lightFileNodeStore) IndexDelete(_ context.Context, key string) error {
 	indexKey := indexKeyPrefix + key
 
 	err := s.db.Update(func(txn *badger.Txn) error {

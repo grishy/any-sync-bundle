@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -89,7 +90,7 @@ func initReplicaSetAction(ctx context.Context, replica, mongoURI string) error {
 		time.Sleep(time.Duration(delay) * time.Second)
 	}
 
-	return fmt.Errorf("failed to initialize mongo replica set after all retries")
+	return errors.New("failed to initialize mongo replica set after all retries")
 }
 
 func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, replica string) error {
@@ -165,5 +166,5 @@ func checkReplicaSetStatus(ctx context.Context, client *mongo.Client) error {
 		return nil
 	}
 
-	return fmt.Errorf("replica set is not properly initialized")
+	return errors.New("replica set is not properly initialized")
 }

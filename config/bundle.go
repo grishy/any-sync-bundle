@@ -117,14 +117,14 @@ func CreateWrite(cfg *CreateOptions) *Config {
 // Base on https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
 // But docs above are not accurate, so I used also source code as reference...
 func newBundleConfig(cfg *CreateOptions) *Config {
-	cfgId := bson.NewObjectId().Hex()
+	cfgID := bson.NewObjectId().Hex()
 
 	netKey, _, err := crypto.GenerateRandomEd25519KeyPair()
 	if err != nil {
 		log.Panic("can't generate ed25519 key for network", zap.Error(err))
 	}
 
-	netId := netKey.GetPublic().Network()
+	netID := netKey.GetPublic().Network()
 
 	// Parse MongoDB URI and add w=majority if not already present.
 	// Base on Anytype dockercompose version.
@@ -143,8 +143,8 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		BundleFormat:  1,
 		BundleVersion: app.Version(),
 		ExternalAddr:  cfg.ExternalAddrs,
-		ConfigID:      cfgId,
-		NetworkID:     netId,
+		ConfigID:      cfgID,
+		NetworkID:     netID,
 		StoragePath:   cfg.StorePath,
 		Accounts: Accounts{
 			Coordinator: newAcc(),
