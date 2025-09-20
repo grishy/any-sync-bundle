@@ -22,8 +22,6 @@ import (
 )
 
 func NewConsensusApp(cfg *config.Config) *app.App {
-	MustMkdirAll(cfg.NetworkStorePath)
-
 	a := new(app.App).
 		Register(cfg).
 		Register(account.New()).

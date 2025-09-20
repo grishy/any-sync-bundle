@@ -27,8 +27,6 @@ import (
 )
 
 func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
-	MustMkdirAll(cfg.NetworkStorePath)
-
 	a := new(app.App).
 		Register(cfg).
 		Register(metric.New()).
