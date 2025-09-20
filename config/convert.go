@@ -128,7 +128,7 @@ func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config 
 }
 
 func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
-	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TB in bytes
+	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TiB in bytes
 
 	return &filenodeconfig.Config{
 		Account: bc.Accounts.File,
