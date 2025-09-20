@@ -6,10 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/anyproto/any-sync-filenode/store/s3store"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/commonfile/fileblockstore"
@@ -18,60 +17,31 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 const CName = fileblockstore.CName
 
 const (
-	// Key prefixes and structure.
-	prefixFileNode        = "fn"
-	separator             = ":"
-	blockType             = "b"
-	snapshotType          = "s"
-	logType               = "l"
-	currentSnapshotSuffix = "current"
 
 	// GC configuration.
 	defaultGCInterval    = 29 * time.Hour // Prime number to avoid alignment
 	defaultMaxGCDuration = time.Minute
 	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
+
+	// Number of concurrent block retrievals in GetMany, took from S3 implementation
+	getManyWorkers = 4
+
+	// Prefix for index keys to separate them from block keys
+	indexKeyPrefix = "idx:"
 )
 
 var (
 	// Type assertion.
-	_ StoreService = (*lightFileNodeStore)(nil)
+	_ s3store.S3Store = (*lightFileNodeStore)(nil)
 
 	log = logger.NewNamed(CName)
-
-	// Errors.
-	ErrNoSnapshot    = errors.New("no index snapshot found")
-	ErrBlockNotFound = errors.New("block not found")
-	ErrInvalidKey    = errors.New("invalid key format")
 )
-
-// StoreService defines operations for persistent storage.
-// NOTE: Perfectly we should have a separate badger.Txn to interface.
-type StoreService interface {
-	app.ComponentRunnable
-
-	// Transaction operations.
-	TxView(f func(txn *badger.Txn) error) error
-	TxUpdate(f func(txn *badger.Txn) error) error
-
-	// Block operations.
-	GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error)
-	PutBlock(txn *badger.Txn, block blocks.Block) error
-	DeleteBlock(txn *badger.Txn, c cid.Cid) error
-
-	// Index snapshot operations.
-	GetIndexSnapshot(txn *badger.Txn) ([]byte, error)
-	SaveIndexSnapshot(txn *badger.Txn, data []byte) error
-
-	// Index log operations.
-	GetIndexLogs(txn *badger.Txn) ([]IndexLog, error)
-	DeleteIndexLogs(txn *badger.Txn, idxs []uint64) error
-	PushIndexLog(txn *badger.Txn, logData []byte) error
-}
 
 // IndexLog represents a single WAL entry for index changes.
 type IndexLog struct {
@@ -80,27 +50,25 @@ type IndexLog struct {
 }
 
 type storeConfig struct {
+	storePath     string
 	gcInterval    time.Duration
-	maxGCDuration time.Duration
 	gcThreshold   float64
+	maxGCDuration time.Duration
 }
 
 type lightFileNodeStore struct {
-	cfg       storeConfig
-	db        *badger.DB
-	storePath string
-	// TODO: Implement atomic counter for log index, do not calculate on every push.
-	// currentIndex atomic.Uint64
+	cfg storeConfig
+	db  *badger.DB
 }
 
 func New(storePath string) *lightFileNodeStore {
 	return &lightFileNodeStore{
 		cfg: storeConfig{
+			storePath:     storePath,
 			gcInterval:    defaultGCInterval,
-			maxGCDuration: defaultMaxGCDuration,
 			gcThreshold:   defaultGCThreshold,
+			maxGCDuration: defaultMaxGCDuration,
 		},
-		storePath: storePath,
 	}
 }
 
@@ -114,7 +82,7 @@ func (s *lightFileNodeStore) Name() string {
 }
 
 func (s *lightFileNodeStore) Run(ctx context.Context) error {
-	opts := badger.DefaultOptions(s.storePath).
+	opts := badger.DefaultOptions(s.cfg.storePath).
 		WithLogger(badgerLogger{}).
 		WithCompression(options.None).
 		WithZSTDCompressionLevel(0)
@@ -135,164 +103,218 @@ func (s *lightFileNodeStore) Close(ctx context.Context) error {
 	return s.db.Close()
 }
 
-func (s *lightFileNodeStore) TxView(f func(txn *badger.Txn) error) error {
-	return s.db.View(f)
-}
+func (s *lightFileNodeStore) Get(ctx context.Context, k cid.Cid) (blocks.Block, error) {
+	start := time.Now()
+	var val []byte
 
-func (s *lightFileNodeStore) TxUpdate(f func(txn *badger.Txn) error) error {
-	return s.db.Update(f)
-}
-
-func (s *lightFileNodeStore) GetBlock(txn *badger.Txn, k cid.Cid) ([]byte, error) {
-	item, err := txn.Get(buildKey(blockType, k.String()))
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return nil, fmt.Errorf("%w: %s", ErrBlockNotFound, k)
+	err := s.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(k.String()))
+		if err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				return fileblockstore.ErrCIDNotFound
+			}
+			return err
 		}
-		return nil, fmt.Errorf("failed to get block %s: %w", k, err)
-	}
-
-	return item.ValueCopy(nil)
-}
-
-func (s *lightFileNodeStore) PutBlock(txn *badger.Txn, block blocks.Block) error {
-	key := buildKey(blockType, block.Cid().String())
-	return txn.Set(key, block.RawData())
-}
-
-func (s *lightFileNodeStore) DeleteBlock(txn *badger.Txn, c cid.Cid) error {
-	return txn.Delete(buildKey(blockType, c.String()))
-}
-
-func (s *lightFileNodeStore) GetIndexSnapshot(txn *badger.Txn) ([]byte, error) {
-	item, err := txn.Get(buildKey(snapshotType, currentSnapshotSuffix))
+		val, err = item.ValueCopy(nil)
+		return err
+	})
 	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return nil, ErrNoSnapshot
-		}
-		return nil, fmt.Errorf("failed to get index snapshot: %w", err)
+		return nil, err
 	}
-	return item.ValueCopy(nil)
+
+	log.Debug("badger get",
+		zap.Duration("total", time.Since(start)),
+		zap.Int("kbytes", len(val)/1024),
+		zap.String("key", k.String()),
+	)
+	return blocks.NewBlockWithCid(val, k)
 }
 
-func (s *lightFileNodeStore) SaveIndexSnapshot(txn *badger.Txn, data []byte) error {
-	key := buildKey(snapshotType, currentSnapshotSuffix)
-	if err := txn.Set(key, data); err != nil {
-		return fmt.Errorf("failed to store index snapshot: %w", err)
+func (s *lightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan blocks.Block {
+	res := make(chan blocks.Block)
+
+	go func() {
+		defer close(res)
+
+		g, gctx := errgroup.WithContext(ctx)
+		g.SetLimit(getManyWorkers)
+
+		err := s.db.View(func(txn *badger.Txn) error {
+			for _, k := range ks {
+				// TODO: Check lateer, not needed in new Go 1.24?
+				k := k // Capture loop variable
+
+				g.Go(func() error {
+					item, err := txn.Get([]byte(k.String()))
+					if err != nil {
+						if !errors.Is(err, badger.ErrKeyNotFound) {
+							log.Info("failed to get block", zap.Error(err), zap.String("key", k.String()))
+						}
+						return nil
+					}
+
+					val, err := item.ValueCopy(nil)
+					if err != nil {
+						log.Info("failed to copy block value", zap.Error(err), zap.String("key", k.String()))
+						return nil
+					}
+
+					bl, err := blocks.NewBlockWithCid(val, k)
+					if err != nil {
+						log.Info("failed to create block", zap.Error(err), zap.String("key", k.String()))
+						return nil
+					}
+
+					select {
+					case res <- bl:
+					case <-gctx.Done():
+					}
+
+					return nil
+				})
+			}
+
+			return nil
+		})
+		if err != nil {
+			log.Warn("badger view transaction failed", zap.Error(err))
+		}
+
+		_ = g.Wait() // Ignore error since individual errors are already logged, no way to return error
+	}()
+
+	return res
+}
+
+func (s *lightFileNodeStore) Add(ctx context.Context, bs []blocks.Block) error {
+	start := time.Now()
+	wb := s.db.NewWriteBatch()
+	defer wb.Cancel()
+
+	// Usually one block, so no concurrent writes needed
+	var dataLen int
+	keys := make([]string, 0, 1)
+
+	for _, bl := range bs {
+		data := bl.RawData()
+		dataLen += len(data)
+		key := bl.Cid().String()
+		keys = append(keys, key)
+
+		if err := wb.Set([]byte(key), data); err != nil {
+			return fmt.Errorf("failed to set key %s: %w", key, err)
+		}
 	}
+
+	if err := wb.Flush(); err != nil {
+		return fmt.Errorf("failed to flush write batch: %w", err)
+	}
+
+	log.Debug("badger put",
+		zap.Duration("total", time.Since(start)),
+		zap.Int("blocks", len(bs)),
+		zap.Int("kbytes", dataLen/1024),
+		zap.Strings("keys", keys),
+	)
+
 	return nil
 }
 
-func (s *lightFileNodeStore) GetIndexLogs(txn *badger.Txn) ([]IndexLog, error) {
-	prefix := buildKeyPrefix(logType)
-	opts := badger.DefaultIteratorOptions
-	opts.PrefetchValues = true
+func (s *lightFileNodeStore) Delete(ctx context.Context, c cid.Cid) error {
+	// TODO: Create an issue that no Delete call after clean up of Bin in Anytype.
+	// Check before, that here is no deferred call to Delete
 
-	it := txn.NewIterator(opts)
-	defer it.Close()
+	start := time.Now()
+	err := s.db.Update(func(txn *badger.Txn) error {
+		return txn.Delete([]byte(c.String()))
+	})
 
-	var logs []IndexLog
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		item := it.Item()
-		idx, err := parseIdxFromKey(item.Key())
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse log index key='%s': %w", item.Key(), err)
-		}
+	log.Debug("badger delete",
+		zap.Duration("total", time.Since(start)),
+		zap.String("key", c.String()),
+	)
 
-		data, err := item.ValueCopy(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read log data: %w", err)
-		}
-
-		logs = append(logs, IndexLog{Idx: idx, Data: data})
-	}
-
-	return logs, nil
+	return err
 }
 
-func (s *lightFileNodeStore) DeleteIndexLogs(txn *badger.Txn, indices []uint64) error {
-	if len(indices) == 0 {
+func (s *lightFileNodeStore) DeleteMany(ctx context.Context, toDelete []cid.Cid) error {
+	start := time.Now()
+	wb := s.db.NewWriteBatch()
+	defer wb.Cancel()
+
+	var keys []string
+	for _, c := range toDelete {
+		key := c.String()
+		keys = append(keys, key)
+		if err := wb.Delete([]byte(key)); err != nil {
+			log.Warn("can't delete cid", zap.Error(err), zap.String("key", key))
+		}
+	}
+
+	err := wb.Flush()
+
+	log.Debug("badger delete many",
+		zap.Duration("total", time.Since(start)),
+		zap.Int("count", len(toDelete)),
+		zap.Strings("keys", keys),
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to flush write batch: %w", err)
+	}
+
+	return nil
+}
+
+func (s *lightFileNodeStore) IndexGet(ctx context.Context, key string) (value []byte, err error) {
+	indexKey := indexKeyPrefix + key
+
+	err = s.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(indexKey))
+		if err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				log.Warn("index key not found", zap.String("key", indexKey))
+				return nil
+			}
+
+			return fmt.Errorf("failed to get index key: %w", err)
+		}
+
+		value, err = item.ValueCopy(nil)
+
+		log.Debug("badger index get", zap.String("key", indexKey))
+		if err != nil {
+			return fmt.Errorf("failed to copy index value: %w", err)
+		}
+
 		return nil
-	}
+	})
 
-	for _, idx := range indices {
-		key := buildKey(logType, strconv.FormatUint(idx, 10))
-		if err := txn.Delete(key); err != nil {
-			return fmt.Errorf("failed to delete log with index %d: %w", idx, err)
-		}
-	}
-	return nil
+	return
 }
 
-func (s *lightFileNodeStore) PushIndexLog(txn *badger.Txn, logData []byte) error {
-	idx, err := s.getNextLogIndex(txn)
-	if err != nil {
-		return fmt.Errorf("failed to get next log index: %w", err)
-	}
+// IndexPut stores a value in the index with the given key.
+func (s *lightFileNodeStore) IndexPut(ctx context.Context, key string, value []byte) error {
+	indexKey := indexKeyPrefix + key
 
-	key := buildKey(logType, strconv.FormatUint(idx, 10))
-	if err := txn.Set(key, logData); err != nil {
-		return fmt.Errorf("failed to store index log: %w", err)
-	}
+	err := s.db.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(indexKey), value)
+	})
 
-	return nil
+	log.Debug("badger index put", zap.String("key", indexKey))
+	return err
 }
 
-func buildKey(keyType string, suffix string) []byte {
-	key := make([]byte, 0, len(prefixFileNode)+len(separator)*2+len(keyType)+len(suffix))
-	key = append(key, prefixFileNode...)
-	key = append(key, separator...)
-	key = append(key, keyType...)
-	key = append(key, separator...)
-	key = append(key, suffix...)
-	return key
-}
+// IndexDelete deletes a value from the index with the given key.
+func (s *lightFileNodeStore) IndexDelete(ctx context.Context, key string) error {
+	indexKey := indexKeyPrefix + key
 
-func buildKeyPrefix(keyType string) []byte {
-	prefix := make([]byte, 0, len(prefixFileNode)+len(separator)*2+len(keyType))
-	prefix = append(prefix, prefixFileNode...)
-	prefix = append(prefix, separator...)
-	prefix = append(prefix, keyType...)
-	prefix = append(prefix, separator...)
-	return prefix
-}
+	err := s.db.Update(func(txn *badger.Txn) error {
+		return txn.Delete([]byte(indexKey))
+	})
 
-func parseIdxFromKey(key []byte) (uint64, error) {
-	keyStr := string(key)
-
-	lastSepIdx := strings.LastIndex(keyStr, separator)
-	if lastSepIdx == -1 || lastSepIdx >= len(keyStr)-1 {
-		return 0, fmt.Errorf("%w: %s", ErrInvalidKey, keyStr)
-	}
-
-	idx, err := strconv.ParseUint(keyStr[lastSepIdx+1:], 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("%w: %s", ErrInvalidKey, keyStr)
-	}
-
-	return idx, nil
-}
-
-func (s *lightFileNodeStore) getNextLogIndex(txn *badger.Txn) (uint64, error) {
-	opts := badger.DefaultIteratorOptions
-	opts.PrefetchValues = false
-	opts.Reverse = true
-
-	prefix := buildKeyPrefix(logType)
-	it := txn.NewIterator(opts)
-	defer it.Close()
-
-	// Start with index 1 if no existing items.
-	idx := uint64(1)
-
-	it.Seek(append(prefix, 0xFF))
-	if it.ValidForPrefix(prefix) {
-		if keyIdx, err := parseIdxFromKey(it.Item().Key()); err == nil {
-			idx = keyIdx + 1
-		}
-	}
-
-	return idx, nil
+	log.Debug("badger index delete", zap.String("key", indexKey))
+	return err
 }
 
 func (s *lightFileNodeStore) runGC(ctx context.Context) {
