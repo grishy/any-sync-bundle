@@ -27,10 +27,10 @@ const (
 	defaultMaxGCDuration = time.Minute
 	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
 
-	// Number of concurrent block retrievals in GetMany, took from S3 implementation
+	// Number of concurrent block retrievals in GetMany, took from S3 implementation.
 	getManyWorkers = 4
 
-	// Prefix for index keys to separate them from block keys
+	// Prefix for index keys to separate them from block keys.
 	indexKeyPrefix = "idx:"
 )
 
@@ -55,8 +55,9 @@ type storeConfig struct {
 }
 
 type LightFileNodeStore struct {
-	cfg storeConfig
-	db  *badger.DB
+	cfg      storeConfig
+	db       *badger.DB
+	gcCancel context.CancelFunc
 }
 
 func New(storePath string) *LightFileNodeStore {
@@ -92,12 +93,19 @@ func (s *LightFileNodeStore) Run(ctx context.Context) error {
 
 	s.db = db
 
-	go s.runGC(ctx)
+	// Create a cancellable context for GC
+	gcCtx, cancel := context.WithCancel(ctx)
+	s.gcCancel = cancel
+	go s.runGC(gcCtx)
 
 	return nil
 }
 
 func (s *LightFileNodeStore) Close(_ context.Context) error {
+	// Cancel the GC goroutine
+	if s.gcCancel != nil {
+		s.gcCancel()
+	}
 	return s.db.Close()
 }
 
@@ -138,45 +146,45 @@ func (s *LightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan b
 		g, gctx := errgroup.WithContext(ctx)
 		g.SetLimit(getManyWorkers)
 
-		err := s.db.View(func(txn *badger.Txn) error {
-			for _, k := range ks {
-				g.Go(func() error {
+		for _, k := range ks {
+			g.Go(func() error {
+				var val []byte
+				err := s.db.View(func(txn *badger.Txn) error {
 					item, err := txn.Get([]byte(k.String()))
 					if err != nil {
 						if !errors.Is(err, badger.ErrKeyNotFound) {
 							log.Warn("failed to get block", zap.Error(err), zap.String("key", k.String()))
 						}
-						return nil
+						return err
 					}
 
-					val, err := item.ValueCopy(nil)
+					val, err = item.ValueCopy(nil)
 					if err != nil {
 						log.Warn("failed to copy block value", zap.Error(err), zap.String("key", k.String()))
-						return nil
+						return err
 					}
-
-					bl, err := blocks.NewBlockWithCid(val, k)
-					if err != nil {
-						log.Warn("failed to create block", zap.Error(err), zap.String("key", k.String()))
-						return nil
-					}
-
-					select {
-					case res <- bl:
-					case <-gctx.Done():
-					}
-
 					return nil
 				})
-			}
+				if err != nil {
+					return nil // Already logged above
+				}
 
-			return nil
-		})
-		if err != nil {
-			log.Warn("badger view transaction failed", zap.Error(err))
+				bl, err := blocks.NewBlockWithCid(val, k)
+				if err != nil {
+					log.Warn("failed to create block", zap.Error(err), zap.String("key", k.String()))
+					return nil
+				}
+
+				select {
+				case res <- bl:
+				case <-gctx.Done():
+				}
+
+				return nil
+			})
 		}
 
-		_ = g.Wait() // Ignore error since individual errors are already logged, no way to return error
+		_ = g.Wait() // Ignore error since individual errors are already logged
 	}()
 
 	return res
@@ -286,8 +294,8 @@ func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) (value []by
 		return nil
 	})
 
-	log.Debug("badger index get", zap.String("key", indexKey))
-	return
+	log.Debug("badger index get result", zap.String("key", indexKey))
+	return value, err
 }
 
 // IndexPut stores a value in the index with the given key.
