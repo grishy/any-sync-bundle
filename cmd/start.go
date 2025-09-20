@@ -77,7 +77,7 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			}
 		}
 
-		// Initialize nodes' instances.
+		// Initialize node's instances.
 		cfgNodes := bundleCfg.NodeConfigs()
 
 		apps := []node{

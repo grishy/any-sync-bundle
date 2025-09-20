@@ -42,7 +42,7 @@ func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
 		Register(acl.New()).
 		// Register(store()). // Original component replaced with storeBadger.
 		// TODO: Path is not working.
-		Register(lightfilenodestore.New()). // Bundle component
+		Register(lightfilenodestore.New(fileDir)). // Bundle component
 		Register(redisprovider.New()).
 		Register(index.New()).
 		Register(server.New()).

@@ -90,27 +90,26 @@ type storeConfig struct {
 }
 
 type lightFileNodeStore struct {
-	srvCfg configService
-	cfg    storeConfig
-	db     *badger.DB
-
+	cfg       storeConfig
+	db        *badger.DB
+	storePath string
 	// TODO: Implement atomic counter for log index, do not calculate on every push.
 	// currentIndex atomic.Uint64
 }
 
-func New() *lightFileNodeStore {
+func New(storePath string) *lightFileNodeStore {
 	return &lightFileNodeStore{
 		cfg: storeConfig{
 			gcInterval:    defaultGCInterval,
 			maxGCDuration: defaultMaxGCDuration,
 			gcThreshold:   defaultGCThreshold,
 		},
+		storePath: storePath,
 	}
 }
 
 func (s *lightFileNodeStore) Init(a *app.App) error {
 	log.Info("initializing light filenode store")
-	s.srvCfg = app.MustComponent[configService](a)
 	return nil
 }
 
@@ -119,9 +118,7 @@ func (s *lightFileNodeStore) Name() string {
 }
 
 func (s *lightFileNodeStore) Run(ctx context.Context) error {
-	storePath := s.srvCfg.GetFilenodeStoreDir()
-
-	opts := badger.DefaultOptions(storePath).
+	opts := badger.DefaultOptions(s.storePath).
 		WithLogger(badgerLogger{}).
 		WithCompression(options.None).
 		WithZSTDCompressionLevel(0)

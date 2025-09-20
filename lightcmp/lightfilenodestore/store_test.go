@@ -37,12 +37,11 @@ func newTestFixture(t *testing.T) *testFixture {
 	f := &testFixture{
 		app: new(app.App),
 		configService: &configServiceMock{
-			GetFilenodeStoreDirFunc: func() string { return tempDir },
-			InitFunc:                func(a *app.App) error { return nil },
-			NameFunc:                func() string { return "config" },
+			InitFunc: func(a *app.App) error { return nil },
+			NameFunc: func() string { return "config" },
 		},
 	}
-	f.store = New()
+	f.store = New(tempDir)
 
 	f.app.Register(f.configService).Register(f.store)
 	require.NoError(t, f.app.Start(context.Background()))

@@ -90,20 +90,8 @@ func (c *LightConfig) GetQuic() quic.Config {
 // Custom.
 //
 
-func (c *LightConfig) GetConsensusDBPath() string {
-	log.Info("call GetConsensusDBPath")
-
-	return c.ConsensusDBPath
-}
-
 func (c *LightConfig) GetFilenodeStoreDir() string {
 	log.Info("call GetFilenodeStoreDir")
 
 	return c.FilenodeStoreDir
-}
-
-func (c *LightConfig) GetFilenodeDefaultLimitBytes() uint64 {
-	log.Info("call GetFilenodeDefaultLimitBytes")
-
-	return c.FilenodeDefaultLimitBytes
 }
