@@ -12,6 +12,7 @@ import (
 
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
+	"github.com/anyproto/any-sync/commonfile/fileblockstore"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/dgraph-io/badger/v4/options"
 	blocks "github.com/ipfs/go-block-format"
@@ -19,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const CName = "light.filenode.store"
+const CName = fileblockstore.CName
 
 const (
 	// Key prefixes and structure.
@@ -47,11 +48,6 @@ var (
 	ErrBlockNotFound = errors.New("block not found")
 	ErrInvalidKey    = errors.New("invalid key format")
 )
-
-type configService interface {
-	app.Component
-	GetFilenodeStoreDir() string
-}
 
 // StoreService defines operations for persistent storage.
 // NOTE: Perfectly we should have a separate badger.Txn to interface.
