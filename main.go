@@ -10,11 +10,11 @@ import (
 	"github.com/grishy/any-sync-bundle/cmd"
 )
 
-// terminationSignals are signals that cause the program to exit in the supported platforms.
-// List from kubectl project.
-var terminationSignals = []os.Signal{syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT}
-
 func main() {
+	// terminationSignals are signals that cause the program to exit in the supported platforms.
+	// List from kubectl project.
+	terminationSignals := []os.Signal{syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), terminationSignals...)
 	defer cancel()
 
@@ -23,6 +23,7 @@ func main() {
 	if err := cliRoot.Run(os.Args); err != nil {
 		fmt.Println("Error:")
 		fmt.Printf(" > %+v\n", err)
+		cancel()
 		os.Exit(1)
 	}
 }
