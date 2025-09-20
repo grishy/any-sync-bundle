@@ -213,7 +213,7 @@ func (bc *Config) networkCfg() nodeconf.Configuration {
 }
 
 // convertListenToConnect converts listen addresses to connection addresses,
-// replacing 0.0.0.0 with 127.0.0.1 for local connections
+// replacing 0.0.0.0 with 127.0.0.1 for local connections.
 func convertListenToConnect(listen NodeShared) []string {
 	hostTCP, portTCP, err := net.SplitHostPort(listen.ListenTCPAddr)
 	if err != nil {

@@ -37,7 +37,7 @@ func versionPrinter(c *cli.Context) {
 	fmt.Printf("Memory:    %s\n", hostMemory)
 }
 
-// getHostOS returns detailed information about the operating system
+// getHostOS returns detailed information about the operating system.
 func getHostOS() (string, error) {
 	switch runtime.GOOS {
 	case "linux":
@@ -69,7 +69,7 @@ func getHostOS() (string, error) {
 	}
 }
 
-// getHostMem returns the total system memory
+// getHostMem returns the total system memory.
 func getHostMem() (string, error) {
 	var totalBytes uint64
 

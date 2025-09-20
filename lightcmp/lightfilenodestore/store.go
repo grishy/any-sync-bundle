@@ -36,7 +36,7 @@ const (
 
 var (
 	// Type assertion.
-	_ s3store.S3Store = (*lightFileNodeStore)(nil)
+	_ s3store.S3Store = (*LightFileNodeStore)(nil)
 
 	log = logger.NewNamed(CName)
 )
@@ -54,13 +54,13 @@ type storeConfig struct {
 	maxGCDuration time.Duration
 }
 
-type lightFileNodeStore struct {
+type LightFileNodeStore struct {
 	cfg storeConfig
 	db  *badger.DB
 }
 
-func New(storePath string) *lightFileNodeStore {
-	return &lightFileNodeStore{
+func New(storePath string) *LightFileNodeStore {
+	return &LightFileNodeStore{
 		cfg: storeConfig{
 			storePath:     storePath,
 			gcInterval:    defaultGCInterval,
@@ -70,16 +70,16 @@ func New(storePath string) *lightFileNodeStore {
 	}
 }
 
-func (s *lightFileNodeStore) Init(_ *app.App) error {
+func (s *LightFileNodeStore) Init(_ *app.App) error {
 	log.Info("initializing light filenode store")
 	return nil
 }
 
-func (s *lightFileNodeStore) Name() string {
+func (s *LightFileNodeStore) Name() string {
 	return CName
 }
 
-func (s *lightFileNodeStore) Run(ctx context.Context) error {
+func (s *LightFileNodeStore) Run(ctx context.Context) error {
 	opts := badger.DefaultOptions(s.cfg.storePath).
 		WithLogger(badgerLogger{}).
 		WithCompression(options.None).
@@ -97,11 +97,11 @@ func (s *lightFileNodeStore) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *lightFileNodeStore) Close(_ context.Context) error {
+func (s *LightFileNodeStore) Close(_ context.Context) error {
 	return s.db.Close()
 }
 
-func (s *lightFileNodeStore) Get(_ context.Context, k cid.Cid) (blocks.Block, error) {
+func (s *LightFileNodeStore) Get(_ context.Context, k cid.Cid) (blocks.Block, error) {
 	start := time.Now()
 	var val []byte
 
@@ -129,7 +129,7 @@ func (s *lightFileNodeStore) Get(_ context.Context, k cid.Cid) (blocks.Block, er
 	return blocks.NewBlockWithCid(val, k)
 }
 
-func (s *lightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan blocks.Block {
+func (s *LightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan blocks.Block {
 	res := make(chan blocks.Block)
 
 	go func() {
@@ -182,7 +182,7 @@ func (s *lightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan b
 	return res
 }
 
-func (s *lightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
+func (s *LightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
 	start := time.Now()
 	wb := s.db.NewWriteBatch()
 	defer wb.Cancel()
@@ -216,7 +216,7 @@ func (s *lightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
 	return nil
 }
 
-func (s *lightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
+func (s *LightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 	// TODO: Create an issue that no Delete call after clean up of Bin in Anytype.
 	// Check before, that here is no deferred call to Delete
 
@@ -233,7 +233,7 @@ func (s *lightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 	return err
 }
 
-func (s *lightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) error {
+func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) error {
 	start := time.Now()
 	wb := s.db.NewWriteBatch()
 	defer wb.Cancel()
@@ -262,7 +262,7 @@ func (s *lightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) e
 	return nil
 }
 
-func (s *lightFileNodeStore) IndexGet(_ context.Context, key string) (value []byte, err error) {
+func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) (value []byte, err error) {
 	indexKey := indexKeyPrefix + key
 
 	err = s.db.View(func(txn *badger.Txn) error {
@@ -291,7 +291,7 @@ func (s *lightFileNodeStore) IndexGet(_ context.Context, key string) (value []by
 }
 
 // IndexPut stores a value in the index with the given key.
-func (s *lightFileNodeStore) IndexPut(_ context.Context, key string, value []byte) error {
+func (s *LightFileNodeStore) IndexPut(_ context.Context, key string, value []byte) error {
 	indexKey := indexKeyPrefix + key
 
 	err := s.db.Update(func(txn *badger.Txn) error {
@@ -303,7 +303,7 @@ func (s *lightFileNodeStore) IndexPut(_ context.Context, key string, value []byt
 }
 
 // IndexDelete deletes a value from the index with the given key.
-func (s *lightFileNodeStore) IndexDelete(_ context.Context, key string) error {
+func (s *LightFileNodeStore) IndexDelete(_ context.Context, key string) error {
 	indexKey := indexKeyPrefix + key
 
 	err := s.db.Update(func(txn *badger.Txn) error {
@@ -314,7 +314,7 @@ func (s *lightFileNodeStore) IndexDelete(_ context.Context, key string) error {
 	return err
 }
 
-func (s *lightFileNodeStore) runGC(ctx context.Context) {
+func (s *LightFileNodeStore) runGC(ctx context.Context) {
 	log.Info("starting badger garbage collection routine")
 	ticker := time.NewTicker(s.cfg.gcInterval)
 	defer ticker.Stop()
