@@ -1,5 +1,3 @@
-//go:generate moq -fmt gofumpt -rm -out store_mock.go . configService StoreService
-
 package lightfilenodestore
 
 import (
