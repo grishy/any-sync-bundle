@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/grishy/any-sync-bundle/cmd"
 )
@@ -19,6 +20,14 @@ func main() {
 	defer cancel()
 
 	cliRoot := cmd.Root(ctx)
+
+	go func() {
+		<-ctx.Done()
+		fmt.Println("Context done, waiting before forced exit")
+		time.Sleep(30 * time.Second)
+		fmt.Println("Forced exit by timeout")
+		os.Exit(1)
+	}()
 
 	if err := cliRoot.Run(os.Args); err != nil {
 		fmt.Println("Error:")
