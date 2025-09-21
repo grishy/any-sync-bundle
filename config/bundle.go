@@ -79,8 +79,8 @@ func Load(cfgPath string) *Config {
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		log.Panic("can't unmarshal config", zap.Error(err))
+	if errUnmarshal := yaml.Unmarshal(data, &cfg); errUnmarshal != nil {
+		log.Panic("can't unmarshal config", zap.Error(errUnmarshal))
 	}
 
 	return &cfg
@@ -102,12 +102,12 @@ func CreateWrite(cfg *CreateOptions) *Config {
 		log.Panic("can't marshal config", zap.Error(err))
 	}
 
-	if err := os.MkdirAll(filepath.Dir(cfg.CfgPath), 0o750); err != nil {
-		log.Panic("can't create config directory", zap.Error(err))
+	if errMkdir := os.MkdirAll(filepath.Dir(cfg.CfgPath), 0o750); errMkdir != nil {
+		log.Panic("can't create config directory", zap.Error(errMkdir))
 	}
 
-	if err := os.WriteFile(cfg.CfgPath, createCfgYaml, 0o600); err != nil {
-		log.Panic("can't write config file", zap.Error(err))
+	if errWrite := os.WriteFile(cfg.CfgPath, createCfgYaml, 0o600); errWrite != nil {
+		log.Panic("can't write config file", zap.Error(errWrite))
 	}
 
 	return createdCfg

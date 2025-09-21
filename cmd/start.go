@@ -57,13 +57,13 @@ func startAction(ctx context.Context) cli.ActionFunc {
 		// Create client configuration if not exists.
 		if _, err := os.Stat(clientCfgPath); err != nil {
 			log.Warn("client configuration not found, creating new one")
-			yamlData, err := bundleCfg.YamlClientConfig()
-			if err != nil {
-				return fmt.Errorf("failed to generate client config: %w", err)
+			yamlData, errGen := bundleCfg.YamlClientConfig()
+			if errGen != nil {
+				return fmt.Errorf("failed to generate client config: %w", errGen)
 			}
 
-			if err := os.WriteFile(clientCfgPath, yamlData, configFileMode); err != nil {
-				return fmt.Errorf("failed to write client config: %w", err)
+			if errWrite := os.WriteFile(clientCfgPath, yamlData, configFileMode); errWrite != nil {
+				return fmt.Errorf("failed to write client config: %w", errWrite)
 			}
 
 			log.Info("client configuration written", zap.String("path", clientCfgPath))

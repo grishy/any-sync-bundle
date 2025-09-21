@@ -24,6 +24,6 @@ func main() {
 		fmt.Println("Error:")
 		fmt.Printf(" > %+v\n", err)
 		cancel()
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // need to exit with error code
 	}
 }

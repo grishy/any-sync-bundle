@@ -105,18 +105,18 @@ func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, r
 	}
 
 	defer func() {
-		if err := client.Disconnect(ctx); err != nil {
-			log.Error("failed to disconnect from mongo", zap.Error(err))
+		if errDisconnect := client.Disconnect(ctx); errDisconnect != nil {
+			log.Error("failed to disconnect from mongo", zap.Error(errDisconnect))
 		}
 	}()
 
-	if err := initNewReplicaSet(ctx, client, replica, clientOpts.GetURI()); err == nil {
+	errInit := initNewReplicaSet(ctx, client, replica, clientOpts.GetURI())
+	if errInit == nil {
 		log.Info("successfully initialized new replica set, waiting for stabilization...")
 		time.Sleep(mongoStabilizeWaitTime)
 		return nil
-	} else {
-		log.Warn("failed to initialize new replica set", zap.Error(err))
 	}
+	log.Warn("failed to initialize new replica set", zap.Error(errInit))
 
 	return checkReplicaSetStatus(ctx, client)
 }

@@ -101,8 +101,8 @@ func cmdConfigClient() *cli.Command {
 				return fmt.Errorf("failed to generate client configuration: %w", err)
 			}
 
-			if err := os.WriteFile(clientCfgPath, clientCfgData, configFileMode); err != nil {
-				return fmt.Errorf("failed to write client configuration: %w", err)
+			if errWrite := os.WriteFile(clientCfgPath, clientCfgData, configFileMode); errWrite != nil {
+				return fmt.Errorf("failed to write client configuration: %w", errWrite)
 			}
 
 			log.Info("client configuration written successfully")

@@ -140,54 +140,61 @@ func (s *LightFileNodeStore) Get(_ context.Context, k cid.Cid) (blocks.Block, er
 func (s *LightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan blocks.Block {
 	res := make(chan blocks.Block)
 
-	go func() {
-		defer close(res)
-
-		g, gctx := errgroup.WithContext(ctx)
-		g.SetLimit(getManyWorkers)
-
-		for _, k := range ks {
-			g.Go(func() error {
-				var val []byte
-				err := s.db.View(func(txn *badger.Txn) error {
-					item, err := txn.Get([]byte(k.String()))
-					if err != nil {
-						if !errors.Is(err, badger.ErrKeyNotFound) {
-							log.Warn("failed to get block", zap.Error(err), zap.String("key", k.String()))
-						}
-						return err
-					}
-
-					val, err = item.ValueCopy(nil)
-					if err != nil {
-						log.Warn("failed to copy block value", zap.Error(err), zap.String("key", k.String()))
-						return err
-					}
-					return nil
-				})
-				if err != nil {
-					return nil // Already logged above
-				}
-
-				bl, err := blocks.NewBlockWithCid(val, k)
-				if err != nil {
-					log.Warn("failed to create block", zap.Error(err), zap.String("key", k.String()))
-					return nil
-				}
-
-				select {
-				case res <- bl:
-				case <-gctx.Done():
-				}
-
-				return nil
-			})
-		}
-
-		_ = g.Wait() // Ignore error since individual errors are already logged
-	}()
+	go s.getManyWorker(ctx, ks, res)
 
 	return res
+}
+
+// getManyWorker processes GetMany requests concurrently.
+func (s *LightFileNodeStore) getManyWorker(ctx context.Context, ks []cid.Cid, res chan<- blocks.Block) {
+	defer close(res)
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(getManyWorkers)
+
+	for _, k := range ks {
+		g.Go(func() error {
+			s.fetchBlock(gctx, k, res)
+			return nil
+		})
+	}
+
+	_ = g.Wait() // Ignore error since individual errors are already logged
+}
+
+// fetchBlock retrieves a single block from the database.
+func (s *LightFileNodeStore) fetchBlock(ctx context.Context, k cid.Cid, res chan<- blocks.Block) {
+	var val []byte
+	err := s.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(k.String()))
+		if err != nil {
+			if !errors.Is(err, badger.ErrKeyNotFound) {
+				log.Warn("failed to get block", zap.Error(err), zap.String("key", k.String()))
+			}
+			return err
+		}
+
+		val, err = item.ValueCopy(nil)
+		if err != nil {
+			log.Warn("failed to copy block value", zap.Error(err), zap.String("key", k.String()))
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return // Already logged above
+	}
+
+	bl, err := blocks.NewBlockWithCid(val, k)
+	if err != nil {
+		log.Warn("failed to create block", zap.Error(err), zap.String("key", k.String()))
+		return
+	}
+
+	select {
+	case res <- bl:
+	case <-ctx.Done():
+	}
 }
 
 func (s *LightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
@@ -270,25 +277,27 @@ func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) e
 	return nil
 }
 
-func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) (value []byte, err error) {
+func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, error) {
 	indexKey := indexKeyPrefix + key
+	var value []byte
 
-	err = s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(indexKey))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
+	err := s.db.View(func(txn *badger.Txn) error {
+		item, getErr := txn.Get([]byte(indexKey))
+		if getErr != nil {
+			if errors.Is(getErr, badger.ErrKeyNotFound) {
 				log.Warn("index key not found", zap.String("key", indexKey))
 				return nil
 			}
 
-			return fmt.Errorf("failed to get index key: %w", err)
+			return fmt.Errorf("failed to get index key: %w", getErr)
 		}
 
-		value, err = item.ValueCopy(nil)
+		var copyErr error
+		value, copyErr = item.ValueCopy(nil)
 
 		log.Debug("badger index get", zap.String("key", indexKey))
-		if err != nil {
-			return fmt.Errorf("failed to copy index value: %w", err)
+		if copyErr != nil {
+			return fmt.Errorf("failed to copy index value: %w", copyErr)
 		}
 
 		return nil
