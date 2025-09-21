@@ -12,47 +12,45 @@ jobs:
   linter:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: "1.24.0"
+          go-version: "1.25.1"
 
       - run: go mod download
       - run: go mod verify
       - run: go install tool
 
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.64.5
+          version: v2.4.0
 
   tests:
     name: tests-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     # Check on all supported GitHub Actions OS
     # https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+    # https://github.com/actions/runner-images
+    # https://github.com/actions/partner-runner-images
     strategy:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
-          - ubuntu-24.04
           - ubuntu-22.04
-          - ubuntu-20.04
-          - ubuntu-24.04-arm
+          - ubuntu-24.04
           - ubuntu-22.04-arm
-          - windows-latest
+          - ubuntu-24.04-arm
           - windows-2022
-          - windows-2019
           - windows-2025
-          - macos-latest
+          - macos-13
           - macos-14
           - macos-15
-          - macos-13
+          - macos-26
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: "1.24.0"
+          go-version: "1.25.1"
 
       - run: go mod download
       - run: go test -v ./... -coverprofile=./coverage.txt -covermode=atomic -coverpkg=./...
@@ -78,13 +76,13 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # Required for goreleaser to get git history
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: "1.24.0"
+          go-version: "1.25.1"
 
       - name: Set up QEMU for cross-compilation of Docker images
         uses: docker/setup-qemu-action@v3
@@ -94,11 +92,6 @@ jobs:
 
       - name: Fix Segmentation fault or QEMU - https://github.com/docker/buildx/issues/1170
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes -c yes
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "29.3"
 
       - run: go mod download
       - run: go install tool
@@ -123,7 +116,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Test build Docker image (stage-bin)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile
@@ -141,7 +134,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Test build Docker image (stage-release)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile

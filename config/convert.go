@@ -29,14 +29,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// NodeConfigs holds configuration for all node types in the system
+// NodeConfigs holds configuration for all node types in the system.
 type NodeConfigs struct {
 	Coordinator *coordinatorconfig.Config
 	Consensus   *consensusconfig.Config
 	Filenode    *filenodeconfig.Config
 	Sync        *syncconfig.Config
 
-	// Used for our component and we can't add this into existing configs
+	// Used for our component and we can't add this into existing configs.
 	FilenodeStorePath string
 }
 
@@ -52,7 +52,7 @@ type nodeConfigOpts struct {
 	metricCfg  metric.Config
 }
 
-// NodeConfigs generates configurations for all node types based on the base config
+// NodeConfigs generates configurations for all node types based on the base config.
 func (bc *Config) NodeConfigs() *NodeConfigs {
 	opts := &nodeConfigOpts{
 		pathNetworkStoreCoordinator: filepath.Join(bc.StoragePath, "network-store/coordinator"),
@@ -62,7 +62,7 @@ func (bc *Config) NodeConfigs() *NodeConfigs {
 		pathStorageSync:             filepath.Join(bc.StoragePath, "storage-sync"),
 		pathStorageFilenode:         filepath.Join(bc.StoragePath, "storage-file"),
 		networkCfg:                  bc.networkCfg(),
-		// TODO: Don't turn on metrics
+		// TODO: Don't turn on metrics.
 		// https://github.com/anyproto/any-sync/issues/373
 		metricCfg: metric.Config{},
 	}
@@ -128,7 +128,7 @@ func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config 
 }
 
 func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
-	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TB in bytes
+	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TiB in bytes
 
 	return &filenodeconfig.Config{
 		Account: bc.Accounts.File,
@@ -213,7 +213,7 @@ func (bc *Config) networkCfg() nodeconf.Configuration {
 }
 
 // convertListenToConnect converts listen addresses to connection addresses,
-// replacing 0.0.0.0 with 127.0.0.1 for local connections
+// replacing 0.0.0.0 with 127.0.0.1 for local connections.
 func convertListenToConnect(listen NodeShared) []string {
 	hostTCP, portTCP, err := net.SplitHostPort(listen.ListenTCPAddr)
 	if err != nil {

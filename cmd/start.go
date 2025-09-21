@@ -16,8 +16,6 @@ import (
 
 	bundleConfig "github.com/grishy/any-sync-bundle/config"
 	"github.com/grishy/any-sync-bundle/lightnode"
-	lightConsensus "github.com/grishy/any-sync-bundle/lightnode/consensus"
-	lightFile "github.com/grishy/any-sync-bundle/lightnode/filenode"
 )
 
 const (
@@ -53,19 +51,19 @@ func startAction(ctx context.Context) cli.ActionFunc {
 
 		printWelcomeMsg()
 
-		// Load or create bundle configuration
+		// Load or create bundle configuration.
 		bundleCfg := loadOrCreateConfig(cCtx, log)
 
-		// Create client configuration if not exists
+		// Create client configuration if not exists.
 		if _, err := os.Stat(clientCfgPath); err != nil {
 			log.Warn("client configuration not found, creating new one")
-			yamlData, err := bundleCfg.YamlClientConfig()
-			if err != nil {
-				return fmt.Errorf("failed to generate client config: %w", err)
+			yamlData, errGen := bundleCfg.YamlClientConfig()
+			if errGen != nil {
+				return fmt.Errorf("failed to generate client config: %w", errGen)
 			}
 
-			if err := os.WriteFile(clientCfgPath, yamlData, configFileMode); err != nil {
-				return fmt.Errorf("failed to write client config: %w", err)
+			if errWrite := os.WriteFile(clientCfgPath, yamlData, configFileMode); errWrite != nil {
+				return fmt.Errorf("failed to write client config: %w", errWrite)
 			}
 
 			log.Info("client configuration written", zap.String("path", clientCfgPath))
@@ -79,27 +77,15 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			}
 		}
 
-		// Initialize nodes' instances
+		// Initialize node's instances.
 		cfgNodes := bundleCfg.NodeConfigs()
 
 		apps := []node{
-			{name: "consensus", app: lightConsensus.NewApp(cfgNodes.Consensus)},
-			{name: "filenode", app: lightFile.NewApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
+			{name: "consensus", app: lightnode.NewConsensusApp(cfgNodes.Consensus)},
 			{name: "coordinator", app: lightnode.NewCoordinatorApp(cfgNodes.Coordinator)},
+			{name: "filenode", app: lightnode.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
 			{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
 		}
-
-		// // TODO: Just keep import here available
-		// _ = []node{
-		// 	// Light
-		// 	{name: "consensus", app: lightConsensus.NewApp(cfgNodes.Consensus)},
-		// 	{name: "filenode", app: lightFile.NewApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
-		// 	// Full
-		// 	{name: "consensus", app: lightConsensus.NewConsensusApp(cfgNodes.Consensus)},
-		// 	{name: "coordinator", app: lightnode.NewCoordinatorApp(cfgNodes.Coordinator)},
-		// 	{name: "filenode", app: lightFile.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
-		// 	{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
-		// }
 
 		if err := startServices(ctx, apps); err != nil {
 			return err
@@ -107,7 +93,7 @@ func startAction(ctx context.Context) cli.ActionFunc {
 
 		printStartupMsg()
 
-		// Wait for shutdown signal
+		// Wait for shutdown signal.
 		<-ctx.Done()
 
 		shutdownServices(apps)

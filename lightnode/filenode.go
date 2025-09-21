@@ -1,4 +1,4 @@
-package filenode
+package lightnode
 
 import (
 	"github.com/anyproto/any-sync-filenode/account"
@@ -23,48 +23,10 @@ import (
 	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 
-	"github.com/grishy/any-sync-bundle/lightcmp/lightconfig"
-	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodeindex"
-	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenoderpc"
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
-	"github.com/grishy/any-sync-bundle/lightcmp/lightnodeconf"
-	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
-func NewApp(cfg *config.Config, fileDir string) *app.App {
-	lCfg := &lightconfig.LightConfig{
-		Account:          cfg.Account,
-		Network:          cfg.Network,
-		ListenTCPAddr:    cfg.Yamux.ListenAddrs,
-		ListenUDPAddr:    cfg.Quic.ListenAddrs,
-		FilenodeStoreDir: "./data/filenode_store",
-	}
-
-	a := new(app.App).
-		Register(lCfg).
-		Register(lightnodeconf.New()).
-		Register(lightfilenodeindex.New()).
-		Register(lightfilenodestore.New()).
-		Register(lightfilenoderpc.New()).
-		// Original components
-		Register(account.New()).
-		// TODO: Use direct call for all clients
-		Register(coordinatorclient.New()).
-		Register(consensusclient.New()).
-		Register(acl.New()).
-		Register(peerservice.New()).
-		Register(secureservice.New()).
-		Register(pool.New()).
-		Register(server.New()).
-		Register(yamux.New()).
-		Register(quic.New())
-
-	return a
-}
-
 func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
-	lightnode.MustMkdirAll(cfg.NetworkStorePath)
-
 	a := new(app.App).
 		Register(cfg).
 		Register(metric.New()).
@@ -78,9 +40,9 @@ func NewFileNodeApp(cfg *config.Config, fileDir string) *app.App {
 		Register(coordinatorclient.New()).
 		Register(consensusclient.New()).
 		Register(acl.New()).
-		// Register(store()). // Original component replaced with storeBadger
-		// TODO: Path is not working
-		Register(lightfilenodestore.New()). // Bundle component
+		// Register(store()). // Original component replaced with storeBadger.
+		// TODO: Path is not working.
+		Register(lightfilenodestore.New(fileDir)). // Bundle component
 		Register(redisprovider.New()).
 		Register(index.New()).
 		Register(server.New()).

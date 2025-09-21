@@ -13,13 +13,13 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # Required for goreleaser to get git history
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: "1.24.0"
+          go-version: "1.25.1"
 
       - name: Set up QEMU for cross-compilation of Docker images
         uses: docker/setup-qemu-action@v3
@@ -56,7 +56,7 @@ jobs:
             type=raw,value=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
 
       - name: Build and push Docker image (stage-release-minimal)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile
@@ -79,7 +79,7 @@ jobs:
           sbom: true
 
       - name: Build and push Docker image (stage-release)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile

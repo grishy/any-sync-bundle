@@ -37,8 +37,6 @@ import (
 )
 
 func NewSyncApp(cfg *config.Config) *app.App {
-	MustMkdirAll(cfg.NetworkStorePath)
-
 	a := new(app.App).
 		Register(cfg).
 		Register(account.New()).

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -14,12 +15,12 @@ import (
 )
 
 const (
-	// Timeouts for MongoDB operations
+	// Timeouts for MongoDB operations.
 	mongoConnectTimeout    = 10 * time.Second
 	mongoCommandTimeout    = 5 * time.Second
 	mongoStabilizeWaitTime = 5 * time.Second
 
-	// Default MongoDB parameters
+	// Default MongoDB parameters.
 	defaultMongoReplica = "rs0"
 	defaultMongoURI     = "mongodb://127.0.0.1:27017/"
 )
@@ -62,14 +63,14 @@ func cmdMongoInit(ctx context.Context) *cli.Command {
 }
 
 func initReplicaSetAction(ctx context.Context, replica, mongoURI string) error {
-	// For exponential backoff, limit number of attempts
+	// For exponential backoff, limit number of attempts.
 	retryDelays := []int{1, 2, 3, 5, 8, 13, 21, 34, 55, 89}
 
 	log.Info("initializing mongo replica set",
 		zap.String("uri", mongoURI),
 		zap.String("replica", replica))
 
-	// Direct - before we have a replica set, we need it
+	// Direct - before we have a replica set, we need it.
 	clientOpts := options.Client().ApplyURI(mongoURI).SetDirect(true)
 
 	for _, delay := range retryDelays {
@@ -89,7 +90,7 @@ func initReplicaSetAction(ctx context.Context, replica, mongoURI string) error {
 		time.Sleep(time.Duration(delay) * time.Second)
 	}
 
-	return fmt.Errorf("failed to initialize mongo replica set after all retries")
+	return errors.New("failed to initialize mongo replica set after all retries")
 }
 
 func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, replica string) error {
@@ -104,18 +105,18 @@ func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, r
 	}
 
 	defer func() {
-		if err := client.Disconnect(ctx); err != nil {
-			log.Error("failed to disconnect from mongo", zap.Error(err))
+		if errDisconnect := client.Disconnect(ctx); errDisconnect != nil {
+			log.Error("failed to disconnect from mongo", zap.Error(errDisconnect))
 		}
 	}()
 
-	if err := initNewReplicaSet(ctx, client, replica, clientOpts.GetURI()); err == nil {
+	errInit := initNewReplicaSet(ctx, client, replica, clientOpts.GetURI())
+	if errInit == nil {
 		log.Info("successfully initialized new replica set, waiting for stabilization...")
 		time.Sleep(mongoStabilizeWaitTime)
 		return nil
-	} else {
-		log.Warn("failed to initialize new replica set", zap.Error(err))
 	}
+	log.Warn("failed to initialize new replica set", zap.Error(errInit))
 
 	return checkReplicaSetStatus(ctx, client)
 }
@@ -165,5 +166,5 @@ func checkReplicaSetStatus(ctx context.Context, client *mongo.Client) error {
 		return nil
 	}
 
-	return fmt.Errorf("replica set is not properly initialized")
+	return errors.New("replica set is not properly initialized")
 }

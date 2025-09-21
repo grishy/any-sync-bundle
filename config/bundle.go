@@ -1,4 +1,4 @@
-// Package config build on top of https://github.com/anyproto/any-sync-tools/tree/72b131eaf4d6dc299ecf87dad60648e68054b35a/anyconf
+// Package config build on top of https://github.com/anyproto/any-sync-tools/tree/72b131eaf4d6dc299ecf87dad60648e68054b35a/anyconf.
 package config
 
 import (
@@ -49,13 +49,15 @@ type NodeShared struct {
 }
 
 type NodeCoordinator struct {
-	NodeShared    `yaml:",inline"`
+	NodeShared `yaml:",inline"`
+
 	MongoConnect  string `yaml:"mongoConnect"`
 	MongoDatabase string `yaml:"mongoDatabase"`
 }
 
 type NodeConsensus struct {
-	NodeShared    `yaml:",inline"`
+	NodeShared `yaml:",inline"`
+
 	MongoConnect  string `yaml:"mongoConnect"`
 	MongoDatabase string `yaml:"mongoDatabase"`
 }
@@ -65,7 +67,8 @@ type Tree struct {
 }
 
 type NodeFile struct {
-	NodeShared   `yaml:",inline"`
+	NodeShared `yaml:",inline"`
+
 	RedisConnect string `yaml:"redisConnect"`
 }
 
@@ -76,8 +79,8 @@ func Load(cfgPath string) *Config {
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		log.Panic("can't unmarshal config", zap.Error(err))
+	if errUnmarshal := yaml.Unmarshal(data, &cfg); errUnmarshal != nil {
+		log.Panic("can't unmarshal config", zap.Error(errUnmarshal))
 	}
 
 	return &cfg
@@ -99,32 +102,32 @@ func CreateWrite(cfg *CreateOptions) *Config {
 		log.Panic("can't marshal config", zap.Error(err))
 	}
 
-	if err := os.MkdirAll(filepath.Dir(cfg.CfgPath), 0o755); err != nil {
-		log.Panic("can't create config directory", zap.Error(err))
+	if errMkdir := os.MkdirAll(filepath.Dir(cfg.CfgPath), 0o750); errMkdir != nil {
+		log.Panic("can't create config directory", zap.Error(errMkdir))
 	}
 
-	if err := os.WriteFile(cfg.CfgPath, createCfgYaml, 0o644); err != nil {
-		log.Panic("can't write config file", zap.Error(err))
+	if errWrite := os.WriteFile(cfg.CfgPath, createCfgYaml, 0o600); errWrite != nil {
+		log.Panic("can't write config file", zap.Error(errWrite))
 	}
 
 	return createdCfg
 }
 
 // newBundleConfig creates a new configuration for any-bundle that contain all info base of which internal services are created
-// Base on https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options
+// Base on https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
 // But docs above are not accurate, so I used also source code as reference...
 func newBundleConfig(cfg *CreateOptions) *Config {
-	cfgId := bson.NewObjectId().Hex()
+	cfgID := bson.NewObjectId().Hex()
 
 	netKey, _, err := crypto.GenerateRandomEd25519KeyPair()
 	if err != nil {
 		log.Panic("can't generate ed25519 key for network", zap.Error(err))
 	}
 
-	netId := netKey.GetPublic().Network()
+	netID := netKey.GetPublic().Network()
 
-	// Parse MongoDB URI and add w=majority if not already present
-	// Base on Anytype dockercompose version
+	// Parse MongoDB URI and add w=majority if not already present.
+	// Base on Anytype dockercompose version.
 	mongoConsensusURI, err := url.Parse(cfg.MongoURI)
 	if err != nil {
 		log.Panic("invalid mongo URI", zap.Error(err))
@@ -140,8 +143,8 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		BundleFormat:  1,
 		BundleVersion: app.Version(),
 		ExternalAddr:  cfg.ExternalAddrs,
-		ConfigID:      cfgId,
-		NetworkID:     netId,
+		ConfigID:      cfgID,
+		NetworkID:     netID,
 		StoragePath:   cfg.StorePath,
 		Accounts: Accounts{
 			Coordinator: newAcc(),
@@ -182,7 +185,7 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		},
 	}
 
-	// Base on docs https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options
+	// Base on docs https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
 	// "Signing key of coordinator is private key of the network and sync and file nodes use their peerKey"
 	privNetKey, err := crypto.EncodeKeyToString(netKey)
 	if err != nil {

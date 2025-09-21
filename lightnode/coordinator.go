@@ -28,8 +28,6 @@ import (
 )
 
 func NewCoordinatorApp(cfg *config.Config) *app.App {
-	MustMkdirAll(cfg.NetworkStorePath)
-
 	a := new(app.App).
 		Register(cfg).
 		Register(db.New()).
