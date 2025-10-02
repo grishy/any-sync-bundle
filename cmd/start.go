@@ -129,13 +129,22 @@ func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.C
 func startServices(ctx context.Context, apps []node) error {
 	log.Info("initiating service startup", zap.Int("count", len(apps)))
 
+	started := []node{}
 	for _, a := range apps {
 		log.Info("▶ starting service", zap.String("name", a.name))
 		if err := a.app.Start(ctx); err != nil {
+			// Cleanup already-started services on failure
+			log.Error("service startup failed, rolling back",
+				zap.String("failed", a.name),
+				zap.Int("started", len(started)),
+				zap.Error(err))
+
+			shutdownServices(started)
 			return fmt.Errorf("service startup failed: %w", err)
 		}
 
 		log.Info("✓ service started successfully", zap.String("name", a.name))
+		started = append(started, a)
 	}
 
 	return nil

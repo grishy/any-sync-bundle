@@ -19,56 +19,35 @@ import (
 var log = logger.NewNamed("bundle-config")
 
 type Config struct {
-	BundleVersion string   `yaml:"bundleVersion"`
-	BundleFormat  int      `yaml:"bundleFormat"`
-	ExternalAddr  []string `yaml:"externalAddr"`
-	ConfigID      string   `yaml:"configId"`
-	NetworkID     string   `yaml:"networkId"`
-	StoragePath   string   `yaml:"storagePath"`
-	Accounts      Accounts `yaml:"accounts"`
-	Nodes         Nodes    `yaml:"nodes"`
+	BundleVersion string                `yaml:"bundleVersion"`
+	BundleFormat  int                   `yaml:"bundleFormat"`
+	ExternalAddr  []string              `yaml:"externalAddr"`
+	ConfigID      string                `yaml:"configId"`
+	NetworkID     string                `yaml:"networkId"`
+	StoragePath   string                `yaml:"storagePath"`
+	Account       accountservice.Config `yaml:"account"`
+	Network       NetworkConfig         `yaml:"network"`
+	Coordinator   CoordinatorConfig     `yaml:"coordinator"`
+	Consensus     ConsensusConfig       `yaml:"consensus"`
+	FileNode      FileNodeConfig        `yaml:"filenode"`
 }
 
-type Accounts struct {
-	Coordinator accountservice.Config `yaml:"coordinator"`
-	Consensus   accountservice.Config `yaml:"consensus"`
-	Tree        accountservice.Config `yaml:"tree"`
-	File        accountservice.Config `yaml:"file"`
+type NetworkConfig struct {
+	ListenTCPAddr string `yaml:"listenTCPAddr"`
+	ListenUDPAddr string `yaml:"listenUDPAddr"`
 }
 
-type Nodes struct {
-	Coordinator NodeCoordinator `yaml:"coordinator"`
-	Consensus   NodeConsensus   `yaml:"consensus"`
-	Tree        Tree            `yaml:"tree"`
-	File        NodeFile        `yaml:"file"`
-}
-
-type NodeShared struct {
-	ListenTCPAddr string `yaml:"localTCPAddr"`
-	ListenUDPAddr string `yaml:"localUDPAddr"`
-}
-
-type NodeCoordinator struct {
-	NodeShared `yaml:",inline"`
-
+type CoordinatorConfig struct {
 	MongoConnect  string `yaml:"mongoConnect"`
 	MongoDatabase string `yaml:"mongoDatabase"`
 }
 
-type NodeConsensus struct {
-	NodeShared `yaml:",inline"`
-
+type ConsensusConfig struct {
 	MongoConnect  string `yaml:"mongoConnect"`
 	MongoDatabase string `yaml:"mongoDatabase"`
 }
 
-type Tree struct {
-	NodeShared `yaml:",inline"`
-}
-
-type NodeFile struct {
-	NodeShared `yaml:",inline"`
-
+type FileNodeConfig struct {
 	RedisConnect string `yaml:"redisConnect"`
 }
 
@@ -146,42 +125,21 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		ConfigID:      cfgID,
 		NetworkID:     netID,
 		StoragePath:   cfg.StorePath,
-		Accounts: Accounts{
-			Coordinator: newAcc(),
-			Consensus:   newAcc(),
-			Tree:        newAcc(),
-			File:        newAcc(),
+		Account:       newAcc(),
+		Network: NetworkConfig{
+			ListenTCPAddr: "0.0.0.0:33010",
+			ListenUDPAddr: "0.0.0.0:33020",
 		},
-		Nodes: Nodes{
-			Coordinator: NodeCoordinator{
-				NodeShared: NodeShared{
-					ListenTCPAddr: "0.0.0.0:33010",
-					ListenUDPAddr: "0.0.0.0:33020",
-				},
-				MongoConnect:  cfg.MongoURI,
-				MongoDatabase: "coordinator",
-			},
-			Consensus: NodeConsensus{
-				NodeShared: NodeShared{
-					ListenTCPAddr: "0.0.0.0:33010",
-					ListenUDPAddr: "0.0.0.0:33020",
-				},
-				MongoConnect:  mongoConsensusURI.String(),
-				MongoDatabase: "consensus",
-			},
-			Tree: Tree{
-				NodeShared{
-					ListenTCPAddr: "0.0.0.0:33010",
-					ListenUDPAddr: "0.0.0.0:33020",
-				},
-			},
-			File: NodeFile{
-				NodeShared: NodeShared{
-					ListenTCPAddr: "0.0.0.0:33010",
-					ListenUDPAddr: "0.0.0.0:33020",
-				},
-				RedisConnect: cfg.RedisURI,
-			},
+		Coordinator: CoordinatorConfig{
+			MongoConnect:  cfg.MongoURI,
+			MongoDatabase: "coordinator",
+		},
+		Consensus: ConsensusConfig{
+			MongoConnect:  mongoConsensusURI.String(),
+			MongoDatabase: "consensus",
+		},
+		FileNode: FileNodeConfig{
+			RedisConnect: cfg.RedisURI,
 		},
 	}
 
@@ -191,7 +149,7 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 	if err != nil {
 		log.Panic("can't encode network key to string", zap.Error(err))
 	}
-	defaultCfg.Accounts.Coordinator.SigningKey = privNetKey
+	defaultCfg.Account.SigningKey = privNetKey
 
 	return defaultCfg
 }

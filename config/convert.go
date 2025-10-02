@@ -79,7 +79,7 @@ func (bc *Config) NodeConfigs() *NodeConfigs {
 
 func (bc *Config) coordinatorConfig(opts *nodeConfigOpts) *coordinatorconfig.Config {
 	return &coordinatorconfig.Config{
-		Account: bc.Accounts.Coordinator,
+		Account: bc.Account,
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
@@ -88,16 +88,16 @@ func (bc *Config) coordinatorConfig(opts *nodeConfigOpts) *coordinatorconfig.Con
 		NetworkStorePath:         opts.pathNetworkStoreCoordinator,
 		NetworkUpdateIntervalSec: 0,
 		Mongo: db.Mongo{
-			Connect:  bc.Nodes.Coordinator.MongoConnect,
-			Database: bc.Nodes.Coordinator.MongoDatabase,
+			Connect:  bc.Coordinator.MongoConnect,
+			Database: bc.Coordinator.MongoDatabase,
 		},
 		SpaceStatus: spacestatus.Config{
 			RunSeconds:         5,
 			DeletionPeriodDays: 0,
 			SpaceLimit:         0,
 		},
-		Yamux: bc.yamuxConfig(bc.Nodes.Coordinator.ListenTCPAddr),
-		Quic:  bc.quicConfig(bc.Nodes.Coordinator.ListenUDPAddr),
+		Yamux: bc.yamuxConfig(),
+		Quic:  bc.quicConfig(),
 		AccountLimits: accountlimit.SpaceLimits{
 			SpaceMembersRead:  1000,
 			SpaceMembersWrite: 1000,
@@ -111,19 +111,19 @@ func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config 
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
-		Account:                  bc.Accounts.Consensus,
+		Account:                  bc.Account,
 		Network:                  opts.networkCfg,
 		NetworkStorePath:         opts.pathNetworkStoreConsensus,
 		NetworkUpdateIntervalSec: 0,
 		Mongo: consensusconfig.Mongo{
-			Connect:       bc.Nodes.Consensus.MongoConnect,
-			Database:      bc.Nodes.Consensus.MongoDatabase,
+			Connect:       bc.Consensus.MongoConnect,
+			Database:      bc.Consensus.MongoDatabase,
 			LogCollection: "log",
 		},
 		Metric: opts.metricCfg,
 		Log:    logger.Config{Production: false},
-		Yamux:  bc.yamuxConfig(bc.Nodes.Consensus.ListenTCPAddr),
-		Quic:   bc.quicConfig(bc.Nodes.Consensus.ListenUDPAddr),
+		Yamux:  bc.yamuxConfig(),
+		Quic:   bc.quicConfig(),
 	}
 }
 
@@ -131,14 +131,14 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TiB in bytes
 
 	return &filenodeconfig.Config{
-		Account: bc.Accounts.File,
+		Account: bc.Account,
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
-		Yamux:                    bc.yamuxConfig(bc.Nodes.File.ListenTCPAddr),
-		Quic:                     bc.quicConfig(bc.Nodes.File.ListenUDPAddr),
+		Yamux:                    bc.yamuxConfig(),
+		Quic:                     bc.quicConfig(),
 		Metric:                   opts.metricCfg,
-		Redis:                    redisprovider.Config{Url: bc.Nodes.File.RedisConnect},
+		Redis:                    redisprovider.Config{Url: bc.FileNode.RedisConnect},
 		Network:                  opts.networkCfg,
 		NetworkStorePath:         opts.pathNetworkStoreFilenode,
 		NetworkUpdateIntervalSec: 0,
@@ -152,7 +152,7 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
-		Account:                  bc.Accounts.Tree,
+		Account:                  bc.Account,
 		Network:                  opts.networkCfg,
 		NetworkStorePath:         opts.pathNetworkStoreSync,
 		NetworkUpdateIntervalSec: 0,
@@ -166,23 +166,23 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 		Metric:   opts.metricCfg,
 		Log:      logger.Config{Production: false},
 		NodeSync: nodesync.Config{HotSync: hotsync.Config{}},
-		Yamux:    bc.yamuxConfig(bc.Nodes.Tree.ListenTCPAddr),
-		Quic:     bc.quicConfig(bc.Nodes.Tree.ListenUDPAddr),
+		Yamux:    bc.yamuxConfig(),
+		Quic:     bc.quicConfig(),
 		Limiter:  limiter.Config{},
 	}
 }
 
-func (bc *Config) yamuxConfig(listenAddr string) yamux.Config {
+func (bc *Config) yamuxConfig() yamux.Config {
 	return yamux.Config{
-		ListenAddrs:     []string{listenAddr},
+		ListenAddrs:     []string{bc.Network.ListenTCPAddr},
 		WriteTimeoutSec: 10,
 		DialTimeoutSec:  10,
 	}
 }
 
-func (bc *Config) quicConfig(listenAddr string) quic.Config {
+func (bc *Config) quicConfig() quic.Config {
 	return quic.Config{
-		ListenAddrs:     []string{listenAddr},
+		ListenAddrs:     []string{bc.Network.ListenUDPAddr},
 		WriteTimeoutSec: 10,
 		DialTimeoutSec:  10,
 	}
@@ -194,8 +194,8 @@ func (bc *Config) networkCfg() nodeconf.Configuration {
 		NetworkId: bc.NetworkID,
 		Nodes: []nodeconf.Node{
 			{
-				PeerId:    bc.Accounts.Coordinator.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Coordinator.NodeShared),
+				PeerId:    bc.Account.PeerId,
+				Addresses: bc.convertListenToConnect(),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeCoordinator,
 					nodeconf.NodeTypeConsensus,
@@ -210,8 +210,8 @@ func (bc *Config) networkCfg() nodeconf.Configuration {
 
 // convertListenToConnect converts listen addresses to connection addresses,
 // replacing 0.0.0.0 with 127.0.0.1 for local connections.
-func convertListenToConnect(listen NodeShared) []string {
-	hostTCP, portTCP, err := net.SplitHostPort(listen.ListenTCPAddr)
+func (bc *Config) convertListenToConnect() []string {
+	hostTCP, portTCP, err := net.SplitHostPort(bc.Network.ListenTCPAddr)
 	if err != nil {
 		log.Panic("failed to split TCP listen addr", zap.Error(err))
 	}
@@ -219,7 +219,7 @@ func convertListenToConnect(listen NodeShared) []string {
 		hostTCP = "127.0.0.1"
 	}
 
-	hostUDP, portUDP, err := net.SplitHostPort(listen.ListenUDPAddr)
+	hostUDP, portUDP, err := net.SplitHostPort(bc.Network.ListenUDPAddr)
 	if err != nil {
 		log.Panic("failed to split UDP listen addr", zap.Error(err))
 	}

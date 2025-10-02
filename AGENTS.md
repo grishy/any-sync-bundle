@@ -100,7 +100,65 @@ Secondary Apps (Consensus, FileNode, Sync)
 4. Create secondary apps with `sharedNet` parameter
 5. Start secondary apps (they reuse coordinator's network)
 
-**Backward Compatibility**: Services can still run standalone by passing `nil` for `sharedNet` parameter.
+### Shared Account Architecture
+
+**Critical Design Decision:** In bundle mode, all services share the **coordinator's account** (peer ID and signing keys).
+
+#### Why This Is Required
+
+1. **Single TLS Listener Constraint**
+   - One TCP/UDP listener can only have ONE TLS identity
+   - All services share coordinator's listener → must share its identity
+
+2. **DRPC Routing Model**
+   - Routing is by **method path** (`/ConsensusService/*`), not peer ID
+   - Multiple services can coexist on one peer with different RPC namespaces
+
+3. **Framework Support**
+   - any-sync framework supports multiple `NodeType` per node
+   - Single node can be [Coordinator, Consensus, Tree, File] simultaneously
+
+#### Implementation
+
+```go
+// lightnode/sharednetwork.go
+type sharedNetwork struct {
+    Account app.Component  // Coordinator's account shared by all
+    // ... other shared components
+}
+
+// Services use shared account
+newSyncApp(cfg, net)      .Register(net.Account)  // coordinator-peer-id
+newFileNodeApp(cfg, net)  .Register(net.Account)  // coordinator-peer-id
+newConsensusApp(cfg, net) .Register(net.Account)  // coordinator-peer-id
+```
+
+#### Impact on Services
+
+| Service | How It Uses Account | Impact of Sharing |
+|---------|-------------------|-------------------|
+| **Coordinator** | Signs space receipts with network key | ✅ Correct - IS the network key |
+| **Consensus** | Signs consensus records (AcceptorIdentity) | ✅ Safe - verification checks signature validity, not specific peer |
+| **FileNode** | Only uses client accounts from requests | ✅ No effect - service account unused |
+| **Sync** | Uses peer ID for partition membership checks | ✅ Works - coordinator-peer-id IS in member lists |
+
+#### Security Verification
+
+- ✅ **Signature Verification Intact**: Consensus record verifier checks signature validity, not which specific node signed
+- ✅ **TLS Authentication Works**: All services present coordinator's certificate
+- ✅ **No Functionality Broken**: All services tested and working correctly
+
+#### Network Topology
+
+```yaml
+# Single node with multiple service types
+nodes:
+  - peerId: coordinator-peer-id
+    addresses: [127.0.0.1:33010, quic://127.0.0.1:33020]
+    types: [Coordinator, Consensus, Tree, File]
+```
+
+This is the **only valid topology** for bundle mode due to physical TLS constraints.
 
 ### Key Components
 
