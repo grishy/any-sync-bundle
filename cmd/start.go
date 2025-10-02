@@ -77,12 +77,12 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			}
 		}
 
-		// Initialize node's instances.
+		// Initialize nodes. Coordinator MUST start first - others depend on it.
 		cfgNodes := bundleCfg.NodeConfigs()
 
 		apps := []node{
-			{name: "consensus", app: lightnode.NewConsensusApp(cfgNodes.Consensus)},
 			{name: "coordinator", app: lightnode.NewCoordinatorApp(cfgNodes.Coordinator)},
+			{name: "consensus", app: lightnode.NewConsensusApp(cfgNodes.Consensus)},
 			{name: "filenode", app: lightnode.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
 			{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
 		}

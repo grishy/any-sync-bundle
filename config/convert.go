@@ -148,6 +148,7 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 
 func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 	return &syncconfig.Config{
+		// APIServer omitted - disabled by default. Add APIServer: debugserver.Config{ListenAddr: "..."} to enable.
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
@@ -156,13 +157,18 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 		NetworkStorePath:         opts.pathNetworkStoreSync,
 		NetworkUpdateIntervalSec: 0,
 		Space:                    config.Config{GCTTL: 60, SyncPeriod: 600},
-		Storage:                  nodestorage.Config{Path: opts.pathStorageSync},
-		Metric:                   opts.metricCfg,
-		Log:                      logger.Config{Production: false},
-		NodeSync:                 nodesync.Config{HotSync: hotsync.Config{}},
-		Yamux:                    bc.yamuxConfig(bc.Nodes.Tree.ListenTCPAddr),
-		Quic:                     bc.quicConfig(bc.Nodes.Tree.ListenUDPAddr),
-		Limiter:                  limiter.Config{},
+		// Storage paths: nodestorage uses ONLY AnyStorePath (see nodestorage/storageservice.go:284).
+		// Path is for oldstorage (NOT included). Set to invalid path as fuse - app will fail if ever accessed.
+		Storage: nodestorage.Config{
+			Path:         "/dev/null/oldstorage-not-used", // Fuse: fail immediately if accessed
+			AnyStorePath: opts.pathStorageSync,            // Actually used by nodestorage
+		},
+		Metric:   opts.metricCfg,
+		Log:      logger.Config{Production: false},
+		NodeSync: nodesync.Config{HotSync: hotsync.Config{}},
+		Yamux:    bc.yamuxConfig(bc.Nodes.Tree.ListenTCPAddr),
+		Quic:     bc.quicConfig(bc.Nodes.Tree.ListenUDPAddr),
+		Limiter:  limiter.Config{},
 	}
 }
 
