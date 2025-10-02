@@ -29,6 +29,19 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// Sync node configuration defaults (based on docker-compose reference).
+	// IMPORTANT: These values are required for sync node to function properly.
+	// - SyncOnStart must be true, otherwise sync won't initialize.
+	// - PeriodicSyncHours must be > 0 for periodic sync, or sync will be one-time only.
+	defaultSyncOnStart       = true
+	defaultPeriodicSyncHours = 2
+
+	// Space configuration defaults for garbage collection and sync periods.
+	defaultSpaceGCTTL      = 60  // Seconds
+	defaultSpaceSyncPeriod = 600 // Seconds
+)
+
 // NodeConfigs holds configuration for all node types in the system.
 type NodeConfigs struct {
 	Coordinator *coordinatorconfig.Config
@@ -135,10 +148,13 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
-		Yamux:                    bc.yamuxConfig(),
-		Quic:                     bc.quicConfig(),
-		Metric:                   opts.metricCfg,
-		Redis:                    redisprovider.Config{Url: bc.FileNode.RedisConnect},
+		Yamux:  bc.yamuxConfig(),
+		Quic:   bc.quicConfig(),
+		Metric: opts.metricCfg,
+		Redis: redisprovider.Config{
+			IsCluster: false, // Not using Redis Cluster (matches docker-compose reference)
+			Url:       bc.FileNode.RedisConnect,
+		},
 		Network:                  opts.networkCfg,
 		NetworkStorePath:         opts.pathNetworkStoreFilenode,
 		NetworkUpdateIntervalSec: 0,
@@ -156,19 +172,26 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 		Network:                  opts.networkCfg,
 		NetworkStorePath:         opts.pathNetworkStoreSync,
 		NetworkUpdateIntervalSec: 0,
-		Space:                    config.Config{GCTTL: 60, SyncPeriod: 600},
+		Space:                    config.Config{GCTTL: defaultSpaceGCTTL, SyncPeriod: defaultSpaceSyncPeriod},
 		// Storage paths: nodestorage uses ONLY AnyStorePath (see nodestorage/storageservice.go:284).
 		// Path is for oldstorage (NOT included). Set to invalid path as fuse - app will fail if ever accessed.
 		Storage: nodestorage.Config{
 			Path:         "/dev/null/oldstorage-not-used", // Fuse: fail immediately if accessed
 			AnyStorePath: opts.pathStorageSync,            // Actually used by nodestorage
 		},
-		Metric:   opts.metricCfg,
-		Log:      logger.Config{Production: false},
-		NodeSync: nodesync.Config{HotSync: hotsync.Config{}},
-		Yamux:    bc.yamuxConfig(),
-		Quic:     bc.quicConfig(),
-		Limiter:  limiter.Config{},
+		Metric: opts.metricCfg,
+		Log:    logger.Config{Production: false},
+		// NodeSync configuration - CRITICAL for sync node to function.
+		// Without SyncOnStart=true and PeriodicSyncHours>0, the sync node will not sync spaces.
+		// This would cause the sync node to appear to "hang" as it waits indefinitely.
+		NodeSync: nodesync.Config{
+			SyncOnStart:       defaultSyncOnStart,
+			PeriodicSyncHours: defaultPeriodicSyncHours,
+			HotSync:           hotsync.Config{}, // SimultaneousRequests defaults to 300
+		},
+		Yamux:   bc.yamuxConfig(),
+		Quic:    bc.quicConfig(),
+		Limiter: limiter.Config{},
 	}
 }
 
