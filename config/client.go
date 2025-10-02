@@ -50,26 +50,8 @@ func (bc *Config) YamlClientConfig() ([]byte, error) {
 				Addresses: bc.convertExternalAddrs(bc.Nodes.Coordinator.NodeShared),
 				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeCoordinator,
-				},
-			},
-			{
-				PeerId:    bc.Accounts.Consensus.PeerId,
-				Addresses: bc.convertExternalAddrs(bc.Nodes.Consensus.NodeShared),
-				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeConsensus,
-				},
-			},
-			{
-				PeerId:    bc.Accounts.Tree.PeerId,
-				Addresses: bc.convertExternalAddrs(bc.Nodes.Tree.NodeShared),
-				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeTree,
-				},
-			},
-			{
-				PeerId:    bc.Accounts.File.PeerId,
-				Addresses: bc.convertExternalAddrs(bc.Nodes.File.NodeShared),
-				Types: []nodeconf.NodeType{
 					nodeconf.NodeTypeFile,
 				},
 			},

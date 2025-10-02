@@ -163,22 +163,22 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 			},
 			Consensus: NodeConsensus{
 				NodeShared: NodeShared{
-					ListenTCPAddr: "0.0.0.0:33011",
-					ListenUDPAddr: "0.0.0.0:33021",
+					ListenTCPAddr: "0.0.0.0:33010",
+					ListenUDPAddr: "0.0.0.0:33020",
 				},
 				MongoConnect:  mongoConsensusURI.String(),
 				MongoDatabase: "consensus",
 			},
 			Tree: Tree{
 				NodeShared{
-					ListenTCPAddr: "0.0.0.0:33012",
-					ListenUDPAddr: "0.0.0.0:33022",
+					ListenTCPAddr: "0.0.0.0:33010",
+					ListenUDPAddr: "0.0.0.0:33020",
 				},
 			},
 			File: NodeFile{
 				NodeShared: NodeShared{
-					ListenTCPAddr: "0.0.0.0:33013",
-					ListenUDPAddr: "0.0.0.0:33023",
+					ListenTCPAddr: "0.0.0.0:33010",
+					ListenUDPAddr: "0.0.0.0:33020",
 				},
 				RedisConnect: cfg.RedisURI,
 			},

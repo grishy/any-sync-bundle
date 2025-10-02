@@ -77,16 +77,19 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			}
 		}
 
-		// Initialize nodes. Coordinator MUST start first - others depend on it.
+		// Create bundle with all services (coordinator, consensus, filenode, sync)
 		cfgNodes := bundleCfg.NodeConfigs()
+		bundle := lightnode.NewBundle(cfgNodes)
 
+		// Create node list for startup
 		apps := []node{
-			{name: "coordinator", app: lightnode.NewCoordinatorApp(cfgNodes.Coordinator)},
-			{name: "consensus", app: lightnode.NewConsensusApp(cfgNodes.Consensus)},
-			{name: "filenode", app: lightnode.NewFileNodeApp(cfgNodes.Filenode, cfgNodes.FilenodeStorePath)},
-			{name: "sync", app: lightnode.NewSyncApp(cfgNodes.Sync)},
+			{name: "coordinator", app: bundle.Coordinator},
+			{name: "consensus", app: bundle.Consensus},
+			{name: "filenode", app: bundle.FileNode},
+			{name: "sync", app: bundle.Sync},
 		}
 
+		// Start all services
 		if err := startServices(ctx, apps); err != nil {
 			return err
 		}

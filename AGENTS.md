@@ -52,11 +52,55 @@ The bundle integrates four Anytype sync services into a single binary:
 
 ### Critical: Service Startup Order
 
-**ORDER MATTERS!** Services must start in this exact order (`cmd/start.go:83-87`):
-1. **Coordinator** - provides network coordination for all other services
-2. **Consensus, File, Sync** - can start in any order (all depend on coordinator)
+**ORDER MATTERS!** Services must start in this exact order:
+1. **Coordinator** - MUST start first (provides shared network stack for all services)
+2. **Consensus, File, Sync** - start after coordinator (reuse its network stack)
 
-If coordinator doesn't start first, other services will fail to connect.
+The coordinator creates the network infrastructure (TCP/UDP listeners, DRPC mux, connection pool).
+Other services extract and reuse these components via `SharedNetworkManager`.
+
+### Shared Network Architecture
+
+**Key Innovation**: Instead of each service creating its own network stack, all services share ONE network infrastructure:
+
+```
+Coordinator App (Primary)
+├── Creates network stack
+│   ├── yamux (TCP listener on port 33010)
+│   ├── quic (UDP listener on port 33020)
+│   ├── server (DRPC multiplexer)
+│   ├── pool (connection pool)
+│   └── peerservice (peer management)
+└── Registers CoordinatorService RPC handlers
+
+SharedNetworkManager
+├── Extracts network components from coordinator
+└── Provides them to secondary services
+
+Secondary Apps (Consensus, FileNode, Sync)
+├── Receive shared network via SharedNetworkManager
+├── Register their own RPC handlers to shared DRPC mux
+└── Service-specific components only
+```
+
+**Benefits**:
+- Single port pair (33010 TCP, 33020 UDP) instead of 8 ports
+- Shared connection pool - all services reuse peer connections
+- Reduced memory usage - one network stack instead of four
+- True service bundling
+
+**Implementation** (`lightnode/sharednetwork.go`):
+- `ExtractSharedNetwork(app)` - extracts network components from coordinator
+- `RegisterToApp(app)` - injects shared components into secondary services
+
+**Startup Flow** (`cmd/start.go`):
+1. Create coordinator app (full network stack)
+2. Start coordinator
+3. Extract shared network via `ExtractSharedNetwork(coordinatorApp)`
+4. Create secondary apps with `sharedNet` parameter
+5. Start secondary apps (they reuse coordinator's network)
+
+**Backward Compatibility**: Services can still run standalone by passing `nil` for `sharedNet` parameter.
 
 ### Key Components
 
@@ -80,8 +124,17 @@ If coordinator doesn't start first, other services will fail to connect.
 
 ## Service Port Mapping
 
-- TCP ports: 33010-33013 (various sync services)
-- UDP ports: 33020-33023 (QUIC transport)
+**New Shared Network Architecture** (default):
+- TCP port: 33010 (ALL services share ONE listener)
+- UDP port: 33020 (ALL services share ONE listener)
+
+All services (coordinator, consensus, filenode, sync) register their RPC handlers to a single DRPC multiplexer:
+- Coordinator: `/CoordinatorService/*`
+- Consensus: `/ConsensusService/*`
+- FileNode: `/FileService/*`
+- SyncNode: `/SpaceSyncService/*`
+
+These method namespaces don't conflict, so they coexist in one mux.
 
 ## Configuration Patterns
 

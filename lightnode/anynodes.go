@@ -1,7 +1,6 @@
 package lightnode
 
 import (
-	consensusnodeAccount "github.com/anyproto/any-sync-consensusnode/account"
 	consensusnodeConfig "github.com/anyproto/any-sync-consensusnode/config"
 	"github.com/anyproto/any-sync-consensusnode/consensusrpc"
 	consensusnodeDB "github.com/anyproto/any-sync-consensusnode/db"
@@ -19,7 +18,6 @@ import (
 	coordinatorNodeconfsource "github.com/anyproto/any-sync-coordinator/nodeconfsource"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
 
-	filenodeAccount "github.com/anyproto/any-sync-filenode/account"
 	filenodeConfig "github.com/anyproto/any-sync-filenode/config"
 	"github.com/anyproto/any-sync-filenode/deletelog"
 	"github.com/anyproto/any-sync-filenode/filenode"
@@ -49,7 +47,6 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 	"github.com/anyproto/any-sync/util/syncqueues"
 
-	"github.com/anyproto/any-sync-node/account"
 	"github.com/anyproto/any-sync-node/config"
 	"github.com/anyproto/any-sync-node/debug/nodedebugrpc"
 	"github.com/anyproto/any-sync-node/nodehead"
@@ -65,7 +62,7 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
-// NewSyncApp creates a sync node application instance.
+// newSyncApp creates a sync node application instance with shared network.
 //
 // Storage architecture: We ONLY include nodestorage, which uses AnyStorePath (modern any-store format).
 // The oldstorage component (uses Path field for legacy BadgerDB format) is NOT included - new installations only.
@@ -74,39 +71,35 @@ import (
 //
 // Component registration order is based on actual initialization dependencies.
 // Order is CRITICAL - components can only access previously registered components in Init().
-func NewSyncApp(cfg *config.Config) *app.App {
-	a := new(app.App).
+func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
+	return new(app.App).
 		Register(cfg).
-
-		// Foundation (no dependencies)
-		Register(account.New()).
-		Register(metric.New()).
+		Register(net.Account).
+		Register(net.Metric).
 		Register(debugstat.New()).
 		Register(credentialprovider.NewNoOp()).
-
-		// Configuration (depends on foundation)
-		Register(coordinatorclient.New()).
-		Register(nodeconfstore.New()).
 		Register(nodeconfsource.New()).
-		Register(nodeconf.New()).
+
+		// Shared network components (from coordinator)
+		Register(net.NodeConfStore).
+		Register(net.NodeConf).
+		Register(net.SecureService).
+		Register(net.Quic).
+		Register(net.Yamux).
+		Register(net.Server).
+		Register(net.PeerService).
+		Register(net.Pool).
+
+		// Network clients
+		Register(coordinatorclient.New()).
+		Register(nodeclient.New()).
+		Register(consensusclient.New()).
 
 		// Storage (depends on config)
 		// oldstorage.New() - SKIPPED: Not needed for new installations (legacy BadgerDB format)
 		Register(nodestorage.New()).
 		// migrator.New() - SKIPPED: Not needed for new installations (migrates oldstorage → nodestorage)
 		Register(syncqueues.New()).
-
-		// Security & Transport (secureservice MUST be before yamux/quic - they require it in Init)
-		Register(secureservice.New()).
-		Register(quic.New()).
-		Register(yamux.New()).
-
-		// Network Services (depend on transport)
-		Register(server.New()).
-		Register(peerservice.New()).
-		Register(pool.New()).
-		Register(nodeclient.New()).
-		Register(consensusclient.New()).
 
 		// Space Sync (depends on network)
 		Register(nodespace.NewStreamOpener()).
@@ -126,36 +119,31 @@ func NewSyncApp(cfg *config.Config) *app.App {
 		// Debug (can be last)
 		Register(debugserver.New()).
 		Register(nodedebugrpc.New())
-
-	return a
 }
 
-// NewFileNodeApp creates a filenode application instance.
+// newFileNodeApp creates a filenode application instance with shared network.
 //
 // Component registration order is based on actual initialization dependencies.
 // Order is CRITICAL - components can only access previously registered components in Init().
-func NewFileNodeApp(cfg *filenodeConfig.Config, fileDir string) *app.App {
-	a := new(app.App).
+func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedNetwork) *app.App {
+	return new(app.App).
 		Register(cfg).
-
-		// Foundation (no dependencies)
-		Register(filenodeAccount.New()).
+		Register(net.Account).
 		Register(filenodeStat.New()).
-		Register(metric.New()).
-
-		// Configuration (depends on foundation)
 		Register(nodeconfsource.New()).
-		Register(nodeconfstore.New()).
-		Register(nodeconf.New()).
 
-		// Security & Transport (secureservice MUST be before yamux/quic - they require it in Init)
-		Register(secureservice.New()).
-		Register(yamux.New()).
-		Register(quic.New()).
+		// Shared network components (from coordinator)
+		Register(net.NodeConfStore).
+		Register(net.NodeConf).
+		Register(net.SecureService).
+		Register(net.Yamux).
+		Register(net.Quic).
+		Register(net.PeerService).
+		Register(net.Pool).
+		Register(net.Server).
+		Register(net.Metric).
 
-		// Network Services (depend on transport)
-		Register(peerservice.New()).
-		Register(pool.New()).
+		// Network clients
 		Register(coordinatorclient.New()).
 		Register(consensusclient.New()).
 		Register(acl.New()).
@@ -167,19 +155,18 @@ func NewFileNodeApp(cfg *filenodeConfig.Config, fileDir string) *app.App {
 		Register(index.New()).
 
 		// Service Logic (depends on storage)
-		Register(server.New()).
 		Register(filenode.New()).
 		Register(deletelog.New())
-
-	return a
 }
 
-// NewCoordinatorApp creates a coordinator application instance.
+// newCoordinatorApp creates a coordinator application instance.
 //
-// Note: No bootstrap needed - network config passed directly via YAML and client-config.yml file.
+// This is the primary app that creates the full network stack.
+// Other services extract and reuse components from this app.
+//
 // Component registration order is based on actual initialization dependencies.
 // Order is CRITICAL - components can only access previously registered components in Init().
-func NewCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
+func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 	a := new(app.App).
 		Register(cfg).
 
@@ -221,40 +208,32 @@ func NewCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 	return a
 }
 
-// NewConsensusApp creates a consensus node application instance.
+// newConsensusApp creates a consensus node application instance with shared network.
 //
 // Component registration order is based on actual initialization dependencies.
 // Order is CRITICAL - components can only access previously registered components in Init().
-func NewConsensusApp(cfg *consensusnodeConfig.Config) *app.App {
-	a := new(app.App).
+func newConsensusApp(cfg *consensusnodeConfig.Config, net *sharedNetwork) *app.App {
+	return new(app.App).
 		Register(cfg).
-
-		// Foundation (no dependencies)
-		Register(metric.New()).
-		Register(consensusnodeAccount.New()).
-
-		// Configuration (depends on foundation)
-		Register(nodeconf.New()).
-		Register(nodeconfstore.New()).
+		Register(net.Account).
 		Register(nodeconfsource.New()).
 
-		// Security & Transport (secureservice MUST be before yamux/quic - they require it in Init)
-		Register(secureservice.New()).
-		Register(yamux.New()).
-		Register(quic.New()).
+		// Shared network components (from coordinator)
+		Register(net.NodeConfStore).
+		Register(net.NodeConf).
+		Register(net.SecureService).
+		Register(net.Yamux).
+		Register(net.Quic).
+		Register(net.Server).
+		Register(net.Pool).
+		Register(net.PeerService).
+		Register(net.Metric).
 
-		// Network Services (depend on transport)
-		Register(server.New()).
-		Register(pool.New()).
-		Register(peerservice.New()).
-
-		// Clients (depend on network)
+		// Network clients
 		Register(coordinatorclient.New()).
 
 		// Storage & Service Logic (depend on all infrastructure)
 		Register(consensusnodeDB.New()).
 		Register(stream.New()).
 		Register(consensusrpc.New())
-
-	return a
 }

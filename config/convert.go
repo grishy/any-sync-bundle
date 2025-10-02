@@ -196,22 +196,12 @@ func (bc *Config) networkCfg() nodeconf.Configuration {
 			{
 				PeerId:    bc.Accounts.Coordinator.PeerId,
 				Addresses: convertListenToConnect(bc.Nodes.Coordinator.NodeShared),
-				Types:     []nodeconf.NodeType{nodeconf.NodeTypeCoordinator},
-			},
-			{
-				PeerId:    bc.Accounts.Consensus.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Consensus.NodeShared),
-				Types:     []nodeconf.NodeType{nodeconf.NodeTypeConsensus},
-			},
-			{
-				PeerId:    bc.Accounts.Tree.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.Tree.NodeShared),
-				Types:     []nodeconf.NodeType{nodeconf.NodeTypeTree},
-			},
-			{
-				PeerId:    bc.Accounts.File.PeerId,
-				Addresses: convertListenToConnect(bc.Nodes.File.NodeShared),
-				Types:     []nodeconf.NodeType{nodeconf.NodeTypeFile},
+				Types: []nodeconf.NodeType{
+					nodeconf.NodeTypeCoordinator,
+					nodeconf.NodeTypeConsensus,
+					nodeconf.NodeTypeTree,
+					nodeconf.NodeTypeFile,
+				},
 			},
 		},
 		CreationTime: time.Now(),
