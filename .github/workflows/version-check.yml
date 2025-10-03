@@ -1,0 +1,96 @@
+name: version-check
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # Weekly on Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check for updates
+        id: check
+        run: |
+          set -e  # Exit on error
+
+          # Fetch API and extract latest timestamp
+          API_JSON=$(curl -sf https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+          LATEST_TIMESTAMP=$(echo "$API_JSON" | jq -r 'keys | max')
+
+          # Extract current timestamp from go.mod comment
+          CURRENT_TIMESTAMP=$(grep 'Current timestamp:' go.mod | sed 's/.*"\([0-9]*\)".*/\1/')
+
+          # Simple comparison: different timestamp = update available
+          if [ "$LATEST_TIMESTAMP" = "$CURRENT_TIMESTAMP" ]; then
+            echo "✅ Already up to date (timestamp: $CURRENT_TIMESTAMP)"
+            exit 0
+          fi
+
+          echo "📦 Update available: $CURRENT_TIMESTAMP → $LATEST_TIMESTAMP"
+          echo "needs_update=true" >> $GITHUB_ENV
+          echo "latest_ts=$LATEST_TIMESTAMP" >> $GITHUB_ENV
+          echo "current_ts=$CURRENT_TIMESTAMP" >> $GITHUB_ENV
+
+          # Store versions for issue body
+          echo "$API_JSON" | jq -r ".\"$LATEST_TIMESTAMP\"" > new_versions.json
+
+      - name: Create issue
+        if: env.needs_update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Check if issue already exists
+          TITLE="Update to Anytype release ${{ env.latest_ts }}"
+          if gh issue list --search "$TITLE" --state open | grep -q .; then
+            echo "Issue already exists"
+            exit 0
+          fi
+
+          # Create simple issue body
+          cat > issue.md << 'EOF'
+          New Anytype versions available.
+
+          **Current:** ${{ env.current_ts }}
+          **Latest:** ${{ env.latest_ts }}
+          **Source:** https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
+
+          ## New Versions
+          EOF
+
+          # Add versions as simple list
+          jq -r 'to_entries | .[] | "- \(.key): v\(.value)"' new_versions.json >> issue.md
+
+          # Add update commands
+          cat >> issue.md << 'EOF'
+
+          ## Update Commands
+          ```bash
+          # Update all packages to specific versions
+          EOF
+
+          # Generate specific version commands from JSON
+          jq -r 'to_entries | .[] | "go get github.com/anyproto/\(.key | sub("pkg::";""))@v\(.value)"' new_versions.json >> issue.md
+
+          cat >> issue.md << 'EOF'
+          go mod tidy
+
+          # Test
+          go test ./...
+          go build -o any-sync-bundle .
+
+          # Update timestamp in go.mod comment
+          # Change: Current timestamp: "${{ env.current_ts }}" → Current timestamp: "${{ env.latest_ts }}"
+          ```
+
+          ---
+          *Automated by version-check workflow*
+          EOF
+
+          gh issue create --title "$TITLE" --body-file issue.md --label dependencies

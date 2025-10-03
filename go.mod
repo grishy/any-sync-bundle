@@ -4,13 +4,8 @@ go 1.25.1
 
 tool github.com/matryer/moq
 
-// https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
-// "1757347920": {
-//     "pkg::any-sync-consensusnode": "0.3.0",
-//     "pkg::any-sync-coordinator": "0.6.1",
-//     "pkg::any-sync-filenode": "0.9.0",
-//     "pkg::any-sync-node": "0.8.0"
-// }
+// Source: https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
+// Current timestamp: "1757347920"
 require (
 	github.com/anyproto/any-sync-consensusnode v0.3.0
 	github.com/anyproto/any-sync-coordinator v0.6.1

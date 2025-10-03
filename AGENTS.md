@@ -255,6 +255,12 @@ Bundle versions follow format: `vX.Y.Z+YYYY-MM-DD`
 - `vX.Y.Z`: Bundle semver
 - `YYYY-MM-DD`: Anytype compatibility date from puppetdoc.anytype.io
 
+### Automated Version Tracking
+
+Compatible versions are tracked in `go.mod` (lines 7-17) from https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
+
+**CI Workflow:** `.github/workflows/version-check.yml` runs weekly to detect new Anytype releases and auto-creates GitHub issues with update instructions when available.
+
 ## Common Pitfalls & Debugging
 
 ### Issue: Sync Node Hangs on Startup
