@@ -25,7 +25,7 @@ jobs:
           LATEST_TIMESTAMP=$(echo "$API_JSON" | jq -r 'keys | max')
 
           # Extract current timestamp from go.mod comment
-          CURRENT_TIMESTAMP=$(grep 'Current timestamp:' go.mod | sed 's/.*"\([0-9]*\)".*/\1/')
+          CURRENT_TIMESTAMP=$(grep 'Current timestamp:' go.mod | head -1 | sed 's/.*"\([0-9]*\)".*/\1/')
 
           # Simple comparison: different timestamp = update available
           if [ "$LATEST_TIMESTAMP" = "$CURRENT_TIMESTAMP" ]; then
@@ -93,4 +93,4 @@ jobs:
           *Automated by version-check workflow*
           EOF
 
-          gh issue create --title "$TITLE" --body-file issue.md --label dependencies
+          gh issue create --title "$TITLE" --body-file issue.md --label dependencies --assignee grishy
