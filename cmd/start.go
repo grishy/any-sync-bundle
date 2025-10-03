@@ -145,6 +145,14 @@ func startServices(ctx context.Context, apps []node) error {
 
 		log.Info("✓ service started successfully", zap.String("name", a.name))
 		started = append(started, a)
+
+		// Critical: Add delay after coordinator starts to ensure it's fully initialized
+		// before starting dependent services. This prevents sync node from hanging.
+		if a.name == "coordinator" {
+			log.Info("waiting for coordinator to fully initialize before starting dependent services")
+			time.Sleep(2 * time.Second)
+			log.Info("coordinator fully initialized, starting dependent services")
+		}
 	}
 
 	return nil

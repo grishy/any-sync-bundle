@@ -1,6 +1,6 @@
 ## Project Overview
 
-Any-Sync-Bundle is a self-hosting solution for Anytype server that bundles multiple Anytype sync services into a single binary. It merges any-sync-consensusnode, any-sync-coordinator, any-sync-filenode, and any-sync-node into one deployable unit, simplifying deployment compared to the official multi-container setup.
+Any-Sync-Bundle is a self-hosting solution that bundles four Anytype sync services (coordinator, consensus, filenode, sync) into a single binary. This simplifies deployment from the official 6+ container setup to one binary + MongoDB + Redis.
 
 ## Build and Development Commands
 
@@ -45,120 +45,47 @@ golangci-lint run --fix
 
 The bundle integrates four Anytype sync services into a single binary:
 
-- **Coordinator** (`lightnode/anynodes.go:NewCoordinatorApp`): Network coordination, MUST start first
-- **Consensus Node** (`lightnode/anynodes.go:NewConsensusApp`): Consensus service functionality
-- **File Node** (`lightnode/anynodes.go:NewFileNodeApp`): File storage using BadgerDB (not S3/MinIO)
-- **Sync Node** (`lightnode/anynodes.go:NewSyncApp`): Core sync functionality
+- **Coordinator** (`lightnode/anynodes.go:newCoordinatorApp`): Network coordination, MUST start first
+- **Consensus Node** (`lightnode/anynodes.go:newConsensusApp`): Consensus service functionality
+- **File Node** (`lightnode/anynodes.go:newFileNodeApp`): File storage using BadgerDB (not S3/MinIO)
+- **Sync Node** (`lightnode/anynodes.go:newSyncApp`): Core sync functionality
 
-### Critical: Service Startup Order
+### Shared Network and Account
 
-**ORDER MATTERS!** Services must start in this exact order:
-1. **Coordinator** - MUST start first (provides shared network stack for all services)
-2. **Consensus, File, Sync** - start after coordinator (reuse its network stack)
-
-The coordinator creates the network infrastructure (TCP/UDP listeners, DRPC mux, connection pool).
-Other services extract and reuse these components via `SharedNetworkManager`.
-
-### Shared Network Architecture
-
-**Key Innovation**: Instead of each service creating its own network stack, all services share ONE network infrastructure:
+**Key Innovation**: All services share ONE network stack and ONE account (peer ID):
 
 ```
-Coordinator App (Primary)
-├── Creates network stack
-│   ├── yamux (TCP listener on port 33010)
-│   ├── quic (UDP listener on port 33020)
-│   ├── server (DRPC multiplexer)
-│   ├── pool (connection pool)
-│   └── peerservice (peer management)
+Coordinator (Primary)
+├── Creates network stack (TCP 33010, UDP 33020, DRPC mux, connection pool)
+├── Creates peer identity (coordinator-peer-id)
 └── Registers CoordinatorService RPC handlers
 
-SharedNetworkManager
-├── Extracts network components from coordinator
-└── Provides them to secondary services
-
-Secondary Apps (Consensus, FileNode, Sync)
-├── Receive shared network via SharedNetworkManager
-├── Register their own RPC handlers to shared DRPC mux
-└── Service-specific components only
+Secondary Services (Consensus, FileNode, Sync)
+├── Extract shared components via extractSharedNetwork()
+├── Reuse coordinator's peer identity
+└── Register their RPC handlers to shared DRPC mux
 ```
 
-**Benefits**:
-- Single port pair (33010 TCP, 33020 UDP) instead of 8 ports
-- Shared connection pool - all services reuse peer connections
-- Reduced memory usage - one network stack instead of four
-- True service bundling
+**Why share everything?**
+1. **Physical constraint**: One TCP/UDP listener = one TLS identity
+2. **DRPC routing**: Routes by method path (`/ConsensusService/*`), not peer ID
+3. **Framework support**: Single node can have multiple NodeTypes
 
-**Implementation** (`lightnode/sharednetwork.go`):
-- `ExtractSharedNetwork(app)` - extracts network components from coordinator
-- `RegisterToApp(app)` - injects shared components into secondary services
-
-**Startup Flow** (`cmd/start.go`):
-1. Create coordinator app (full network stack)
-2. Start coordinator
-3. Extract shared network via `ExtractSharedNetwork(coordinatorApp)`
-4. Create secondary apps with `sharedNet` parameter
-5. Start secondary apps (they reuse coordinator's network)
-
-### Shared Account Architecture
-
-**Critical Design Decision:** In bundle mode, all services share the **coordinator's account** (peer ID and signing keys).
-
-#### Why This Is Required
-
-1. **Single TLS Listener Constraint**
-   - One TCP/UDP listener can only have ONE TLS identity
-   - All services share coordinator's listener → must share its identity
-
-2. **DRPC Routing Model**
-   - Routing is by **method path** (`/ConsensusService/*`), not peer ID
-   - Multiple services can coexist on one peer with different RPC namespaces
-
-3. **Framework Support**
-   - any-sync framework supports multiple `NodeType` per node
-   - Single node can be [Coordinator, Consensus, Tree, File] simultaneously
-
-#### Implementation
-
-```go
-// lightnode/sharednetwork.go
-type sharedNetwork struct {
-    Account app.Component  // Coordinator's account shared by all
-    // ... other shared components
-}
-
-// Services use shared account
-newSyncApp(cfg, net)      .Register(net.Account)  // coordinator-peer-id
-newFileNodeApp(cfg, net)  .Register(net.Account)  // coordinator-peer-id
-newConsensusApp(cfg, net) .Register(net.Account)  // coordinator-peer-id
-```
-
-#### Impact on Services
-
-| Service | How It Uses Account | Impact of Sharing |
-|---------|-------------------|-------------------|
-| **Coordinator** | Signs space receipts with network key | ✅ Correct - IS the network key |
-| **Consensus** | Signs consensus records (AcceptorIdentity) | ✅ Safe - verification checks signature validity, not specific peer |
-| **FileNode** | Only uses client accounts from requests | ✅ No effect - service account unused |
-| **Sync** | Uses peer ID for partition membership checks | ✅ Works - coordinator-peer-id IS in member lists |
-
-#### Security Verification
-
-- ✅ **Signature Verification Intact**: Consensus record verifier checks signature validity, not which specific node signed
-- ✅ **TLS Authentication Works**: All services present coordinator's certificate
-- ✅ **No Functionality Broken**: All services tested and working correctly
-
-#### Network Topology
-
+**Network topology**:
 ```yaml
-# Single node with multiple service types
 nodes:
   - peerId: coordinator-peer-id
     addresses: [127.0.0.1:33010, quic://127.0.0.1:33020]
     types: [Coordinator, Consensus, Tree, File]
 ```
 
-This is the **only valid topology** for bundle mode due to physical TLS constraints.
+**Startup sequence** (`cmd/start.go`):
+1. Create coordinator app (full network + identity)
+2. **Start coordinator**
+3. **Wait 2 seconds** (coordinator initialization)
+4. Extract shared network via `extractSharedNetwork(coordinatorApp)`
+5. Create secondary apps with shared network
+6. Start secondary apps
 
 ### Key Components
 
@@ -180,73 +107,63 @@ This is the **only valid topology** for bundle mode due to physical TLS constrai
    - `lightfilenodestore/`: BadgerDB-based file storage implementation
    - Replaces MinIO for lightweight deployments
 
-## Service Port Mapping
+## Network Ports and RPC Routes
 
-**New Shared Network Architecture** (default):
-- TCP port: 33010 (ALL services share ONE listener)
-- UDP port: 33020 (ALL services share ONE listener)
+**Ports** (all services share):
+- TCP: 33010
+- UDP: 33020
 
-All services (coordinator, consensus, filenode, sync) register their RPC handlers to a single DRPC multiplexer:
-- Coordinator: `/CoordinatorService/*`
-- Consensus: `/ConsensusService/*`
-- FileNode: `/FileService/*`
-- SyncNode: `/SpaceSyncService/*`
+**DRPC method namespaces** (multiplexed on shared network):
+- `/CoordinatorService/*` → coordinator
+- `/ConsensusService/*` → consensus
+- `/FileService/*` → filenode
+- `/SpaceSyncService/*` → sync
 
-These method namespaces don't conflict, so they coexist in one mux.
+## Configuration
 
-## Configuration Patterns
-
-### File Locations
-1. Bundle config: `./data/bundle-config.yml` (generated via `config bundle`)
-2. Client config: `./data/client-config.yml` (auto-generated on first start)
-3. Storage directories:
-   - Sync: `./data/storage-sync/` (uses `AnyStorePath`)
-   - File: `./data/storage-file/` (BadgerDB storage)
-   - Network stores: `./data/network-store/{coordinator,consensus,filenode,sync}/`
-
-### Environment Variables
-- `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` - External addresses for client connections
-- `ANY_SYNC_BUNDLE_INIT_MONGO_URI` - MongoDB connection string
-- `ANY_SYNC_BUNDLE_INIT_REDIS_URI` - Redis connection string
-- All follow pattern: `ANY_SYNC_BUNDLE_*`
-
-### Config Generation Flow
-1. User runs `./any-sync-bundle config bundle` (or `start` auto-generates)
-2. Creates `bundle-config.yml` with network keys, accounts, listen addresses
-3. On `start`, generates `client-config.yml` from bundle config
-4. All services receive config via `NodeConfigs()` converter
-
-## Linting Configuration
-
-The project uses golangci-lint v2.4.0 with extensive checks enabled (see `.golangci.yml`). Key requirements:
-
-- Max line length: 120 characters
-- Cyclomatic complexity limit: 30
-- Function length limit: 100 lines, 50 statements
-- All imports must be grouped with local packages (`github.com/grishy/any-sync-bundle`) separate
-- Strict error checking and exhaustive switch/map checks enabled
-
-## Testing & Quality Assurance
-
-### Test Commands
-```bash
-# Full test suite with race detector
-go generate ./... && \
-  golangci-lint fmt ./... && \
-  golangci-lint run ./... && \
-  go test -race -shuffle=on -vet=all -failfast ./...
+### Default File Locations
+```
+./data/
+├── bundle-config.yml       # Generated via 'config bundle' or auto-generated on first 'start'
+├── client-config.yml       # Auto-generated on first 'start'
+├── storage-sync/           # Sync node data (AnyStorePath)
+├── storage-file/           # File node data (BadgerDB)
+└── network-store/          # Network state for each service
+    ├── coordinator/
+    ├── consensus/
+    ├── filenode/
+    └── sync/
 ```
 
-### Test Coverage
-- Unit tests: `lightcmp/lightfilenodestore` (BadgerDB storage)
-- Integration tests: None yet (services tested via manual start)
-- Mock generation: Available via `moq` tool
+### Environment Variables
+All follow `ANY_SYNC_BUNDLE_*` pattern:
+- `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` - External addresses for clients
+- `ANY_SYNC_BUNDLE_INIT_MONGO_URI` - MongoDB connection string
+- `ANY_SYNC_BUNDLE_INIT_REDIS_URI` - Redis connection string
 
-### Quality Checks
-- **Linting:** golangci-lint v2.4.0 (extensive checks enabled)
-- **Formatting:** gofumpt, goimports, golines (auto-fix via `--fix`)
-- **Race detection:** Always run tests with `-race` flag
-- **Vet checks:** Enabled via `-vet=all`
+### Config Flow
+1. `./any-sync-bundle start` checks for `bundle-config.yml`
+2. If missing, creates it with generated keys/accounts
+3. Generates `client-config.yml` for Anytype client
+4. Converts to service-specific configs via `NodeConfigs()`
+
+## Code Quality
+
+### Linting (golangci-lint v2.4.0)
+- Max line: 120 chars
+- Max complexity: 30
+- Max function: 100 lines/50 statements
+- Imports grouped: stdlib → external → local
+
+### Testing
+```bash
+# Full test suite
+go generate ./... && golangci-lint fmt ./... && golangci-lint run ./... && go test -race -shuffle=on -vet=all -failfast ./...
+```
+
+**Current coverage**:
+- ✅ Unit tests: `lightcmp/lightfilenodestore`
+- ❌ Integration tests: Manual only (TODO)
 
 ## Version Management
 
@@ -261,23 +178,47 @@ Compatible versions are tracked in `go.mod` (lines 7-17) from https://puppetdoc.
 
 **CI Workflow:** `.github/workflows/version-check.yml` runs weekly to detect new Anytype releases and auto-creates GitHub issues with update instructions when available.
 
-## Common Pitfalls & Debugging
+## Troubleshooting
 
-### Issue: Sync Node Hangs on Startup
-**Cause:** Missing `AnyStorePath` in storage config or wrong startup order
-**Fix:** Ensure `AnyStorePath` is set and coordinator starts first
+### Sync Node Hangs on Startup
 
-### Issue: Services Can't Connect to Coordinator
-**Cause:** Coordinator started after other services
-**Fix:** Check startup order in `cmd/start.go` - coordinator MUST be first
+**Symptoms**: Bundle starts coordinator successfully but hangs when starting sync node
 
-### Issue: File Storage Not Working
-**Cause:** Missing `stat.New()` component in filenode
-**Fix:** Verify `lightnode/anynodes.go:NewFileNodeApp` includes `filenodeStat.New()`
+**Root causes**:
+1. ❌ Coordinator not fully initialized before sync node starts
+2. ❌ Missing `NodeSync.SyncOnStart=true` or `PeriodicSyncHours=0` in config
+3. ❌ `Storage.AnyStorePath` not accessible or writable
 
-### Issue: Unexpected Storage Path Access
-**Cause:** Code accidentally using `Storage.Path` instead of `Storage.AnyStorePath`
-**Fix:** Will fail immediately with fuse path `/dev/null/oldstorage-not-used` - this is intentional!
+**Fix**:
+```bash
+# 1. Check startup includes delay after coordinator (should see this log):
+# "waiting for coordinator to fully initialize before starting dependent services"
+
+# 2. Verify config has sync settings (config/convert.go sets these by default):
+# NodeSync.SyncOnStart: true
+# NodeSync.PeriodicSyncHours: 2
+
+# 3. Check storage path exists and is writable:
+ls -la ./data/storage-sync/
+
+# 4. Enable debug logging to see where it hangs:
+./any-sync-bundle start --debug
+```
+
+The 2-second delay after coordinator startup (added in `cmd/start.go:151`) prevents this issue.
+
+### Services Can't Connect to Each Other
+
+**Cause**: Wrong startup order - coordinator MUST start first
+
+**Fix**: Check `cmd/start.go` - services array must be `[coordinator, consensus, filenode, sync]`
+
+### Storage Path Errors
+
+**Expected behavior**: If you see `/dev/null/oldstorage-not-used` in errors, this is a **defensive feature**
+- Bundle doesn't support legacy storage migration
+- `Storage.Path` field is deliberately set to invalid path
+- Only `Storage.AnyStorePath` should be used
 
 ## Reference: Service Dependencies
 
@@ -304,76 +245,41 @@ Coordinator (no deps)
 | Migration | Supported | Not supported |
 | Use Case | Production clusters | Self-hosting, development |
 
-## Key Architectural Decisions
+## Key Design Decisions
 
-### 1. **No Legacy Migration Support**
+### 1. New Installations Only
 
-**Components NOT included** (present in original any-sync-node):
-- `oldstorage.New()` - Legacy BadgerDB storage format
-- `migrator.New()` - Migrates from old to new storage format
+**Excluded components** (present in original any-sync-node):
+- `oldstorage.New()` - legacy storage format
+- `migrator.New()` - migration tool
 
-**Why:** Bundle is for NEW installations only. No backward compatibility needed.
+**Reason**: Simpler codebase, no backward compatibility burden
 
-**Impact:** Config field `Storage.Path` is unused (fuse set to `/dev/null/oldstorage-not-used`)
+**Impact**: `Storage.Path` unused (set to `/dev/null/oldstorage-not-used` as defensive fuse)
 
-### 2. **Storage Configuration**
+### 2. No Bootstrap Step
 
-```go
-Storage: nodestorage.Config{
-    Path:         "/dev/null/oldstorage-not-used", // FUSE - will fail if accessed
-    AnyStorePath: "./data/storage-sync",           // Actually used
-}
-```
+- **Docker-compose**: Runs `any-sync-confapply` to save network config to MongoDB
+- **Bundle**: Passes config directly via YAML, generates `client-config.yml`
 
-- `nodestorage` uses ONLY `AnyStorePath` (see `nodestorage/storageservice.go:284`)
-- `oldstorage` uses ONLY `Path` (NOT included in bundle)
-- `Path` set to invalid fuse path - will fail immediately if accidentally accessed
-- This is defensive programming - catches bugs early
+**Benefit**: Simpler, no dynamic discovery needed
 
-### 3. **No Bootstrap Step**
+### 3. Component Registration Order Matters
 
-**What docker-compose does:** Runs `any-sync-confapply` to save network config to MongoDB
+The any-sync framework initializes components sequentially:
+1. `Register()` adds components in order
+2. `Init()` called on each component
+3. Component can only access previously registered dependencies via `MustComponent()`
 
-**What bundle does:** Passes network config directly via YAML to all services + generates `client-config.yml`
+**Critical**: `secureservice` MUST come before `yamux`/`quic` or app panics
 
-**Why:** Simpler architecture, no dynamic discovery needed. All services get config at startup.
+See `lightnode/anynodes.go` for full dependency chains.
 
-**Impact:** `coordinatorNodeconfsource` component registered but MongoDB collection remains empty
+### 4. Storage Choices
 
-### 4. **Component Registration Order is CRITICAL**
-
-**How any-sync framework initializes components:**
-1. All `Register()` calls happen in order
-2. Each component's `Init(a *app.App)` is called sequentially
-3. During `Init()`, components call `a.MustComponent("name")` to get dependencies
-4. `MustComponent()` PANICS if the dependency wasn't registered earlier
-
-**This means:** Components can only access previously registered components!
-
-**Common dependency pattern across all services:**
-```
-Foundation → Configuration → Security & Transport → Network Services → Storage & Logic
-```
-
-**Key constraint:** `secureservice` MUST be registered BEFORE `yamux`/`quic`
-- Both yamux and quic call `a.MustComponent("secureservice")` in their Init()
-- If secureservice isn't registered first, application will PANIC on startup
-
-See `lightnode/anynodes.go` for detailed comments explaining each service's dependency chain.
-
-### 5. **Component Registration Patterns**
-
-Each service has specific component requirements:
-- **Sync Node:** Needs `nodestorage.New()` but NOT `oldstorage` or `migrator`
-- **File Node:** Needs `stat.New()` for statistics tracking
-- **Coordinator:** Needs `coordinatorNodeconfsource.New()` (framework requirement)
-- **All Services:** Need `yamux.New()` and `quic.New()` for transport (AFTER secureservice!)
-
-### 6. **Storage Implementation**
-
-- **File Node:** Uses `lightfilenodestore` (BadgerDB) instead of `s3store` (S3/MinIO)
-- **Sync Node:** Uses `nodestorage` (any-store format) directly
-- **Coordinator/Consensus:** Use MongoDB (external dependency)
+- **File Node**: BadgerDB (`lightfilenodestore`) instead of S3/MinIO
+- **Sync Node**: any-store format (`nodestorage`)
+- **Coordinator/Consensus**: MongoDB
 
 ## Development Notes
 
