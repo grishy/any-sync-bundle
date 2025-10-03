@@ -1,9 +1,6 @@
 package lightnode
 
 import (
-	"github.com/anyproto/any-sync/app/logger"
-	"go.uber.org/zap"
-
 	consensusnodeConfig "github.com/anyproto/any-sync-consensusnode/config"
 	"github.com/anyproto/any-sync-consensusnode/consensusrpc"
 	consensusnodeDB "github.com/anyproto/any-sync-consensusnode/db"
@@ -74,19 +71,11 @@ import (
 //
 // Component registration order is based on actual initialization dependencies.
 // Order is CRITICAL - components can only access previously registered components in Init().
-//
 // IMPORTANT: If sync node hangs on startup, check:
 // 1. Coordinator is fully initialized before sync node starts
 // 2. NodeSync config has SyncOnStart=true and PeriodicSyncHours>0
 // 3. Storage.AnyStorePath is accessible and writable
 func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
-	// Log critical configuration to help debug startup issues
-	log := logger.NewNamed("sync-node-init")
-	log.Info("creating sync node app",
-		zap.String("storage.AnyStorePath", cfg.Storage.AnyStorePath),
-		zap.Bool("nodeSync.SyncOnStart", cfg.NodeSync.SyncOnStart),
-		zap.Int("nodeSync.PeriodicSyncHours", cfg.NodeSync.PeriodicSyncHours))
-
 	return new(app.App).
 		Register(cfg).
 		Register(net.Account).
