@@ -22,6 +22,7 @@ const (
 // Global CLI flags.
 const (
 	fGlobalIsDbg             = "debug"
+	fGlobalLogLevel          = "log-level"
 	fGlobalStoragePath       = "storage"
 	fGlobalBundleConfigPath  = "bundle-config"
 	fGlobalClientConfigPath  = "client-config"
@@ -69,6 +70,11 @@ func buildGlobalFlags() []cli.Flag {
 			Usage:   "Enable debug mode with detailed logging",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_DEBUG"},
 		},
+		&cli.StringFlag{
+			Name:    fGlobalLogLevel,
+			Usage:   "Log level (debug, info, warn, error, fatal)",
+			EnvVars: []string{"ANY_SYNC_BUNDLE_LOG_LEVEL"},
+		},
 		&cli.PathFlag{
 			Name:    fGlobalBundleConfigPath,
 			Aliases: []string{"c"},
@@ -112,9 +118,16 @@ func buildGlobalFlags() []cli.Flag {
 
 func setupLogger(c *cli.Context) error {
 	cfg := logger.Config{
-		Format: logger.PlaintextOutput,
+		Format:       logger.PlaintextOutput,
+		DefaultLevel: "info",
 	}
 
+	// --log-level flag
+	if logLevel := c.String(fGlobalLogLevel); logLevel != "" {
+		cfg.DefaultLevel = logLevel
+	}
+
+	// --debug flag (overrides everything)
 	if c.Bool(fGlobalIsDbg) {
 		cfg.DefaultLevel = "debug"
 		cfg.Format = logger.ColorizedOutput
