@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"runtime/debug"
 	"slices"
@@ -28,6 +29,52 @@ type node struct {
 }
 
 const serviceShutdownTimeout = 30 * time.Second
+
+// waitForTCPReady waits for a TCP listener to be ready to accept connections.
+// It polls the address until a connection succeeds or timeout is reached.
+// Returns error if listener doesn't become ready within timeout.
+func waitForTCPReady(addr string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	dialer := &net.Dialer{
+		Timeout: 100 * time.Millisecond,
+	}
+
+	attempt := 0
+	startTime := time.Now()
+
+	for {
+		attempt++
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err == nil {
+			_ = conn.Close()
+			elapsed := time.Since(startTime)
+			log.Info("TCP listener ready",
+				zap.String("addr", addr),
+				zap.Int("attempts", attempt),
+				zap.Duration("elapsed", elapsed))
+			return nil
+		}
+
+		// Check if context deadline exceeded
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("TCP listener not ready after %v (attempts: %d): %w", timeout, attempt, ctx.Err())
+		default:
+		}
+
+		// Log progress every 500ms to show we're waiting
+		if attempt%5 == 0 {
+			log.Debug("waiting for TCP listener",
+				zap.String("addr", addr),
+				zap.Int("attempts", attempt),
+				zap.Duration("elapsed", time.Since(startTime)))
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+}
 
 func cmdStart(ctx context.Context) *cli.Command {
 	return &cli.Command{
@@ -90,7 +137,7 @@ func startAction(ctx context.Context) cli.ActionFunc {
 		}
 
 		// Start all services
-		if err := startServices(ctx, apps); err != nil {
+		if err := startServices(ctx, apps, bundleCfg); err != nil {
 			return err
 		}
 
@@ -126,7 +173,7 @@ func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.C
 	})
 }
 
-func startServices(ctx context.Context, apps []node) error {
+func startServices(ctx context.Context, apps []node, cfg *bundleConfig.Config) error {
 	log.Info("initiating service startup", zap.Int("count", len(apps)))
 
 	started := []node{}
@@ -146,12 +193,22 @@ func startServices(ctx context.Context, apps []node) error {
 		log.Info("✓ service started successfully", zap.String("name", a.name))
 		started = append(started, a)
 
-		// Critical: Add delay after coordinator starts to ensure it's fully initialized
-		// before starting dependent services. This prevents sync node from hanging.
+		// Critical: Wait for coordinator's TCP listener to be ready before starting
+		// dependent services. This prevents sync node from failing when it tries to
+		// connect during SyncOnStart. The coordinator's yamux transport starts its
+		// TCP listener asynchronously, so we need to wait for it to be accepting
+		// connections before proceeding.
 		if a.name == "coordinator" {
-			log.Info("waiting for coordinator to fully initialize before starting dependent services")
-			time.Sleep(2 * time.Second)
-			log.Info("coordinator fully initialized, starting dependent services")
+			coordinatorAddr := cfg.Network.ListenTCPAddr
+			log.Info("waiting for coordinator TCP listener to be ready",
+				zap.String("addr", coordinatorAddr))
+
+			if err := waitForTCPReady(coordinatorAddr, 3*time.Second); err != nil {
+				shutdownServices(started)
+				return fmt.Errorf("coordinator failed to start listener: %w", err)
+			}
+
+			log.Info("coordinator ready, starting dependent services")
 		}
 	}
 
