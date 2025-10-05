@@ -202,3 +202,12 @@ type ShareabilityRequest struct {
 	Identity     string
 	MakeSharable bool
 }
+
+// StorageStats represents system-wide storage statistics.
+type StorageStats struct {
+	TotalBytesUsed uint64
+	TotalCidsCount uint64
+	TotalFileCount uint32
+	TotalSpaces    int
+	TotalUsers     int
+}

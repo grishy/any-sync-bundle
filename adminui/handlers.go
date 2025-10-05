@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/a-h/templ"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
 	"github.com/grishy/any-sync-bundle/adminui/admintypes"
@@ -293,6 +294,26 @@ func (h *Handlers) handleToggleShareability(w http.ResponseWriter, r *http.Reque
 		redirectURL = "/admin/user/" + identity
 	}
 	http.Redirect(w, r, redirectURL+"?updated=true", http.StatusSeeOther)
+}
+
+// handleStorageOverview handles the storage overview dashboard page.
+func (h *Handlers) handleStorageOverview(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.service.GetStorageStats(r.Context())
+	if err != nil {
+		h.renderError(w, r, err)
+		return
+	}
+
+	h.render(w, r, pages.StorageOverviewPage(stats, "Storage Overview"))
+}
+
+// handleMetrics exposes Prometheus metrics endpoint.
+func (h *Handlers) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	registry := h.service.metric.Registry()
+	handler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	})
+	handler.ServeHTTP(w, r)
 }
 
 // renderError renders an error page.

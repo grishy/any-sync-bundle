@@ -10,6 +10,7 @@ import (
 	"github.com/anyproto/any-sync-coordinator/db"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
 	"github.com/anyproto/any-sync-filenode/index"
+	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/nodeconf"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -25,6 +26,7 @@ type Service struct {
 	filenodeIndex index.Index
 	aclEventLog   acleventlog.AclEventLog
 	nodeConf      nodeconf.NodeConf
+	metric        metric.Metric
 }
 
 // newService creates a new service with direct dependencies.
@@ -35,6 +37,7 @@ func newService(
 	filenodeIndex index.Index,
 	aclEventLog acleventlog.AclEventLog,
 	nodeConf nodeconf.NodeConf,
+	m metric.Metric,
 ) *Service {
 	return &Service{
 		coordinatorDB: coordinatorDB,
@@ -43,6 +46,7 @@ func newService(
 		filenodeIndex: filenodeIndex,
 		aclEventLog:   aclEventLog,
 		nodeConf:      nodeConf,
+		metric:        m,
 	}
 }
 
@@ -480,6 +484,70 @@ func (s *Service) getACLEventsWithFilter(
 	}
 
 	return events, int(total), nil
+}
+
+// GetStorageStats retrieves system-wide storage statistics from filenode.
+func (s *Service) GetStorageStats(ctx context.Context) (*admintypes.StorageStats, error) {
+	stats := &admintypes.StorageStats{}
+
+	// Get all unique identities from spaces
+	identities, err := s.coordinatorDB.Db().Collection("spaces").
+		Distinct(ctx, "identity", bson.M{"status": admintypes.SpaceStatusCreated})
+	if err != nil {
+		return nil, fmt.Errorf("get identities: %w", err)
+	}
+
+	stats.TotalUsers = len(identities)
+
+	// Count total active spaces
+	spaceCount, err := s.coordinatorDB.Db().Collection("spaces").
+		CountDocuments(ctx, bson.M{"status": admintypes.SpaceStatusCreated})
+	if err != nil {
+		return nil, fmt.Errorf("count spaces: %w", err)
+	}
+	stats.TotalSpaces = int(spaceCount)
+
+	// Aggregate storage stats from all users
+	for _, identity := range identities {
+		identityStr, ok := identity.(string)
+		if !ok {
+			continue
+		}
+
+		groupInfo, groupErr := s.filenodeIndex.GroupInfo(ctx, identityStr)
+		if groupErr != nil {
+			continue
+		}
+
+		stats.TotalBytesUsed += groupInfo.BytesUsage
+		stats.TotalCidsCount += groupInfo.CidsCount
+	}
+
+	// Get total file count from all spaces
+	cursor, err := s.coordinatorDB.Db().Collection("spaces").Find(ctx, bson.M{
+		"status": admintypes.SpaceStatusCreated,
+	})
+	if err != nil {
+		return stats, nil // Return partial stats
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var space admintypes.SpaceInfo
+		if decodeErr := cursor.Decode(&space); decodeErr != nil {
+			continue
+		}
+
+		spaceKey := index.Key{
+			GroupId: space.Identity,
+			SpaceId: space.SpaceID,
+		}
+		if spaceInfo, spaceErr := s.filenodeIndex.SpaceInfo(ctx, spaceKey); spaceErr == nil {
+			stats.TotalFileCount += spaceInfo.FileCount
+		}
+	}
+
+	return stats, nil
 }
 
 // formatTime formats time for display.
