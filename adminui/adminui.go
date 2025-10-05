@@ -76,7 +76,7 @@ func (a *AdminUI) Init(_ *app.App) error {
 func (a *AdminUI) setupServer() {
 	mux := http.NewServeMux()
 
-	// Static files
+	// Static files (CSS, JS, etc.)
 	staticHandler := http.FileServer(http.FS(staticFS))
 	mux.Handle("/static/", staticHandler)
 
@@ -84,7 +84,6 @@ func (a *AdminUI) setupServer() {
 	mux.HandleFunc("/admin/", a.handlers.handleIndex)
 	mux.HandleFunc("/admin/users", a.handlers.handleAllUsers)
 	mux.HandleFunc("/admin/spaces/all", a.handlers.handleAllSpacesList)
-	mux.HandleFunc("/admin/search", a.handlers.handleSearch)
 	mux.HandleFunc("/admin/user/{identity}", a.handlers.handleUserDetail)
 	mux.HandleFunc("/admin/user/{identity}/quota", a.handlers.handleQuotaEdit)
 	mux.HandleFunc("/admin/spaces", a.handlers.handleSpacesList)

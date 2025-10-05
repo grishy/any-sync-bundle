@@ -2,8 +2,8 @@ package layouts
 
 import "github.com/grishy/any-sync-bundle/adminui/views/components"
 
-// Base layout for all admin pages
-templ Base(title string, message string, errorMsg string) {
+// Base layout for all admin pages with modern header navigation
+templ Base(title string, activePage string, message string, errorMsg string) {
 	<!DOCTYPE html>
 	<html lang="en">
 		<head>
@@ -13,19 +13,22 @@ templ Base(title string, message string, errorMsg string) {
 			<link rel="stylesheet" href="/static/style.css"/>
 		</head>
 		<body>
-			@components.Nav()
-			<main>
-				if message != "" {
-					@components.Alert(message, false)
-				}
-				if errorMsg != "" {
-					@components.Alert(errorMsg, true)
-				}
-				{ children... }
+			@components.HeaderNav(activePage)
+
+			<main class="main-content">
+				<div class="container">
+					<div class="page-header">
+						<h1>{ title }</h1>
+					</div>
+					if message != "" {
+						@components.Alert(message, false)
+					}
+					if errorMsg != "" {
+						@components.Alert(errorMsg, true)
+					}
+					{ children... }
+				</div>
 			</main>
-			<footer>
-				<p>&copy; 2024 Any-Sync Bundle Admin</p>
-			</footer>
 		</body>
 	</html>
 }

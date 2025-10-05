@@ -4,7 +4,7 @@ import "github.com/grishy/any-sync-bundle/adminui/views/layouts"
 
 // ErrorPage renders an error page
 templ ErrorPage(errorMsg string, title string) {
-	@layouts.Base(title, "", errorMsg) {
+	@layouts.Base(title, "", "", errorMsg) {
 		<div class="container">
 			<div class="error-container">
 				<h2>Error</h2>
@@ -19,7 +19,7 @@ templ ErrorPage(errorMsg string, title string) {
 				}
 				<div class="actions">
 					<a href="/admin/" class="button">Back to Dashboard</a>
-					<a href="/admin/search" class="button">Search Users</a>
+					<a href="/admin/users" class="button">View All Users</a>
 				</div>
 			</div>
 		</div>

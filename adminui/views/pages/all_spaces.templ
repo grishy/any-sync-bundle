@@ -8,7 +8,7 @@ import (
 
 // AllSpacesPage renders the all spaces list page.
 templ AllSpacesPage(spaces []admintypes.SpaceInfo, page, total int, filterType, filterStatus int) {
-	@layouts.Base("All Spaces", "", "") {
+	@layouts.Base("All Spaces", "spaces", "", "") {
 		<div class="container">
 			<h2>All Spaces</h2>
 			<p>Total: { fmt.Sprintf("%d", total) } spaces</p>

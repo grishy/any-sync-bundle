@@ -7,7 +7,7 @@ import (
 
 // DeletionsPage renders the deletion log
 templ DeletionsPage(entries []admintypes.DeletionEntry, title string) {
-	@layouts.Base(title, "", "") {
+	@layouts.Base(title, "deletions", "", "") {
 		<div class="container">
 			<h2>Deletion Log</h2>
 			if len(entries) > 0 {

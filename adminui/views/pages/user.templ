@@ -10,7 +10,7 @@ import (
 // UserPage renders the user detail page
 // This component receives UserInfo directly (not interface{}), fixing the template error!
 templ UserPage(data *admintypes.UserInfo, title string, message string) {
-	@layouts.Base(title, message, "") {
+	@layouts.Base(title, "", message, "") {
 		<div class="container">
 			if data != nil {
 				<h2>User Details</h2>

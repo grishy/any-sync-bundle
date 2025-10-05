@@ -8,7 +8,7 @@ import (
 
 // NetworkTopologyPage renders the network topology page.
 templ NetworkTopologyPage(config *admintypes.NetworkConfig, title string) {
-	@layouts.Base(title, "", "") {
+	@layouts.Base(title, "network", "", "") {
 		<div class="container">
 			<h2>Network Topology</h2>
 			if config != nil {

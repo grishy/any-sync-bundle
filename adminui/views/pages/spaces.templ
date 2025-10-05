@@ -8,7 +8,7 @@ import (
 
 // SpacesPage renders the spaces list for a user
 templ SpacesPage(spaces []admintypes.SpaceInfo, identity string, title string) {
-	@layouts.Base(title, "", "") {
+	@layouts.Base(title, "", "", "") {
 		<div class="container">
 			<h2>Spaces</h2>
 			if identity != "" {

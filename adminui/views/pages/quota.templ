@@ -8,7 +8,7 @@ import (
 
 // QuotaPage renders the quota edit form
 templ QuotaPage(data *admintypes.UserInfo, title string) {
-	@layouts.Base(title, "", "") {
+	@layouts.Base(title, "", "", "") {
 		<div class="container">
 			if data != nil {
 				<h2>Edit Quota</h2>

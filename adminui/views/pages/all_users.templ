@@ -8,7 +8,7 @@ import (
 
 // AllUsersPage renders the all users list page.
 templ AllUsersPage(users []admintypes.UserSummary, page, total int) {
-	@layouts.Base("All Users", "", "") {
+	@layouts.Base("All Users", "users", "", "") {
 		<div class="container">
 			<h2>All Users</h2>
 			<p>Total: { fmt.Sprintf("%d", total) } users</p>

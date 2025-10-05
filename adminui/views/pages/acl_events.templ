@@ -8,7 +8,7 @@ import (
 
 // ACLEventsPage renders the ACL events log page.
 templ ACLEventsPage(events []admintypes.ACLEventEntry, page, total int, filterIdentity, filterSpaceID string) {
-	@layouts.Base("ACL Events", "", "") {
+	@layouts.Base("ACL Events", "acl-events", "", "") {
 		<div class="container">
 			<h2>ACL Event Log</h2>
 			<p>Total: { fmt.Sprintf("%d", total) } events</p>

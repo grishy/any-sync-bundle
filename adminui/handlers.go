@@ -36,23 +36,6 @@ func (h *Handlers) handleIndex(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, pages.IndexPage(stats, "Admin Dashboard", ""))
 }
 
-// handleSearch handles user search.
-func (h *Handlers) handleSearch(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		identity := strings.TrimSpace(r.FormValue("identity"))
-		if identity == "" {
-			h.renderError(w, r, "Identity is required")
-			return
-		}
-
-		// Redirect to user detail page
-		http.Redirect(w, r, "/admin/user/"+identity, http.StatusSeeOther)
-		return
-	}
-
-	// GET - show search form
-	h.render(w, r, pages.SearchPage("User Search"))
-}
 
 // handleUserDetail handles user detail page.
 func (h *Handlers) handleUserDetail(w http.ResponseWriter, r *http.Request) {
