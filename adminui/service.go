@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/anyproto/any-sync-coordinator/accountlimit"
+	"github.com/anyproto/any-sync-coordinator/acleventlog"
 	"github.com/anyproto/any-sync-coordinator/db"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
 	"github.com/anyproto/any-sync-filenode/index"
+	"github.com/anyproto/any-sync/nodeconf"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -21,6 +23,8 @@ type Service struct {
 	accountLimit  accountlimit.AccountLimit
 	spaceStatus   spacestatus.SpaceStatus
 	filenodeIndex index.Index
+	aclEventLog   acleventlog.AclEventLog
+	nodeConf      nodeconf.NodeConf
 }
 
 // newService creates a new service with direct dependencies.
@@ -29,12 +33,16 @@ func newService(
 	accountLimit accountlimit.AccountLimit,
 	spaceStatus spacestatus.SpaceStatus,
 	filenodeIndex index.Index,
+	aclEventLog acleventlog.AclEventLog,
+	nodeConf nodeconf.NodeConf,
 ) *Service {
 	return &Service{
 		coordinatorDB: coordinatorDB,
 		accountLimit:  accountLimit,
 		spaceStatus:   spaceStatus,
 		filenodeIndex: filenodeIndex,
+		aclEventLog:   aclEventLog,
+		nodeConf:      nodeConf,
 	}
 }
 
@@ -356,6 +364,122 @@ func (s *Service) GetAllSpacesWithPagination(
 	}
 
 	return spaces, int(total), nil
+}
+
+// ToggleSpaceShareability toggles space shareability.
+func (s *Service) ToggleSpaceShareability(ctx context.Context, req admintypes.ShareabilityRequest) error {
+	// Get current user limits to check shared space limit
+	limits, err := s.accountLimit.GetLimits(ctx, req.Identity)
+	if err != nil {
+		return fmt.Errorf("get limits: %w", err)
+	}
+
+	if req.MakeSharable {
+		// Get the space status to determine its type
+		status, statusErr := s.spaceStatus.Status(ctx, req.SpaceID)
+		if statusErr != nil {
+			return fmt.Errorf("get space status: %w", statusErr)
+		}
+
+		return s.spaceStatus.MakeShareable(ctx, req.SpaceID, status.Type, limits.SharedSpacesLimit)
+	}
+	return s.spaceStatus.MakeUnshareable(ctx, req.SpaceID)
+}
+
+// GetACLEvents retrieves ACL event log entries for a user.
+func (s *Service) GetACLEvents(
+	ctx context.Context,
+	identity string,
+	page int,
+) ([]admintypes.ACLEventEntry, int, error) {
+	filter := bson.M{"owner": identity}
+	return s.getACLEventsWithFilter(ctx, filter, page)
+}
+
+// GetNetworkConfig retrieves the network configuration from the nodeconf component.
+func (s *Service) GetNetworkConfig(_ context.Context) (*admintypes.NetworkConfig, error) {
+	// Get the configuration from the nodeconf component (loaded from YAML, not MongoDB)
+	conf := s.nodeConf.Configuration()
+
+	// Convert from nodeconf.Configuration to admintypes.NetworkConfig
+	nodes := make([]admintypes.NetworkNode, len(conf.Nodes))
+	for i, node := range conf.Nodes {
+		// Convert NodeType slice to string slice
+		types := make([]string, len(node.Types))
+		for j, t := range node.Types {
+			types[j] = string(t)
+		}
+
+		nodes[i] = admintypes.NetworkNode{
+			PeerID:    node.PeerId,
+			Addresses: node.Addresses,
+			Types:     types,
+		}
+	}
+
+	return &admintypes.NetworkConfig{
+		NetworkID: conf.NetworkId,
+		Nodes:     nodes,
+	}, nil
+}
+
+// GetAllACLEvents retrieves all ACL events with pagination (not filtered by user).
+func (s *Service) GetAllACLEvents(ctx context.Context, page int) ([]admintypes.ACLEventEntry, int, error) {
+	return s.getACLEventsWithFilter(ctx, bson.M{}, page)
+}
+
+// GetACLEventsBySpace retrieves ACL events for a specific space.
+func (s *Service) GetACLEventsBySpace(
+	ctx context.Context,
+	spaceID string,
+	page int,
+) ([]admintypes.ACLEventEntry, int, error) {
+	filter := bson.M{"spaceId": spaceID}
+	return s.getACLEventsWithFilter(ctx, filter, page)
+}
+
+// getACLEventsWithFilter is a helper function to retrieve ACL events with a filter.
+func (s *Service) getACLEventsWithFilter(
+	ctx context.Context,
+	filter bson.M,
+	page int,
+) ([]admintypes.ACLEventEntry, int, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	// Count total
+	total, err := s.coordinatorDB.Db().Collection("aclEventLog").CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count acl events: %w", err)
+	}
+
+	// Fetch events with pagination
+	opts := options.Find().
+		SetSort(bson.D{{Key: "_id", Value: -1}}). // Sort by ID descending (newest first)
+		SetSkip(int64((page - 1) * admintypes.PageSize)).
+		SetLimit(int64(admintypes.PageSize))
+
+	cursor, err := s.coordinatorDB.Db().Collection("aclEventLog").Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("find acl events: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var events []admintypes.ACLEventEntry
+	for cursor.Next(ctx) {
+		var event admintypes.ACLEventEntry
+		if decodeErr := cursor.Decode(&event); decodeErr != nil {
+			return nil, 0, fmt.Errorf("decode acl event: %w", decodeErr)
+		}
+
+		// Convert timestamp to time
+		event.Time = time.Unix(event.Timestamp, 0)
+
+		events = append(events, event)
+	}
+
+	return events, int(total), nil
 }
 
 // formatTime formats time for display.

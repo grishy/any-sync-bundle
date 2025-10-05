@@ -230,6 +230,88 @@ func (h *Handlers) handleAllSpacesList(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, pages.AllSpacesPage(spaces, page, total, filterType, filterStatus))
 }
 
+// handleACLEvents handles the ACL events page.
+func (h *Handlers) handleACLEvents(w http.ResponseWriter, r *http.Request) {
+	page := 1
+	if p := r.URL.Query().Get("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+
+	// Check if filtering by identity or spaceId
+	identity := r.URL.Query().Get("identity")
+	spaceID := r.URL.Query().Get("spaceId")
+
+	var events []admintypes.ACLEventEntry
+	var total int
+	var err error
+
+	switch {
+	case identity != "":
+		events, total, err = h.service.GetACLEvents(r.Context(), identity, page)
+	case spaceID != "":
+		events, total, err = h.service.GetACLEventsBySpace(r.Context(), spaceID, page)
+	default:
+		events, total, err = h.service.GetAllACLEvents(r.Context(), page)
+	}
+
+	if err != nil {
+		h.renderError(w, r, err)
+		return
+	}
+
+	h.render(w, r, pages.ACLEventsPage(events, page, total, identity, spaceID))
+}
+
+// handleNetworkTopology handles the network topology page.
+func (h *Handlers) handleNetworkTopology(w http.ResponseWriter, r *http.Request) {
+	config, err := h.service.GetNetworkConfig(r.Context())
+	if err != nil {
+		h.renderError(w, r, err)
+		return
+	}
+
+	h.render(w, r, pages.NetworkTopologyPage(config, "Network Topology"))
+}
+
+// handleToggleShareability handles space shareability toggle.
+func (h *Handlers) handleToggleShareability(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	spaceID := r.FormValue("space_id")
+	identity := r.FormValue("identity")
+	makeSharableStr := r.FormValue("make_sharable")
+
+	if spaceID == "" || identity == "" {
+		h.renderError(w, r, "Space ID and identity are required")
+		return
+	}
+
+	makeSharable := makeSharableStr == "true"
+
+	req := admintypes.ShareabilityRequest{
+		SpaceID:      spaceID,
+		Identity:     identity,
+		MakeSharable: makeSharable,
+	}
+
+	if err := h.service.ToggleSpaceShareability(r.Context(), req); err != nil {
+		h.renderError(w, r, err)
+		return
+	}
+
+	// Redirect back to spaces page or user page
+	redirectURL := r.FormValue("redirect_url")
+	if redirectURL == "" {
+		redirectURL = "/admin/user/" + identity
+	}
+	http.Redirect(w, r, redirectURL+"?updated=true", http.StatusSeeOther)
+}
+
 // renderError renders an error page.
 func (h *Handlers) renderError(w http.ResponseWriter, r *http.Request, err interface{}) {
 	log.Warn("rendering error", zap.String("path", r.URL.Path), zap.Any("error", err))

@@ -101,7 +101,7 @@ func SpaceTypeString(t int) string {
 	case SpaceTypeChat:
 		return "Chat"
 	default:
-		return "Unknown"
+		return unknownTypeString
 	}
 }
 
@@ -117,7 +117,7 @@ func SpaceStatusString(s int) string {
 	case SpaceStatusDeleted:
 		return "Deleted"
 	default:
-		return "Unknown"
+		return unknownTypeString
 	}
 }
 
@@ -141,4 +141,64 @@ func CalculateUsagePercent(used, total uint64) float64 {
 		return 0
 	}
 	return float64(used) / float64(total) * 100
+}
+
+const (
+	unknownTypeString = "Unknown"
+)
+
+// ACLEventEntry represents an ACL event log entry.
+type ACLEventEntry struct {
+	ID          string    `bson:"_id"`
+	SpaceID     string    `bson:"spaceId"`
+	PeerID      string    `bson:"peerId"`
+	Owner       string    `bson:"owner"`
+	Timestamp   int64     `bson:"timestamp"`
+	EntryType   int       `bson:"entryType"`
+	ACLChangeID string    `bson:"aclChangeId,omitempty"`
+	Time        time.Time // Computed from Timestamp
+}
+
+// ACL event type constants.
+const (
+	ACLEventTypeSpaceReceipt = iota
+	ACLEventTypeSpaceShared
+	ACLEventTypeSpaceUnshared
+	ACLEventTypeSpaceACLAddRecord
+)
+
+// ACLEventTypeString returns human-readable ACL event type.
+func ACLEventTypeString(t int) string {
+	switch t {
+	case ACLEventTypeSpaceReceipt:
+		return "Space Receipt"
+	case ACLEventTypeSpaceShared:
+		return "Space Shared"
+	case ACLEventTypeSpaceUnshared:
+		return "Space Unshared"
+	case ACLEventTypeSpaceACLAddRecord:
+		return "ACL Record Added"
+	default:
+		return unknownTypeString
+	}
+}
+
+// NetworkNode represents a node in the network topology.
+type NetworkNode struct {
+	PeerID    string   `yaml:"peerId"    bson:"peerId"`
+	Addresses []string `yaml:"addresses" bson:"addresses"`
+	Types     []string `yaml:"types"     bson:"types"`
+}
+
+// NetworkConfig represents the network configuration.
+type NetworkConfig struct {
+	NetworkID string        `yaml:"id"    bson:"id"`
+	Nodes     []NetworkNode `yaml:"nodes" bson:"nodes"`
+}
+
+// ShareabilityRequest represents a space shareability toggle request.
+type ShareabilityRequest struct {
+	SpaceID      string
+	Identity     string
+	MakeSharable bool
 }

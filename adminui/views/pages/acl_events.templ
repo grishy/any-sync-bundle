@@ -1,0 +1,104 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// ACLEventsPage renders the ACL events log page.
+templ ACLEventsPage(events []admintypes.ACLEventEntry, page, total int, filterIdentity, filterSpaceID string) {
+	@layouts.Base("ACL Events", "", "") {
+		<div class="container">
+			<h2>ACL Event Log</h2>
+			<p>Total: { fmt.Sprintf("%d", total) } events</p>
+			// Filters
+			<div class="card">
+				<h3>Filters</h3>
+				<form method="GET" action="/admin/acl-events">
+					<input type="hidden" name="page" value="1"/>
+					<div class="form-group">
+						<label>Filter by Identity:</label>
+						<input type="text" name="identity" class="form-control" value={ filterIdentity } placeholder="Enter user identity"/>
+					</div>
+					<div class="form-group">
+						<label>Filter by Space ID:</label>
+						<input type="text" name="spaceId" class="form-control" value={ filterSpaceID } placeholder="Enter space ID"/>
+					</div>
+					<button type="submit" class="button button-primary">Apply Filters</button>
+					<a href="/admin/acl-events" class="button">Clear</a>
+				</form>
+			</div>
+			<div class="card">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Timestamp</th>
+							<th>Event Type</th>
+							<th>Space ID</th>
+							<th>Owner</th>
+							<th>Peer ID</th>
+							<th>ACL Change ID</th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(events) > 0 {
+							for _, event := range events {
+								<tr>
+									<td>{ event.Time.Format("2006-01-02 15:04:05") }</td>
+									<td>
+										<span class="badge">{ admintypes.ACLEventTypeString(event.EntryType) }</span>
+									</td>
+									<td>
+										<code class="space-id">{ event.SpaceID }</code>
+										<br/>
+										<a href={ templ.URL(fmt.Sprintf("/admin/acl-events?spaceId=%s", event.SpaceID)) } class="button">Filter by Space</a>
+									</td>
+									<td>
+										<code class="identity">{ event.Owner }</code>
+										<br/>
+										<a href={ templ.URL(fmt.Sprintf("/admin/user/%s", event.Owner)) } class="button">View User</a>
+									</td>
+									<td><code>{ event.PeerID }</code></td>
+									<td>
+										if event.ACLChangeID != "" {
+											<code>{ event.ACLChangeID }</code>
+										} else {
+											<em>N/A</em>
+										}
+									</td>
+								</tr>
+							}
+						} else {
+							<tr>
+								<td colspan="6">No ACL events found</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+				// Pagination
+				<div class="pagination">
+					if page > 1 {
+						<a href={ templ.URL(buildAclEventsURL(page-1, filterIdentity, filterSpaceID)) } class="button">Previous</a>
+					}
+					<span>Page { fmt.Sprintf("%d", page) }</span>
+					if page * admintypes.PageSize < total {
+						<a href={ templ.URL(buildAclEventsURL(page+1, filterIdentity, filterSpaceID)) } class="button">Next</a>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+// buildAclEventsURL builds pagination URL with filters.
+func buildAclEventsURL(page int, filterIdentity, filterSpaceID string) string {
+	url := fmt.Sprintf("/admin/acl-events?page=%d", page)
+	if filterIdentity != "" {
+		url += fmt.Sprintf("&identity=%s", filterIdentity)
+	}
+	if filterSpaceID != "" {
+		url += fmt.Sprintf("&spaceId=%s", filterSpaceID)
+	}
+	return url
+}

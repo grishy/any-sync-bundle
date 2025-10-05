@@ -26,6 +26,7 @@ templ SpacesPage(spaces []admintypes.SpaceInfo, identity string, title string) {
 								<th>Files</th>
 								<th>CIDs</th>
 								<th>Shareable</th>
+								<th>Actions</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -54,6 +55,24 @@ templ SpacesPage(spaces []admintypes.SpaceInfo, identity string, title string) {
 										} else {
 											<span class="badge">No</span>
 										}
+									</td>
+									<td>
+										// Shareability toggle
+										if space.Status == admintypes.SpaceStatusCreated {
+											<form method="POST" action="/admin/space/toggle-shareability" style="display: inline;">
+												<input type="hidden" name="space_id" value={ space.SpaceID }/>
+												<input type="hidden" name="identity" value={ identity }/>
+												<input type="hidden" name="make_sharable" value={ fmt.Sprintf("%t", !space.IsShareable) }/>
+												<input type="hidden" name="redirect_url" value={ fmt.Sprintf("/admin/spaces?identity=%s", identity) }/>
+												if space.IsShareable {
+													<button type="submit" class="button button-secondary">Make Private</button>
+												} else {
+													<button type="submit" class="button button-primary">Make Shareable</button>
+												}
+											</form>
+										}
+										// View ACL events
+										<a href={ templ.URL(fmt.Sprintf("/admin/acl-events?spaceId=%s", space.SpaceID)) } class="button">ACL Events</a>
 									</td>
 								</tr>
 							}
