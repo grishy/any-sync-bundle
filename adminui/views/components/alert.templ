@@ -1,0 +1,10 @@
+package components
+
+// Alert displays a message to the user (success or error)
+templ Alert(message string, isError bool) {
+	if message != "" {
+		<div class={ "alert", templ.KV("alert-success", !isError), templ.KV("alert-error", isError) }>
+			{ message }
+		</div>
+	}
+}

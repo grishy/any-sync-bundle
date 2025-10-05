@@ -49,6 +49,7 @@ The bundle integrates four Anytype sync services into a single binary:
 - **Consensus Node** (`lightnode/anynodes.go:newConsensusApp`): Consensus service functionality
 - **File Node** (`lightnode/anynodes.go:newFileNodeApp`): File storage using BadgerDB (not S3/MinIO)
 - **Sync Node** (`lightnode/anynodes.go:newSyncApp`): Core sync functionality
+- **Admin UI** (`adminui/`): Web interface for user and space management (port 8080)
 
 ### Shared Network and Account
 
@@ -107,17 +108,54 @@ nodes:
    - `lightfilenodestore/`: BadgerDB-based file storage implementation
    - Replaces MinIO for lightweight deployments
 
+4. **Admin UI** (`adminui/`):
+   - Web-based administration interface using templ
+   - User management, quota control, space monitoring
+   - Fixed pagination with 50 items per page
+   - Efficient MongoDB aggregation for scalable queries
+
 ## Network Ports and RPC Routes
 
 **Ports** (all services share):
 - TCP: 33010
 - UDP: 33020
 
+**Admin UI**:
+- HTTP: 8080 (web interface)
+
 **DRPC method namespaces** (multiplexed on shared network):
 - `/CoordinatorService/*` → coordinator
 - `/ConsensusService/*` → consensus
 - `/FileService/*` → filenode
 - `/SpaceSyncService/*` → sync
+
+## Admin UI
+
+The Admin UI provides a web interface for managing the any-sync-bundle deployment:
+
+### Features
+- User search and management
+- Storage quota administration
+- Space monitoring and filtering
+- Deletion log tracking
+- System statistics dashboard
+
+### Performance Optimizations
+- **Fixed pagination**: All listings use 50 items per page
+- **Efficient aggregation**: User listings use MongoDB `$facet` to reduce queries from O(n) to O(1)
+- **Database-level pagination**: Uses `$skip` and `$limit` in MongoDB instead of in-memory filtering
+
+### Security Considerations
+⚠️ **WARNING**: The current AdminUI implementation lacks authentication. In production:
+- Run behind a reverse proxy with authentication
+- Restrict network access to trusted IPs only
+- Consider implementing OAuth2 or basic auth
+
+### Access
+```bash
+# After starting the bundle
+open http://localhost:8080/admin
+```
 
 ## Configuration
 
@@ -206,6 +244,17 @@ ls -la ./data/storage-sync/
 ```
 
 The 2-second delay after coordinator startup (added in `cmd/start.go:151`) prevents this issue.
+
+### AdminUI Performance Issues
+
+**Symptoms**: Slow page loads when viewing all users with many identities
+
+**Root cause**: Inefficient pagination fetching all identities then paginating in memory
+
+**Fix**: The AdminUI now uses MongoDB aggregation pipeline with `$facet` for efficient pagination:
+- Before: 51 queries (1 Distinct + 50 individual)
+- After: 1 aggregation query
+- Result: O(1) query complexity regardless of user count
 
 ### Services Can't Connect to Each Other
 

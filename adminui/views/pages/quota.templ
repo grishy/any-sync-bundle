@@ -1,0 +1,105 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// QuotaPage renders the quota edit form
+templ QuotaPage(data *admintypes.UserInfo, title string) {
+	@layouts.Base(title, "", "") {
+		<div class="container">
+			if data != nil {
+				<h2>Edit Quota</h2>
+				<p>User: <code>{ data.Identity }</code></p>
+				<form method="POST" action={ templ.URL(fmt.Sprintf("/admin/user/%s/quota", data.Identity)) } class="quota-form">
+					// Storage limits card
+					<div class="card">
+						<h3>Storage Limits</h3>
+						<div class="form-group">
+							<label for="storage_gb">File Storage (GB):</label>
+							<input
+								type="number"
+								id="storage_gb"
+								name="storage_gb"
+								step="0.1"
+								min="0"
+								value={ fmt.Sprintf("%.2f", float64(data.Limits.FileStorageBytes)/(1024*1024*1024)) }
+								required
+								class="form-control"
+							/>
+							<small>Current usage: { admintypes.FormatBytes(data.GroupInfo.BytesUsage) }</small>
+						</div>
+					</div>
+					// Space limits card
+					<div class="card">
+						<h3>Space Limits</h3>
+						<div class="form-group">
+							<label for="members_read">Space Members (Read):</label>
+							<input
+								type="number"
+								id="members_read"
+								name="members_read"
+								min="0"
+								value={ fmt.Sprintf("%d", data.Limits.SpaceMembersRead) }
+								required
+								class="form-control"
+							/>
+							<small>Maximum number of members who can read shared spaces</small>
+						</div>
+						<div class="form-group">
+							<label for="members_write">Space Members (Write):</label>
+							<input
+								type="number"
+								id="members_write"
+								name="members_write"
+								min="0"
+								value={ fmt.Sprintf("%d", data.Limits.SpaceMembersWrite) }
+								required
+								class="form-control"
+							/>
+							<small>Maximum number of members who can write to shared spaces</small>
+						</div>
+						<div class="form-group">
+							<label for="shared_spaces">Shared Spaces Limit:</label>
+							<input
+								type="number"
+								id="shared_spaces"
+								name="shared_spaces"
+								min="0"
+								value={ fmt.Sprintf("%d", data.Limits.SharedSpacesLimit) }
+								required
+								class="form-control"
+							/>
+							<small>Maximum number of shared spaces this user can create</small>
+						</div>
+					</div>
+					// Change reason card
+					<div class="card">
+						<h3>Change Reason</h3>
+						<div class="form-group">
+							<label for="reason">Reason for Change:</label>
+							<textarea
+								id="reason"
+								name="reason"
+								rows="3"
+								required
+								placeholder="Please provide a reason for this quota change"
+								class="form-control"
+							></textarea>
+							<small>This will be logged for audit purposes</small>
+						</div>
+					</div>
+					// Form actions
+					<div class="form-actions">
+						<button type="submit" class="button button-primary">Update Quota</button>
+						<a href={ templ.URL(fmt.Sprintf("/admin/user/%s", data.Identity)) } class="button button-secondary">Cancel</a>
+					</div>
+				</form>
+			} else {
+				<p>User not found</p>
+			}
+		</div>
+	}
+}

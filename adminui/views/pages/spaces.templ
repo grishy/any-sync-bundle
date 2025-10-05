@@ -1,0 +1,76 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// SpacesPage renders the spaces list for a user
+templ SpacesPage(spaces []admintypes.SpaceInfo, identity string, title string) {
+	@layouts.Base(title, "", "") {
+		<div class="container">
+			<h2>Spaces</h2>
+			if identity != "" {
+				<p>User: <code>{ identity }</code></p>
+			}
+			if len(spaces) > 0 {
+				<div class="card">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>Space ID</th>
+								<th>Type</th>
+								<th>Status</th>
+								<th>Storage</th>
+								<th>Files</th>
+								<th>CIDs</th>
+								<th>Shareable</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, space := range spaces {
+								<tr class={ templ.KV("status-warning", space.Status != 0) }>
+									<td><code class="space-id">{ space.SpaceID }</code></td>
+									<td>{ admintypes.SpaceTypeString(space.Type) }</td>
+									<td>
+										<span
+											class={
+												"badge",
+												templ.KV("badge-success", space.Status == 0),
+												templ.KV("badge-warning", space.Status == 1),
+												templ.KV("badge-danger", space.Status > 1),
+											}
+										>
+											{ admintypes.SpaceStatusString(space.Status) }
+										</span>
+									</td>
+									<td>{ admintypes.FormatBytes(space.BytesUsage) }</td>
+									<td>{ fmt.Sprintf("%d", space.FileCount) }</td>
+									<td>{ fmt.Sprintf("%d", space.CidsCount) }</td>
+									<td>
+										if space.IsShareable {
+											<span class="badge badge-success">Yes</span>
+										} else {
+											<span class="badge">No</span>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+					<div class="summary">
+						<p>Total Spaces: { fmt.Sprintf("%d", len(spaces)) }</p>
+					</div>
+				</div>
+			} else {
+				<p>No spaces found.</p>
+			}
+			<div class="actions">
+				if identity != "" {
+					<a href={ templ.URL(fmt.Sprintf("/admin/user/%s", identity)) } class="button">Back to User</a>
+				}
+			</div>
+		</div>
+	}
+}

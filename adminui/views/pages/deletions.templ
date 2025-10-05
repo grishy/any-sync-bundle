@@ -1,0 +1,55 @@
+package pages
+
+import (
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// DeletionsPage renders the deletion log
+templ DeletionsPage(entries []admintypes.DeletionEntry, title string) {
+	@layouts.Base(title, "", "") {
+		<div class="container">
+			<h2>Deletion Log</h2>
+			if len(entries) > 0 {
+				<div class="card">
+					<table class="table">
+						<thead>
+							<tr>
+								<th>Space ID</th>
+								<th>File Group</th>
+								<th>Status</th>
+								<th>Timestamp</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, entry := range entries {
+								<tr>
+									<td><code class="space-id">{ entry.SpaceID }</code></td>
+									<td>{ entry.FileGroup }</td>
+									<td>
+										switch entry.Status {
+											case 0:
+												<span class="badge badge-success">OK</span>
+											case 1:
+												<span class="badge badge-warning">Remove Prepare</span>
+											case 2:
+												<span class="badge badge-danger">Remove</span>
+											default:
+												<span class="badge">Unknown ({ entry.Status })</span>
+										}
+									</td>
+									<td>{ formatTime(entry.Timestamp) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			} else {
+				<p>No deletion entries found.</p>
+			}
+			<div class="actions">
+				<a href="/admin/" class="button">Back to Dashboard</a>
+			</div>
+		</div>
+	}
+}

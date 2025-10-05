@@ -1,0 +1,11 @@
+package components
+
+import "fmt"
+
+// StatsCard displays a single statistic card on the dashboard
+templ StatsCard(title string, value int) {
+	<div class="stat-card">
+		<h3>{ title }</h3>
+		<div class="stat-value">{ fmt.Sprintf("%d", value) }</div>
+	</div>
+}

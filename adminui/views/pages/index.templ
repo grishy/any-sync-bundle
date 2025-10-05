@@ -1,0 +1,33 @@
+package pages
+
+import (
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+	"github.com/grishy/any-sync-bundle/adminui/views/components"
+)
+
+// IndexPage renders the admin dashboard
+templ IndexPage(stats *admintypes.SystemStats, title string, message string) {
+	@layouts.Base(title, message, "") {
+		<div class="container">
+			<h2>System Overview</h2>
+			if stats != nil {
+				<div class="stats-grid">
+					@components.StatsCard("Total Users", stats.TotalUsers)
+					@components.StatsCard("Total Spaces", stats.TotalSpaces)
+					@components.StatsCard("Active Spaces", stats.ActiveSpaces)
+					@components.StatsCard("Pending Deletion", stats.PendingDelete)
+				</div>
+			} else {
+				<p>No statistics available</p>
+			}
+			<div class="actions">
+				<h3>Quick Actions</h3>
+				<ul>
+					<li><a href="/admin/search" class="button">Search Users</a></li>
+					<li><a href="/admin/deletions" class="button">View Deletion Log</a></li>
+				</ul>
+			</div>
+		</div>
+	}
+}

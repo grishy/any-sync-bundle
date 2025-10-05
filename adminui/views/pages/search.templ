@@ -1,0 +1,39 @@
+package pages
+
+import "github.com/grishy/any-sync-bundle/adminui/views/layouts"
+
+// SearchPage renders the user search form
+templ SearchPage(title string) {
+	@layouts.Base(title, "", "") {
+		<div class="container">
+			<h2>User Search</h2>
+			<div class="search-form">
+				<form method="POST" action="/admin/search">
+					<div class="form-group">
+						<label for="identity">User Identity:</label>
+						<input
+							type="text"
+							id="identity"
+							name="identity"
+							placeholder="Enter user identity (account ID)"
+							required
+							autofocus
+							class="form-control"
+						/>
+					</div>
+					<div class="form-actions">
+						<button type="submit" class="button button-primary">Search</button>
+					</div>
+				</form>
+			</div>
+			<div class="info">
+				<h3>How to find a user identity?</h3>
+				<ul>
+					<li>User identity is the unique account ID</li>
+					<li>It's usually a base58-encoded string</li>
+					<li>Example: <code>A5k2d9sFZw84yisTxRnz2bPRd1YPfVfhxqymZ6yESprFTG65</code></li>
+				</ul>
+			</div>
+		</div>
+	}
+}

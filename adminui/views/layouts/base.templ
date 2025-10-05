@@ -1,0 +1,31 @@
+package layouts
+
+import "github.com/grishy/any-sync-bundle/adminui/views/components"
+
+// Base layout for all admin pages
+templ Base(title string, message string, errorMsg string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - Any-Sync Admin</title>
+			<link rel="stylesheet" href="/static/style.css"/>
+		</head>
+		<body>
+			@components.Nav()
+			<main>
+				if message != "" {
+					@components.Alert(message, false)
+				}
+				if errorMsg != "" {
+					@components.Alert(errorMsg, true)
+				}
+				{ children... }
+			</main>
+			<footer>
+				<p>&copy; 2024 Any-Sync Bundle Admin</p>
+			</footer>
+		</body>
+	</html>
+}

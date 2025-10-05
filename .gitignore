@@ -37,3 +37,6 @@ go.work.sum
 /any-sync-bundle
 /consensus.db*
 /tmp/
+
+# Templ generated files
+*_templ.go

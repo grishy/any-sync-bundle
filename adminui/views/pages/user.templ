@@ -1,0 +1,143 @@
+package pages
+
+import (
+	"fmt"
+	"time"
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// UserPage renders the user detail page
+// This component receives UserInfo directly (not interface{}), fixing the template error!
+templ UserPage(data *admintypes.UserInfo, title string, message string) {
+	@layouts.Base(title, message, "") {
+		<div class="container">
+			if data != nil {
+				<h2>User Details</h2>
+				<div class="user-info">
+					// Identity card
+					<div class="card">
+						<h3>Identity</h3>
+						<code class="identity">{ data.Identity }</code>
+					</div>
+					// Storage usage card
+					<div class="card">
+						<h3>Storage Usage</h3>
+						<div class="usage-bar">
+							<div class="usage-fill" style={ fmt.Sprintf("width: %.1f%%", data.UsagePercent) }></div>
+						</div>
+						<div class="usage-text">
+							{ admintypes.FormatBytes(data.GroupInfo.BytesUsage) } /
+							if data.Limits.FileStorageBytes > 0 {
+								{ admintypes.FormatBytes(data.Limits.FileStorageBytes) }
+							} else {
+								Unlimited
+							}
+							({ fmt.Sprintf("%.1f", data.UsagePercent) }% used)
+						</div>
+						<div class="usage-details">
+							<p>Total CIDs: { fmt.Sprintf("%d", data.GroupInfo.CidsCount) }</p>
+							<p>Number of Spaces: { fmt.Sprintf("%d", data.SpaceCount) }</p>
+						</div>
+					</div>
+					// Current limits card
+					<div class="card">
+						<h3>Current Limits</h3>
+						<table class="table">
+							<tr>
+								<th>File Storage:</th>
+								<td>
+									if data.Limits.FileStorageBytes > 0 {
+										{ admintypes.FormatBytes(data.Limits.FileStorageBytes) }
+									} else {
+										Unlimited
+									}
+								</td>
+							</tr>
+							<tr>
+								<th>Space Members (Read):</th>
+								<td>{ fmt.Sprintf("%d", data.Limits.SpaceMembersRead) }</td>
+							</tr>
+							<tr>
+								<th>Space Members (Write):</th>
+								<td>{ fmt.Sprintf("%d", data.Limits.SpaceMembersWrite) }</td>
+							</tr>
+							<tr>
+								<th>Shared Spaces Limit:</th>
+								<td>{ fmt.Sprintf("%d", data.Limits.SharedSpacesLimit) }</td>
+							</tr>
+							<tr>
+								<th>Last Updated:</th>
+								<td>{ formatTime(data.Limits.UpdatedTime) }</td>
+							</tr>
+							<tr>
+								<th>Update Reason:</th>
+								<td>
+									if data.Limits.Reason != "" {
+										{ data.Limits.Reason }
+									} else {
+										<em>Not specified</em>
+									}
+								</td>
+							</tr>
+						</table>
+						<div class="actions">
+							<a href={ templ.URL(fmt.Sprintf("/admin/user/%s/quota", data.Identity)) } class="button button-primary">Edit Quota</a>
+						</div>
+					</div>
+					// Spaces card
+					<div class="card">
+						<h3>Spaces ({ fmt.Sprintf("%d", data.SpaceCount) })</h3>
+						if len(data.Spaces) > 0 {
+							<table class="table">
+								<thead>
+									<tr>
+										<th>Space ID</th>
+										<th>Type</th>
+										<th>Storage</th>
+										<th>Files</th>
+										<th>CIDs</th>
+										<th>Shareable</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, space := range data.Spaces {
+										<tr>
+											<td><code class="space-id">{ space.SpaceID }</code></td>
+											<td>{ admintypes.SpaceTypeString(space.Type) }</td>
+											<td>{ admintypes.FormatBytes(space.BytesUsage) }</td>
+											<td>{ fmt.Sprintf("%d", space.FileCount) }</td>
+											<td>{ fmt.Sprintf("%d", space.CidsCount) }</td>
+											<td>
+												if space.IsShareable {
+													<span class="badge badge-success">Yes</span>
+												} else {
+													<span class="badge">No</span>
+												}
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+							<div class="actions">
+								<a href={ templ.URL(fmt.Sprintf("/admin/spaces?identity=%s", data.Identity)) } class="button">View All Spaces</a>
+							</div>
+						} else {
+							<p>No spaces found for this user.</p>
+						}
+					</div>
+				</div>
+			} else {
+				<p>User not found</p>
+			}
+		</div>
+	}
+}
+
+// Helper function for formatting time (same as handlers.go)
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return "Never"
+	}
+	return t.Format("2006-01-02 15:04:05")
+}

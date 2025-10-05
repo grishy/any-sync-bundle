@@ -1,0 +1,27 @@
+package pages
+
+import "github.com/grishy/any-sync-bundle/adminui/views/layouts"
+
+// ErrorPage renders an error page
+templ ErrorPage(errorMsg string, title string) {
+	@layouts.Base(title, "", errorMsg) {
+		<div class="container">
+			<div class="error-container">
+				<h2>Error</h2>
+				if errorMsg != "" {
+					<div class="alert alert-error">
+						<p>{ errorMsg }</p>
+					</div>
+				} else {
+					<div class="alert alert-error">
+						<p>An unexpected error occurred.</p>
+					</div>
+				}
+				<div class="actions">
+					<a href="/admin/" class="button">Back to Dashboard</a>
+					<a href="/admin/search" class="button">Search Users</a>
+				</div>
+			</div>
+		</div>
+	}
+}
