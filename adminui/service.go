@@ -3,6 +3,7 @@ package adminui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/anyproto/any-sync-coordinator/accountlimit"
@@ -10,6 +11,9 @@ import (
 	"github.com/anyproto/any-sync-coordinator/db"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
 	"github.com/anyproto/any-sync-filenode/index"
+	"github.com/anyproto/any-sync-filenode/redisprovider"
+	"github.com/anyproto/any-sync-node/nodespace"
+	"github.com/anyproto/any-sync/app/ocache"
 	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/nodeconf"
 	"go.mongodb.org/mongo-driver/bson"
@@ -27,6 +31,8 @@ type Service struct {
 	aclEventLog   acleventlog.AclEventLog
 	nodeConf      nodeconf.NodeConf
 	metric        metric.Metric
+	syncNodeSpace nodespace.Service
+	redisProvider redisprovider.RedisProvider
 }
 
 // newService creates a new service with direct dependencies.
@@ -38,6 +44,8 @@ func newService(
 	aclEventLog acleventlog.AclEventLog,
 	nodeConf nodeconf.NodeConf,
 	m metric.Metric,
+	syncNodeSpace nodespace.Service,
+	redisProvider redisprovider.RedisProvider,
 ) *Service {
 	return &Service{
 		coordinatorDB: coordinatorDB,
@@ -47,6 +55,8 @@ func newService(
 		aclEventLog:   aclEventLog,
 		nodeConf:      nodeConf,
 		metric:        m,
+		syncNodeSpace: syncNodeSpace,
+		redisProvider: redisProvider,
 	}
 }
 
@@ -548,6 +558,105 @@ func (s *Service) GetStorageStats(ctx context.Context) (*admintypes.StorageStats
 	}
 
 	return stats, nil
+}
+
+// GetSyncStats retrieves sync node statistics from cached spaces.
+func (s *Service) GetSyncStats(ctx context.Context) (*admintypes.SyncStats, error) {
+	stats := &admintypes.SyncStats{
+		Spaces: make([]admintypes.SyncSpaceStats, 0),
+	}
+
+	// Iterate through all cached spaces
+	s.syncNodeSpace.Cache().ForEach(func(v ocache.Object) bool {
+		space, ok := v.(nodespace.NodeSpace)
+		if !ok {
+			return true // Continue
+		}
+
+		spaceID := space.Id()
+
+		// Get detailed stats for this space
+		spaceStats, err := s.syncNodeSpace.GetStats(ctx, spaceID, 0)
+		if err != nil {
+			// Skip this space but continue iteration
+			return true
+		}
+
+		spaceInfo := admintypes.SyncSpaceStats{
+			SpaceID:             spaceID,
+			ObjectsCount:        spaceStats.Storage.ObjectsCount,
+			DeletedObjectsCount: spaceStats.Storage.DeletedObjectsCount,
+			ChangesCount:        spaceStats.Storage.ChangesCount,
+			ACLReaders:          spaceStats.Acl.Readers,
+			ACLWriters:          spaceStats.Acl.Writers,
+		}
+
+		stats.Spaces = append(stats.Spaces, spaceInfo)
+		stats.TotalObjects += spaceInfo.ObjectsCount
+		stats.TotalDeletedObjects += spaceInfo.DeletedObjectsCount
+		stats.TotalChanges += spaceInfo.ChangesCount
+
+		return true // Continue
+	})
+
+	stats.TotalSpaces = len(stats.Spaces)
+
+	return stats, nil
+}
+
+// GetSystemHealth retrieves system health status.
+func (s *Service) GetSystemHealth(ctx context.Context) (*admintypes.SystemHealthStatus, error) {
+	health := &admintypes.SystemHealthStatus{
+		RedisInfo:        make(map[string]string),
+		ComponentsStatus: make(map[string]string),
+	}
+
+	// Check Redis
+	if s.redisProvider != nil {
+		redis := s.redisProvider.Redis()
+		if redis != nil {
+			pong, err := redis.Ping(ctx).Result()
+			if err != nil {
+				health.RedisStatus = fmt.Sprintf("Error: %v", err)
+			} else {
+				health.RedisStatus = pong
+
+				// Get Redis INFO
+				info, infoErr := redis.Info(ctx).Result()
+				if infoErr == nil {
+					// Parse INFO output into key-value pairs
+					for _, line := range strings.Split(info, "\r\n") {
+						if strings.Contains(line, ":") && !strings.HasPrefix(line, "#") {
+							parts := strings.SplitN(line, ":", 2)
+							if len(parts) == 2 {
+								key := strings.TrimSpace(parts[0])
+								value := strings.TrimSpace(parts[1])
+								// Only include interesting metrics
+								if key == "redis_version" || key == "used_memory_human" ||
+									key == "connected_clients" || key == "uptime_in_days" {
+									health.RedisInfo[key] = value
+								}
+							}
+						}
+					}
+				}
+			}
+		} else {
+			health.RedisStatus = "Not initialized"
+		}
+	} else {
+		health.RedisStatus = "Not available"
+	}
+
+	// Check MongoDB
+	err := s.coordinatorDB.Db().Client().Ping(ctx, nil)
+	if err != nil {
+		health.MongoDBStatus = fmt.Sprintf("Error: %v", err)
+	} else {
+		health.MongoDBStatus = "Connected"
+	}
+
+	return health, nil
 }
 
 // formatTime formats time for display.

@@ -211,3 +211,30 @@ type StorageStats struct {
 	TotalSpaces    int
 	TotalUsers     int
 }
+
+// SyncSpaceStats represents sync node statistics for a single space.
+type SyncSpaceStats struct {
+	SpaceID             string
+	ObjectsCount        int
+	DeletedObjectsCount int
+	ChangesCount        int
+	ACLReaders          int
+	ACLWriters          int
+}
+
+// SyncStats represents aggregated sync node statistics.
+type SyncStats struct {
+	Spaces              []SyncSpaceStats
+	TotalSpaces         int
+	TotalObjects        int
+	TotalDeletedObjects int
+	TotalChanges        int
+}
+
+// SystemHealthStatus represents the health status of system components.
+type SystemHealthStatus struct {
+	RedisStatus      string
+	RedisInfo        map[string]string
+	MongoDBStatus    string
+	ComponentsStatus map[string]string
+}

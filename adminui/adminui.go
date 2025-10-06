@@ -11,6 +11,8 @@ import (
 	"github.com/anyproto/any-sync-coordinator/db"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
 	"github.com/anyproto/any-sync-filenode/index"
+	"github.com/anyproto/any-sync-filenode/redisprovider"
+	"github.com/anyproto/any-sync-node/nodespace"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/metric"
@@ -65,6 +67,8 @@ func (a *AdminUI) Init(_ *app.App) error {
 		app.MustComponent[acleventlog.AclEventLog](a.coordinator),
 		app.MustComponent[nodeconf.NodeConf](a.coordinator),
 		app.MustComponent[metric.Metric](a.coordinator),
+		app.MustComponent[nodespace.Service](a.sync),
+		app.MustComponent[redisprovider.RedisProvider](a.filenode),
 	)
 
 	// Initialize handlers and server
@@ -91,9 +95,11 @@ func (a *AdminUI) setupServer() {
 	mux.HandleFunc("/admin/spaces", a.handlers.handleSpacesList)
 	mux.HandleFunc("/admin/deletions", a.handlers.handleDeletions)
 	mux.HandleFunc("/admin/health", a.handlers.handleHealth)
+	mux.HandleFunc("/admin/health-status", a.handlers.handleHealthPage)
 	mux.HandleFunc("/admin/acl-events", a.handlers.handleACLEvents)
 	mux.HandleFunc("/admin/network", a.handlers.handleNetworkTopology)
 	mux.HandleFunc("/admin/storage", a.handlers.handleStorageOverview)
+	mux.HandleFunc("/admin/sync-stats", a.handlers.handleSyncStats)
 	mux.HandleFunc("/admin/metrics", a.handlers.handleMetrics)
 	mux.HandleFunc("/admin/space/toggle-shareability", a.handlers.handleToggleShareability)
 

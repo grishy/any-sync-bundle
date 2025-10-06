@@ -1,0 +1,94 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// SyncStatsPage renders the sync node statistics page.
+templ SyncStatsPage(stats *admintypes.SyncStats, title string) {
+	@layouts.Base(title, "sync-stats", "", "") {
+		<div class="container">
+			<h2>Sync Node Statistics</h2>
+			if stats != nil {
+				<div class="stats-grid">
+					<div class="stat-card">
+						<div class="stat-label">Cached Spaces</div>
+						<div class="stat-value">{ fmt.Sprintf("%d", stats.TotalSpaces) }</div>
+						<div class="stat-icon">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+							</svg>
+						</div>
+					</div>
+					<div class="stat-card">
+						<div class="stat-label">Total Objects</div>
+						<div class="stat-value">{ fmt.Sprintf("%d", stats.TotalObjects) }</div>
+						<div class="stat-icon">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+							</svg>
+						</div>
+					</div>
+					<div class="stat-card">
+						<div class="stat-label">Total Changes</div>
+						<div class="stat-value">{ fmt.Sprintf("%d", stats.TotalChanges) }</div>
+						<div class="stat-icon">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+							</svg>
+						</div>
+					</div>
+					<div class="stat-card">
+						<div class="stat-label">Deleted Objects</div>
+						<div class="stat-value">{ fmt.Sprintf("%d", stats.TotalDeletedObjects) }</div>
+						<div class="stat-icon">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+							</svg>
+						</div>
+					</div>
+				</div>
+				if len(stats.Spaces) > 0 {
+					<div class="card">
+						<h3>Space Details</h3>
+						<table class="table">
+							<thead>
+								<tr>
+									<th>Space ID</th>
+									<th>Objects</th>
+									<th>Changes</th>
+									<th>Deleted</th>
+									<th>ACL Readers</th>
+									<th>ACL Writers</th>
+								</tr>
+							</thead>
+							<tbody>
+								for _, space := range stats.Spaces {
+									<tr>
+										<td><code>{ space.SpaceID }</code></td>
+										<td>{ fmt.Sprintf("%d", space.ObjectsCount) }</td>
+										<td>{ fmt.Sprintf("%d", space.ChangesCount) }</td>
+										<td>{ fmt.Sprintf("%d", space.DeletedObjectsCount) }</td>
+										<td>{ fmt.Sprintf("%d", space.ACLReaders) }</td>
+										<td>{ fmt.Sprintf("%d", space.ACLWriters) }</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				} else {
+					<div class="card">
+						<p>No spaces currently cached in sync node. Spaces will appear here once they are accessed.</p>
+					</div>
+				}
+			} else {
+				<p>No sync statistics available</p>
+			}
+			<div class="actions">
+				<a href="/admin/" class="button">Back to Dashboard</a>
+			</div>
+		</div>
+	}
+}

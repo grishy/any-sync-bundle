@@ -147,12 +147,42 @@ func (h *Handlers) handleDeletions(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, pages.DeletionsPage(entries, "Deletion Log"))
 }
 
-// handleHealth handles health check endpoint.
-func (h *Handlers) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	// Simple health check - could be extended to check service availability
+// handleHealth handles health check endpoint - returns JSON for API consumers.
+func (h *Handlers) handleHealth(w http.ResponseWriter, r *http.Request) {
+	health, err := h.service.GetSystemHealth(r.Context())
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"status":"error","error":"%s"}`, err.Error())))
+		return
+	}
+
+	// Determine overall status
+	status := "healthy"
+	if health.RedisStatus != "PONG" && health.RedisStatus != "Not available" {
+		status = "degraded"
+	}
+	if health.MongoDBStatus != "Connected" {
+		status = "unhealthy"
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"healthy","service":"adminui"}`))
+	_, _ = w.Write([]byte(fmt.Sprintf(
+		`{"status":"%s","redis":"%s","mongodb":"%s"}`,
+		status, health.RedisStatus, health.MongoDBStatus,
+	)))
+}
+
+// handleHealthPage handles the system health dashboard page.
+func (h *Handlers) handleHealthPage(w http.ResponseWriter, r *http.Request) {
+	health, err := h.service.GetSystemHealth(r.Context())
+	if err != nil {
+		h.renderError(w, r, err)
+		return
+	}
+
+	h.render(w, r, pages.SystemHealthPage(health, "System Health"))
 }
 
 // render renders a templ component.
@@ -314,6 +344,17 @@ func (h *Handlers) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		EnableOpenMetrics: true,
 	})
 	handler.ServeHTTP(w, r)
+}
+
+// handleSyncStats handles the sync node statistics page.
+func (h *Handlers) handleSyncStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.service.GetSyncStats(r.Context())
+	if err != nil {
+		h.renderError(w, r, err)
+		return
+	}
+
+	h.render(w, r, pages.SyncStatsPage(stats, "Sync Node Statistics"))
 }
 
 // renderError renders an error page.
