@@ -1,0 +1,33 @@
+package components
+
+import "fmt"
+
+// StatsCard displays a single statistic card with modern design
+templ StatsCard(title string, value int, icon string) {
+	<div class="stat-card">
+		<div class="stat-label">{ title }</div>
+		<div class="stat-value">{ fmt.Sprintf("%d", value) }</div>
+		if icon != "" {
+			<div class="stat-icon">
+				@templ.Raw(icon)
+			</div>
+		}
+	</div>
+}
+
+// StatsCardWithChange displays a stat card with a change indicator
+templ StatsCardWithChange(title string, value int, change string, isPositive bool) {
+	<div class="stat-card">
+		<div class="stat-label">{ title }</div>
+		<div class="stat-value">{ fmt.Sprintf("%d", value) }</div>
+		if change != "" {
+			<div class="stat-change">
+				if isPositive {
+					<span class="text-success">↑ { change }</span>
+				} else {
+					<span class="text-danger">↓ { change }</span>
+				}
+			</div>
+		}
+	</div>
+}

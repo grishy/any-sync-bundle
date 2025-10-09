@@ -1,0 +1,90 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// NetworkTopologyPage renders the network topology page.
+templ NetworkTopologyPage(config *admintypes.NetworkConfig, title string) {
+	@layouts.Base(title, "network", "", "") {
+		<div class="container">
+			<h2>Network Topology</h2>
+			if config != nil {
+				<div class="card">
+					<h3>Network Information</h3>
+					<table class="table">
+						<tr>
+							<th>Network ID:</th>
+							<td><code>{ config.NetworkID }</code></td>
+						</tr>
+						<tr>
+							<th>Total Nodes:</th>
+							<td>{ fmt.Sprintf("%d", len(config.Nodes)) }</td>
+						</tr>
+					</table>
+				</div>
+				<div class="card">
+					<h3>Nodes</h3>
+					<table class="table">
+						<thead>
+							<tr>
+								<th>Peer ID</th>
+								<th>Node Types</th>
+								<th>Addresses</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, node := range config.Nodes {
+								<tr>
+									<td><code>{ node.PeerID }</code></td>
+									<td>
+										for _, nodeType := range node.Types {
+											<span class="badge badge-success">{ nodeType }</span>
+											{ " " }
+										}
+									</td>
+									<td>
+										<ul style="list-style: none; padding: 0;">
+											for _, addr := range node.Addresses {
+												<li><code>{ addr }</code></li>
+											}
+										</ul>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<div class="card">
+					<h3>Node Type Summary</h3>
+					<div class="stats-grid">
+						for nodeType, count := range countNodeTypes(config.Nodes) {
+							<div class="stat-card">
+								<h3>{ nodeType }</h3>
+								<div class="stat-value">{ fmt.Sprintf("%d", count) }</div>
+							</div>
+						}
+					</div>
+				</div>
+			} else {
+				<p>No network configuration available</p>
+			}
+			<div class="actions">
+				<a href="/admin/" class="button">Back to Dashboard</a>
+			</div>
+		</div>
+	}
+}
+
+// countNodeTypes counts how many nodes of each type exist.
+func countNodeTypes(nodes []admintypes.NetworkNode) map[string]int {
+	counts := make(map[string]int)
+	for _, node := range nodes {
+		for _, nodeType := range node.Types {
+			counts[nodeType]++
+		}
+	}
+	return counts
+}

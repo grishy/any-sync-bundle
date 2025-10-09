@@ -1,0 +1,125 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// AllSpacesPage renders the all spaces list page.
+templ AllSpacesPage(spaces []admintypes.SpaceInfo, page, total int, filterType, filterStatus int) {
+	@layouts.Base("All Spaces", "spaces", "", "") {
+		<div class="container">
+			<h2>All Spaces</h2>
+			<p>Total: { fmt.Sprintf("%d", total) } spaces</p>
+			// Filters
+			<div class="card">
+				<h3>Filters</h3>
+				<form method="GET" action="/admin/spaces/all">
+					<input type="hidden" name="page" value="1"/>
+					<div class="form-group">
+						<label>Type:</label>
+						<select name="type" class="form-control">
+							<option value="-1">All Types</option>
+							<option value="0" selected?={ filterType == 0 }>Personal</option>
+							<option value="1" selected?={ filterType == 1 }>Tech</option>
+							<option value="2" selected?={ filterType == 2 }>Regular</option>
+							<option value="3" selected?={ filterType == 3 }>Chat</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label>Status:</label>
+						<select name="status" class="form-control">
+							<option value="-1">All Statuses</option>
+							<option value="0" selected?={ filterStatus == 0 }>Active</option>
+							<option value="1" selected?={ filterStatus == 1 }>Deletion Pending</option>
+							<option value="2" selected?={ filterStatus == 2 }>Deletion Started</option>
+							<option value="3" selected?={ filterStatus == 3 }>Deleted</option>
+						</select>
+					</div>
+					<button type="submit" class="button button-primary">Apply Filters</button>
+					<a href="/admin/spaces/all" class="button">Clear</a>
+				</form>
+			</div>
+			<div class="card">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Space ID</th>
+							<th>Owner</th>
+							<th>Type</th>
+							<th>Status</th>
+							<th>Storage</th>
+							<th>Files</th>
+							<th>CIDs</th>
+							<th>Shareable</th>
+							<th>Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(spaces) > 0 {
+							for _, space := range spaces {
+								<tr class={ templ.KV("status-warning", space.Status != 0) }>
+									<td><code class="space-id">{ space.SpaceID }</code></td>
+									<td><code class="identity">{ space.Identity }</code></td>
+									<td>{ admintypes.SpaceTypeString(space.Type) }</td>
+									<td>
+										<span
+											class={
+												"badge",
+												templ.KV("badge-success", space.Status == 0),
+												templ.KV("badge-warning", space.Status == 1),
+												templ.KV("badge-danger", space.Status > 1),
+											}
+										>
+											{ admintypes.SpaceStatusString(space.Status) }
+										</span>
+									</td>
+									<td>{ admintypes.FormatBytes(space.BytesUsage) }</td>
+									<td>{ fmt.Sprintf("%d", space.FileCount) }</td>
+									<td>{ fmt.Sprintf("%d", space.CidsCount) }</td>
+									<td>
+										if space.IsShareable {
+											<span class="badge badge-success">Yes</span>
+										} else {
+											<span class="badge">No</span>
+										}
+									</td>
+									<td>
+										<a href={ templ.URL(fmt.Sprintf("/admin/user/%s", space.Identity)) } class="button">View Owner</a>
+									</td>
+								</tr>
+							}
+						} else {
+							<tr>
+								<td colspan="9">No spaces found</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+				// Pagination
+				<div class="pagination">
+					if page > 1 {
+						<a href={ templ.URL(buildPagURL(page-1, filterType, filterStatus)) } class="button">Previous</a>
+					}
+					<span>Page { fmt.Sprintf("%d", page) }</span>
+					if page * admintypes.PageSize < total {
+						<a href={ templ.URL(buildPagURL(page+1, filterType, filterStatus)) } class="button">Next</a>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+// buildPagURL builds pagination URL with filters.
+func buildPagURL(page, filterType, filterStatus int) string {
+	url := fmt.Sprintf("/admin/spaces/all?page=%d", page)
+	if filterType >= 0 {
+		url += fmt.Sprintf("&type=%d", filterType)
+	}
+	if filterStatus >= 0 {
+		url += fmt.Sprintf("&status=%d", filterStatus)
+	}
+	return url
+}

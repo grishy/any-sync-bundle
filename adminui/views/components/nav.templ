@@ -1,0 +1,98 @@
+package components
+
+// HeaderNav - Clean header navigation for the admin UI (desktop only)
+templ HeaderNav(activePage string) {
+	<header class="header">
+		<nav class="nav-container">
+			<a href="/admin/" class="nav-logo">
+				<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+				</svg>
+				<span>Any-Sync Admin</span>
+			</a>
+
+			<ul class="nav-menu">
+				<li class="nav-item">
+					<a href="/admin/" class={ "nav-link", templ.KV("active", activePage == "dashboard") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+						</svg>
+						<span>Dashboard</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/users" class={ "nav-link", templ.KV("active", activePage == "users") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+						</svg>
+						<span>Users</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/spaces/all" class={ "nav-link", templ.KV("active", activePage == "spaces") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+						</svg>
+						<span>Spaces</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/acl-events" class={ "nav-link", templ.KV("active", activePage == "acl-events") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+						</svg>
+						<span>ACL Events</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/deletions" class={ "nav-link", templ.KV("active", activePage == "deletions") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+						</svg>
+						<span>Deletions</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/network" class={ "nav-link", templ.KV("active", activePage == "network") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+						</svg>
+						<span>Network</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/storage" class={ "nav-link", templ.KV("active", activePage == "storage") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+						</svg>
+						<span>Storage</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/sync-stats" class={ "nav-link", templ.KV("active", activePage == "sync-stats") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+						</svg>
+						<span>Sync Stats</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/health-status" class={ "nav-link", templ.KV("active", activePage == "health-status") }>
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+						</svg>
+						<span>Health</span>
+					</a>
+				</li>
+				<li class="nav-item">
+					<a href="/admin/metrics" class="nav-link" target="_blank">
+						<svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+						</svg>
+						<span>Metrics</span>
+					</a>
+				</li>
+			</ul>
+		</nav>
+	</header>
+}

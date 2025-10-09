@@ -1,0 +1,104 @@
+package pages
+
+import (
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// SystemHealthPage renders the system health status page.
+templ SystemHealthPage(health *admintypes.SystemHealthStatus, title string) {
+	@layouts.Base(title, "health-status", "", "") {
+		<div class="container">
+			<h2>System Health Status</h2>
+			if health != nil {
+				<div class="stats-grid">
+					<div class="stat-card">
+						<div class="stat-label">MongoDB</div>
+						<div class="stat-value">
+							if health.MongoDBStatus == "Connected" {
+								<span style="color: #10b981;">✓ { health.MongoDBStatus }</span>
+							} else {
+								<span style="color: #ef4444;">✗ { health.MongoDBStatus }</span>
+							}
+						</div>
+						<div class="stat-icon">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+							</svg>
+						</div>
+					</div>
+					<div class="stat-card">
+						<div class="stat-label">Redis</div>
+						<div class="stat-value">
+							if health.RedisStatus == "PONG" {
+								<span style="color: #10b981;">✓ Connected</span>
+							} else if health.RedisStatus == "Not available" {
+								<span style="color: #6b7280;">N/A</span>
+							} else {
+								<span style="color: #ef4444;">✗ { health.RedisStatus }</span>
+							}
+						</div>
+						<div class="stat-icon">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
+							</svg>
+						</div>
+					</div>
+				</div>
+				if len(health.RedisInfo) > 0 {
+					<div class="card">
+						<h3>Redis Information</h3>
+						<table class="table">
+							<tr>
+								<th>Metric</th>
+								<th>Value</th>
+							</tr>
+							for key, value := range health.RedisInfo {
+								<tr>
+									<td>{ key }</td>
+									<td><code>{ value }</code></td>
+								</tr>
+							}
+						</table>
+					</div>
+				}
+				<div class="card">
+					<h3>Component Status</h3>
+					<table class="table">
+						<tr>
+							<th>Component</th>
+							<th>Status</th>
+						</tr>
+						<tr>
+							<td>MongoDB Database</td>
+							<td>
+								if health.MongoDBStatus == "Connected" {
+									<span style="color: #10b981; font-weight: 500;">✓ { health.MongoDBStatus }</span>
+								} else {
+									<span style="color: #ef4444; font-weight: 500;">✗ { health.MongoDBStatus }</span>
+								}
+							</td>
+						</tr>
+						<tr>
+							<td>Redis Cache</td>
+							<td>
+								if health.RedisStatus == "PONG" {
+									<span style="color: #10b981; font-weight: 500;">✓ Connected</span>
+								} else if health.RedisStatus == "Not available" {
+									<span style="color: #6b7280; font-weight: 500;">Not configured</span>
+								} else {
+									<span style="color: #ef4444; font-weight: 500;">✗ { health.RedisStatus }</span>
+								}
+							</td>
+						</tr>
+					</table>
+				</div>
+			} else {
+				<p>No health information available</p>
+			}
+			<div class="actions">
+				<a href="/admin/" class="button">Back to Dashboard</a>
+			</div>
+		</div>
+	}
+}

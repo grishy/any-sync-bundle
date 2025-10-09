@@ -124,7 +124,8 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			}
 		}
 
-		// Create bundle with all services (coordinator, consensus, filenode, sync)
+		// Create bundle with all services
+		// AdminUI is a separate app that uses CompositeApp to access coordinator + filenode components
 		cfgNodes := bundleCfg.NodeConfigs()
 		bundle := lightnode.NewBundle(cfgNodes)
 
@@ -134,6 +135,7 @@ func startAction(ctx context.Context) cli.ActionFunc {
 			{name: "consensus", app: bundle.Consensus},
 			{name: "filenode", app: bundle.FileNode},
 			{name: "sync", app: bundle.Sync},
+			{name: "adminui", app: bundle.AdminUI},
 		}
 
 		// Start all services

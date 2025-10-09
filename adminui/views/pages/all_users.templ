@@ -1,0 +1,80 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/grishy/any-sync-bundle/adminui/admintypes"
+	"github.com/grishy/any-sync-bundle/adminui/views/layouts"
+)
+
+// AllUsersPage renders the all users list page.
+templ AllUsersPage(users []admintypes.UserSummary, page, total int) {
+	@layouts.Base("All Users", "users", "", "") {
+		<div class="container">
+			<h2>All Users</h2>
+			<p>Total: { fmt.Sprintf("%d", total) } users</p>
+			<div class="card">
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Identity</th>
+							<th>Storage Used</th>
+							<th>Storage Limit</th>
+							<th>% Used</th>
+							<th>Spaces</th>
+							<th>Last Updated</th>
+							<th>Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(users) > 0 {
+							for _, user := range users {
+								<tr class={ templ.KV("status-warning", user.UsagePercent > 90) }>
+									<td><code class="identity">{ user.Identity }</code></td>
+									<td>{ admintypes.FormatBytes(user.StorageUsed) }</td>
+									<td>
+										if user.StorageLimit > 0 {
+											{ admintypes.FormatBytes(user.StorageLimit) }
+										} else {
+											Unlimited
+										}
+									</td>
+									<td>
+										<span
+											class={
+												"badge",
+												templ.KV("badge-success", user.UsagePercent < 80),
+												templ.KV("badge-warning", user.UsagePercent >= 80 && user.UsagePercent < 100),
+												templ.KV("badge-danger", user.UsagePercent >= 100),
+											}
+										>
+											{ fmt.Sprintf("%.1f%%", user.UsagePercent) }
+										</span>
+									</td>
+									<td>{ fmt.Sprintf("%d", user.SpaceCount) }</td>
+									<td>{ user.LastUpdated }</td>
+									<td>
+										<a href={ templ.URL(fmt.Sprintf("/admin/user/%s", user.Identity)) } class="button">View</a>
+									</td>
+								</tr>
+							}
+						} else {
+							<tr>
+								<td colspan="7">No users found</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+				// Pagination
+				<div class="pagination">
+					if page > 1 {
+						<a href={ templ.URL(fmt.Sprintf("/admin/users?page=%d", page-1)) } class="button">Previous</a>
+					}
+					<span>Page { fmt.Sprintf("%d", page) }</span>
+					if page * admintypes.PageSize < total {
+						<a href={ templ.URL(fmt.Sprintf("/admin/users?page=%d", page+1)) } class="button">Next</a>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}

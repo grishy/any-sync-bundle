@@ -10,10 +10,11 @@ import (
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/util/crypto"
-
 	"go.uber.org/zap"
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/yaml.v3"
+
+	"github.com/grishy/any-sync-bundle/adminui"
 )
 
 var log = logger.NewNamed("bundle-config")
@@ -30,6 +31,7 @@ type Config struct {
 	Coordinator   CoordinatorConfig     `yaml:"coordinator"`
 	Consensus     ConsensusConfig       `yaml:"consensus"`
 	FileNode      FileNodeConfig        `yaml:"filenode"`
+	AdminUI       adminui.Config        `yaml:"adminUI,omitempty"` // Optional admin UI config
 }
 
 type NetworkConfig struct {
@@ -140,6 +142,9 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		},
 		FileNode: FileNodeConfig{
 			RedisConnect: cfg.RedisURI,
+		},
+		AdminUI: adminui.Config{
+			ListenAddr: "0.0.0.0:8888",
 		},
 	}
 

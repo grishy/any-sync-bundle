@@ -25,8 +25,9 @@ import (
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
-
 	"go.uber.org/zap"
+
+	"github.com/grishy/any-sync-bundle/adminui"
 )
 
 const (
@@ -48,6 +49,7 @@ type NodeConfigs struct {
 	Consensus   *consensusconfig.Config
 	Filenode    *filenodeconfig.Config
 	Sync        *syncconfig.Config
+	AdminUI     adminui.Config
 
 	// Used for our component and we can't add this into existing configs.
 	FilenodeStorePath string
@@ -85,6 +87,7 @@ func (bc *Config) NodeConfigs() *NodeConfigs {
 		Consensus:   bc.consensusConfig(opts),
 		Filenode:    bc.filenodeConfig(opts),
 		Sync:        bc.syncConfig(opts),
+		AdminUI:     bc.AdminUI,
 
 		FilenodeStorePath: opts.pathStorageFilenode,
 	}

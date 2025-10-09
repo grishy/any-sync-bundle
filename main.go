@@ -23,14 +23,14 @@ func main() {
 
 	go func() {
 		<-ctx.Done()
-		fmt.Println("Context done, waiting before forced exit")
+		fmt.Println("\n\nContext done, waiting before forced exit")
 		time.Sleep(30 * time.Second)
-		fmt.Println("Forced exit by timeout")
+		fmt.Println("\n\nForced exit by timeout")
 		os.Exit(1)
 	}()
 
 	if err := cliRoot.Run(os.Args); err != nil {
-		fmt.Println("Error:")
+		fmt.Println("\n\nError:")
 		fmt.Printf(" > %+v\n", err)
 		cancel()
 		os.Exit(1) //nolint:gocritic // need to exit with error code
