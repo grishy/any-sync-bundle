@@ -1,9 +1,13 @@
 package lightfilenodestore
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,41 +80,77 @@ func TestLightFileNodeStore_Init(t *testing.T) {
 	assert.Equal(t, CName, store.Name())
 }
 
-func TestLightFileNodeStore_Add_Get_Single(t *testing.T) {
-	store, cleanup := setupTestStore(t)
-	defer cleanup()
+func TestLightFileNodeStore_Run_UnwritablePath(t *testing.T) {
+	baseDir := t.TempDir()
+	require.NoError(t, os.Chmod(baseDir, 0o555))
+	defer os.Chmod(baseDir, 0o755)
 
-	ctx := context.Background()
-	block := createTestBlock(t, []byte("test data"))
+	store := New(filepath.Join(baseDir, "store"))
+	require.NoError(t, store.Init(&app.App{}))
 
-	// Add block
-	err := store.Add(ctx, []blocks.Block{block})
-	require.NoError(t, err)
-
-	// Get block
-	retrieved, err := store.Get(ctx, block.Cid())
-	require.NoError(t, err)
-	assert.Equal(t, block.Cid(), retrieved.Cid())
-	assert.Equal(t, block.RawData(), retrieved.RawData())
+	err := store.Run(context.Background())
+	assert.Error(t, err)
 }
 
-func TestLightFileNodeStore_Add_Get_Multiple(t *testing.T) {
-	store, cleanup := setupTestStore(t)
-	defer cleanup()
+func TestLightFileNodeStore_AddGetVariants(t *testing.T) {
+	t.Helper()
 
-	ctx := context.Background()
-	testBlocks := createTestBlocks(t, 10)
+	cases := []struct {
+		name       string
+		makeBlocks func(*testing.T) []blocks.Block
+	}{
+		{
+			name: "single",
+			makeBlocks: func(t *testing.T) []blocks.Block {
+				return []blocks.Block{createTestBlock(t, []byte("single-block"))}
+			},
+		},
+		{
+			name: "multiple",
+			makeBlocks: func(t *testing.T) []blocks.Block {
+				return createTestBlocks(t, 10)
+			},
+		},
+		{
+			name: "empty",
+			makeBlocks: func(t *testing.T) []blocks.Block {
+				return []blocks.Block{createTestBlock(t, []byte{})}
+			},
+		},
+		{
+			name: "large",
+			makeBlocks: func(t *testing.T) []blocks.Block {
+				data := make([]byte, 2*1024*1024)
+				for i := range data {
+					data[i] = byte(i % 256)
+				}
+				return []blocks.Block{createTestBlock(t, data)}
+			},
+		},
+	}
 
-	// Add multiple blocks
-	err := store.Add(ctx, testBlocks)
-	require.NoError(t, err)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			store, cleanup := setupTestStore(t)
+			defer cleanup()
 
-	// Get each block individually
-	for _, block := range testBlocks {
-		retrieved, getErr := store.Get(ctx, block.Cid())
-		require.NoError(t, getErr)
-		assert.Equal(t, block.Cid(), retrieved.Cid())
-		assert.Equal(t, block.RawData(), retrieved.RawData())
+			ctx := context.Background()
+			blocks := tc.makeBlocks(t)
+
+			require.NoError(t, store.Add(ctx, blocks))
+
+			for _, block := range blocks {
+				retrieved, err := store.Get(ctx, block.Cid())
+				require.NoError(t, err)
+				require.True(
+					t,
+					bytes.Equal(block.RawData(), retrieved.RawData()),
+					"expected cid %s to match",
+					block.Cid(),
+				)
+			}
+		})
 	}
 }
 
@@ -195,6 +235,50 @@ func TestLightFileNodeStore_DeleteMany(t *testing.T) {
 	// Verify all are gone
 	for _, c := range cids {
 		_, err = store.Get(ctx, c)
+		assert.ErrorIs(t, err, fileblockstore.ErrCIDNotFound)
+	}
+}
+
+func TestLightFileNodeStore_Delete_Idempotent(t *testing.T) {
+	store, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	block := createTestBlock(t, []byte("idempotent-delete"))
+	require.NoError(t, store.Add(ctx, []blocks.Block{block}))
+
+	// First delete removes the block.
+	require.NoError(t, store.Delete(ctx, block.Cid()))
+
+	// Subsequent deletes should be no-ops.
+	require.NoError(t, store.Delete(ctx, block.Cid()))
+
+	// Deleting a CID that never existed should also succeed.
+	missing := createTestBlock(t, []byte("missing-delete"))
+	require.NoError(t, store.Delete(ctx, missing.Cid()))
+}
+
+func TestLightFileNodeStore_DeleteMany_MissingEntries(t *testing.T) {
+	store, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	blocks := createTestBlocks(t, 3)
+	require.NoError(t, store.Add(ctx, blocks))
+
+	missing := createTestBlocks(t, 2)
+	var toDelete []cid.Cid
+	for _, block := range blocks {
+		toDelete = append(toDelete, block.Cid())
+	}
+	for _, block := range missing {
+		toDelete = append(toDelete, block.Cid())
+	}
+
+	require.NoError(t, store.DeleteMany(ctx, toDelete))
+
+	for _, block := range blocks {
+		_, err := store.Get(ctx, block.Cid())
 		assert.ErrorIs(t, err, fileblockstore.ErrCIDNotFound)
 	}
 }
@@ -303,6 +387,16 @@ func TestLightFileNodeStore_IndexDelete(t *testing.T) {
 	assert.Nil(t, retrieved)
 }
 
+func TestLightFileNodeStore_IndexDelete_NonExistent(t *testing.T) {
+	store, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	err := store.IndexDelete(ctx, "missing-index")
+	require.NoError(t, err)
+}
+
 func TestLightFileNodeStore_IndexKeyPrefix_Isolation(t *testing.T) {
 	store, cleanup := setupTestStore(t)
 	defer cleanup()
@@ -345,26 +439,49 @@ func TestLightFileNodeStore_ConcurrentWrites(t *testing.T) {
 	numGoroutines := 10
 	blocksPerGoroutine := 5
 
+	blockSets := make([][]blocks.Block, numGoroutines)
+	for i := range blockSets {
+		blockSets[i] = make([]blocks.Block, blocksPerGoroutine)
+		for j := range blockSets[i] {
+			data := fmt.Appendf(nil, "goroutine-%d-block-%d", i, j)
+			blockSets[i][j] = createTestBlock(t, data)
+		}
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
 
-	for i := range numGoroutines {
-		go func(id int) {
+	cidCh := make(chan cid.Cid, numGoroutines*blocksPerGoroutine)
+	errCh := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(batch []blocks.Block) {
 			defer wg.Done()
-			for j := range blocksPerGoroutine {
-				data := fmt.Appendf(nil, "goroutine-%d-block-%d", id, j)
-				block := createTestBlock(t, data)
-				err := store.Add(ctx, []blocks.Block{block})
-				assert.NoError(t, err)
+			for _, block := range batch {
+				if err := store.Add(ctx, []blocks.Block{block}); err != nil {
+					errCh <- err
+					return
+				}
+				cidCh <- block.Cid()
 			}
-		}(i)
+		}(blockSets[i])
 	}
 
 	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
 
-	// Verify all blocks were written
-	// Note: We can't easily verify the exact count without tracking all CIDs
-	// but the test should complete without panics or errors
+	close(cidCh)
+	retrieved := 0
+	for c := range cidCh {
+		_, err := store.Get(ctx, c)
+		require.NoError(t, err)
+		retrieved++
+	}
+
+	assert.Equal(t, numGoroutines*blocksPerGoroutine, retrieved)
 }
 
 func TestLightFileNodeStore_ConcurrentReads(t *testing.T) {
@@ -383,21 +500,34 @@ func TestLightFileNodeStore_ConcurrentReads(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
+	start := make(chan struct{})
+	errCh := make(chan error, numGoroutines)
 
-	for range numGoroutines {
-		go func() {
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
 			defer wg.Done()
-			for j := range readsPerGoroutine {
-				// Read random block
-				block := testBlocks[j%len(testBlocks)]
-				retrieved, getErr := store.Get(ctx, block.Cid())
-				assert.NoError(t, getErr)
-				assert.Equal(t, block.RawData(), retrieved.RawData())
+			<-start
+			for j := 0; j < readsPerGoroutine; j++ {
+				block := testBlocks[(id+j)%len(testBlocks)]
+				retrieved, err := store.Get(ctx, block.Cid())
+				if err != nil {
+					errCh <- err
+					return
+				}
+				if !assert.ObjectsAreEqual(block.RawData(), retrieved.RawData()) {
+					errCh <- fmt.Errorf("data mismatch for %s", block.Cid())
+					return
+				}
 			}
-		}()
+		}(i)
 	}
 
+	close(start)
 	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
 }
 
 func TestLightFileNodeStore_ConcurrentMixedOperations(t *testing.T) {
@@ -413,88 +543,87 @@ func TestLightFileNodeStore_ConcurrentMixedOperations(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(3)
+	start := make(chan struct{})
+	readerErr := make(chan error, 1)
+	writerErr := make(chan error, 1)
+	getManyErr := make(chan error, 1)
+	var getManyCount atomic.Int32
 
 	// Reader goroutine
 	go func() {
 		defer wg.Done()
-		for i := range 20 {
-			if i < 10 {
-				_, _ = store.Get(ctx, testBlocks[i].Cid())
+		<-start
+		for _, block := range testBlocks[:10] {
+			retrieved, err := store.Get(ctx, block.Cid())
+			if err != nil {
+				readerErr <- err
+				return
 			}
-			time.Sleep(time.Millisecond)
+			if !assert.ObjectsAreEqual(block.RawData(), retrieved.RawData()) {
+				readerErr <- fmt.Errorf("reader mismatch for %s", block.Cid())
+				return
+			}
 		}
+		readerErr <- nil
 	}()
 
 	// Writer goroutine
 	go func() {
 		defer wg.Done()
-		for i := 10; i < 20; i++ {
-			_ = store.Add(ctx, []blocks.Block{testBlocks[i]})
-			time.Sleep(time.Millisecond)
+		<-start
+		for _, block := range testBlocks[10:] {
+			if err := store.Add(ctx, []blocks.Block{block}); err != nil {
+				writerErr <- err
+				return
+			}
 		}
+		writerErr <- nil
 	}()
 
 	// GetMany goroutine
 	go func() {
 		defer wg.Done()
+		<-start
 		cids := make([]cid.Cid, 10)
 		for i := range 10 {
 			cids[i] = testBlocks[i].Cid()
 		}
-		for range 5 {
+		for i := 0; i < 5; i++ {
 			resultChan := store.GetMany(ctx, cids)
 			// Consume results to avoid blocking
 			for range resultChan {
-				_ = struct{}{}
+				getManyCount.Add(1)
 			}
-			time.Sleep(5 * time.Millisecond)
 		}
+		getManyErr <- nil
 	}()
 
+	close(start)
 	wg.Wait()
+	close(readerErr)
+	for err := range readerErr {
+		require.NoError(t, err)
+	}
+	close(writerErr)
+	for err := range writerErr {
+		require.NoError(t, err)
+	}
+	close(getManyErr)
+	for err := range getManyErr {
+		require.NoError(t, err)
+	}
+
+	// Ensure all blocks (original + new) are available after concurrent operations.
+	for _, block := range testBlocks {
+		retrieved, err := store.Get(ctx, block.Cid())
+		require.NoError(t, err)
+		assert.Equal(t, block.RawData(), retrieved.RawData())
+	}
+
+	assert.GreaterOrEqual(t, getManyCount.Load(), int32(10)) // Expect at least one full batch to be read.
 }
 
 // Edge Cases Tests
-
-func TestLightFileNodeStore_EmptyBlock(t *testing.T) {
-	store, cleanup := setupTestStore(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	block := createTestBlock(t, []byte{})
-
-	// Add empty block
-	err := store.Add(ctx, []blocks.Block{block})
-	require.NoError(t, err)
-
-	// Retrieve empty block
-	retrieved, err := store.Get(ctx, block.Cid())
-	require.NoError(t, err)
-	// Empty blocks may return nil or empty slice, both are valid
-	assert.Empty(t, retrieved.RawData())
-}
-
-func TestLightFileNodeStore_LargeBlock(t *testing.T) {
-	store, cleanup := setupTestStore(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	// Create a 2MB block
-	largeData := make([]byte, 2*1024*1024)
-	for i := range largeData {
-		largeData[i] = byte(i % 256)
-	}
-	block := createTestBlock(t, largeData)
-
-	// Add large block
-	err := store.Add(ctx, []blocks.Block{block})
-	require.NoError(t, err)
-
-	// Retrieve large block
-	retrieved, err := store.Get(ctx, block.Cid())
-	require.NoError(t, err)
-	assert.Equal(t, largeData, retrieved.RawData())
-}
 
 func TestLightFileNodeStore_DuplicateAdd(t *testing.T) {
 	store, cleanup := setupTestStore(t)
@@ -659,40 +788,29 @@ func BenchmarkLightFileNodeStore_GetMany(b *testing.B) {
 
 func TestLightFileNodeStore_GarbageCollection(t *testing.T) {
 	tmpDir := t.TempDir()
-	store := &LightFileNodeStore{
-		cfg: storeConfig{
-			storePath:     tmpDir,
-			gcInterval:    100 * time.Millisecond, // Fast GC for testing
-			gcThreshold:   0.5,
-			maxGCDuration: 10 * time.Second,
-		},
-	}
+	store := New(tmpDir)
+	store.cfg.gcInterval = time.Millisecond
+	store.cfg.maxGCDuration = 100 * time.Millisecond
 
-	err := store.Init(&app.App{})
-	require.NoError(t, err)
+	require.NoError(t, store.Init(&app.App{}))
 
-	ctx := t.Context()
-
-	err = store.Run(ctx)
-	require.NoError(t, err)
+	ctx := context.Background()
+	require.NoError(t, store.Run(ctx))
 	defer store.Close(context.Background())
 
 	// Add and delete blocks to create garbage
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		block := createTestBlock(t, fmt.Appendf(nil, "gc-test-%d", i))
-		addErr := store.Add(ctx, []blocks.Block{block})
-		require.NoError(t, addErr)
-		delErr := store.Delete(ctx, block.Cid())
-		require.NoError(t, delErr)
+		require.NoError(t, store.Add(ctx, []blocks.Block{block}))
+		require.NoError(t, store.Delete(ctx, block.Cid()))
 	}
 
-	// Wait for GC to run
-	time.Sleep(200 * time.Millisecond)
-
-	// Test passes if no panic and store still functional
-	testBlock := createTestBlock(t, []byte("after-gc"))
-	err = store.Add(ctx, []blocks.Block{testBlock})
+	_, _, err := store.gcOnce()
 	require.NoError(t, err)
+
+	// Store remains functional after GC iteration.
+	testBlock := createTestBlock(t, []byte("after-gc"))
+	require.NoError(t, store.Add(ctx, []blocks.Block{testBlock}))
 
 	retrieved, err := store.Get(ctx, testBlock.Cid())
 	require.NoError(t, err)

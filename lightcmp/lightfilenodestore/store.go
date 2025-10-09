@@ -340,24 +340,32 @@ func (s *LightFileNodeStore) runGC(ctx context.Context) {
 			log.Info("stopping badger garbage collection routine")
 			return
 		case <-ticker.C:
-			start := time.Now()
-			gcCount := 0
-
-			// Run GC until either we hit time limit or no more files need GC
-			for time.Since(start) < s.cfg.maxGCDuration {
-				if err := s.db.RunValueLogGC(s.cfg.gcThreshold); err != nil {
-					if errors.Is(err, badger.ErrNoRewrite) {
-						break // No more files need GC
-					}
-					log.Warn("badger gc failed", zap.Error(err))
-					break
-				}
-				gcCount++
+			gcCount, duration, err := s.gcOnce()
+			if err != nil {
+				log.Warn("badger gc failed", zap.Error(err))
 			}
 
 			log.Info("badger garbage collection completed",
-				zap.Duration("duration", time.Since(start)),
+				zap.Duration("duration", duration),
 				zap.Int("filesGCed", gcCount))
 		}
 	}
+}
+
+// gcOnce performs a single garbage collection iteration and returns the number of value log files reclaimed.
+func (s *LightFileNodeStore) gcOnce() (int, time.Duration, error) {
+	start := time.Now()
+	gcCount := 0
+
+	for time.Since(start) < s.cfg.maxGCDuration {
+		if err := s.db.RunValueLogGC(s.cfg.gcThreshold); err != nil {
+			if errors.Is(err, badger.ErrNoRewrite) {
+				return gcCount, time.Since(start), nil
+			}
+			return gcCount, time.Since(start), err
+		}
+		gcCount++
+	}
+
+	return gcCount, time.Since(start), nil
 }
