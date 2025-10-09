@@ -29,7 +29,6 @@
     <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB and Redis built in.</li>
     <li><strong>✅ Bundle (solo bundle)</strong>: A variant without MongoDB and Redis inside. You can use your own instances.</li>
   </ul>
-  ✅ - Ready; ⚠️ - Under development
 </div>
 
 ---
