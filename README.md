@@ -25,11 +25,10 @@
 
 <div style="border: 1px solid #ffa500; background-color: #fff7e6; padding: 16px; border-radius: 6px; margin: 16px 0;">
   <h1 style="margin-top: 0; color: #ff7f0e;">⚠️ Under Development</h1>
-  <p>It is better to use <b>Release</b>. The main branch contains code that is under active development. Future versions will include variants:</p>
+  <p>It is better to use <b>Release</b>. The main branch contains code that is under active development. Available variants:</p>
   <ul>
-    <li><strong>⚠️ Light version </strong>: Preferred for self-hosting; uses one port, works without MongoDB, Redis, or MinIO; utilizes embedded BadgerDB for storage as Anytype on client side; supports a wide range of architectures with low overhead.</li>
-    <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB, Redis, and MinIO built in.</li>
-    <li><strong>✅ Bundle (solo bundle)</strong>: A variant without MongoDB, Redis, and MinIO inside. You can use your own instances</li>
+    <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB and Redis built in.</li>
+    <li><strong>✅ Bundle (solo bundle)</strong>: A variant without MongoDB and Redis inside. You can use your own instances.</li>
   </ul>
   ✅ - Ready; ⚠️ - Under development
 </div>
@@ -48,15 +47,45 @@ Replace the external address (e.g., `192.168.100.9`) with a local IP address or 
 Multiple addresses can be added, separated by commas.  
 Then use the client config YAML in `./data/client-config.yml`.
 
+**Container (solo bundle, external MongoDB/Redis)**
+
 ```sh
 docker run -d \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+    -e ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://user:pass@mongo:27017/" \
+    -e ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://redis:6379/" \
     -p 33010:33010 \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
     --restart unless-stopped \
     --name any-sync-bundle \
+  ghcr.io/grishy/any-sync-bundle-minimal:latest
+```
+
+**Container (all-in-one with embedded MongoDB/Redis)**
+
+```sh
+docker run -d \
+    -p 33010:33010 \
+    -p 33020:33020/udp \
+    -v $(pwd)/data:/data \
+    --restart unless-stopped \
+    --name any-sync-bundle-aio \
   ghcr.io/grishy/any-sync-bundle:latest
+```
+
+**Without container (binary)**
+
+```sh
+go build -o any-sync-bundle .
+
+./any-sync-bundle config bundle
+./any-sync-bundle config client
+
+ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://127.0.0.1:27017/" \
+ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://127.0.0.1:6379/" \
+./any-sync-bundle start-bundle
 ```
 
 ## Version
