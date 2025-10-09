@@ -11,8 +11,6 @@
 | ------- | ----- |
 | `start-all-in-one` | Launch bundle plus embedded `mongod` + `redis-server` (see `cmd/start.go`). |
 | `start-bundle` | Launch bundle only; uses URIs from config or env. |
-| `config bundle`, `config client` | Regenerate YAML configs without starting services. |
-| `mongo start|stop` | Development helpers for the embedded MongoDB instance. |
 
 Global flags / env vars:
 

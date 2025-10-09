@@ -8,7 +8,7 @@
   <table align="center">
     <tr>
       <td><strong>Status</strong></td>
-      <td><b>⚠️ Under Development</b></td>
+      <td><b>⚠️ Under Validation</b></td>
     </tr>
     <tr>
       <td><strong>Stable Version</strong></td>
@@ -24,7 +24,6 @@
 ---
 
 <div style="border: 1px solid #ffa500; background-color: #fff7e6; padding: 16px; border-radius: 6px; margin: 16px 0;">
-  <h1 style="margin-top: 0; color: #ff7f0e;">⚠️ Under Development</h1>
   <p>It is better to use <b>Release</b>. The main branch contains code that is under active development. Available variants:</p>
   <ul>
     <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB and Redis built in.</li>
@@ -49,6 +48,8 @@ Then use the client config YAML in `./data/client-config.yml`.
 
 **Container (solo bundle, external MongoDB/Redis)**
 
+Pick one of the published tags, for example `0.5.0-2024-12-18` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
+
 ```sh
 docker run -d \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
@@ -59,7 +60,7 @@ docker run -d \
     -v $(pwd)/data:/data \
     --restart unless-stopped \
     --name any-sync-bundle \
-  ghcr.io/grishy/any-sync-bundle-minimal:latest
+  ghcr.io/grishy/any-sync-bundle:0.5.0-2024-12-18-minimal
 ```
 
 **Container (all-in-one with embedded MongoDB/Redis)**
@@ -71,17 +72,14 @@ docker run -d \
     -v $(pwd)/data:/data \
     --restart unless-stopped \
     --name any-sync-bundle-aio \
-  ghcr.io/grishy/any-sync-bundle:latest
+  ghcr.io/grishy/any-sync-bundle:0.5.0-2024-12-18
 ```
+
+Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate.
 
 **Without container (binary)**
 
 ```sh
-go build -o any-sync-bundle .
-
-./any-sync-bundle config bundle
-./any-sync-bundle config client
-
 ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
 ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://127.0.0.1:27017/" \
 ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://127.0.0.1:6379/" \
