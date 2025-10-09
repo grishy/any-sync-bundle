@@ -74,7 +74,7 @@ import (
 // IMPORTANT: If sync node hangs on startup, check:
 // 1. Coordinator is fully initialized before sync node starts
 // 2. NodeSync config has SyncOnStart=true and PeriodicSyncHours>0
-// 3. Storage.AnyStorePath is accessible and writable
+// 3. Storage.AnyStorePath is accessible and writable.
 func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
 	return new(app.App).
 		Register(cfg).

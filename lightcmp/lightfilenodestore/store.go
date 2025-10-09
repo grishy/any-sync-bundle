@@ -41,12 +41,6 @@ var (
 	log = logger.NewNamed(CName)
 )
 
-// IndexLog represents a single WAL entry for index changes.
-type IndexLog struct {
-	Idx  uint64
-	Data []byte
-}
-
 type storeConfig struct {
 	storePath     string
 	gcInterval    time.Duration

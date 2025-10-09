@@ -23,7 +23,6 @@ func main() {
 
 	go func() {
 		<-ctx.Done()
-		fmt.Println("Context done, waiting before forced exit")
 		time.Sleep(30 * time.Second)
 		fmt.Println("Forced exit by timeout")
 		os.Exit(1)

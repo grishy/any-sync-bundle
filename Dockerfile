@@ -40,28 +40,26 @@ FROM gcr.io/distroless/static-debian12 AS stage-release-minimal
 
 COPY --from=stage-bin /bin/any-sync-bundle /usr/local/bin/any-sync-bundle
 
-# All default ports of any-sync-bundle
-# NOTE: Need to specify UDP, because the default is TCP
-EXPOSE 33010-33013 \
-       33020-33023/udp
+# Bundle network ports (TCP 33010, UDP 33020)
+EXPOSE 33010
+EXPOSE 33020/udp
 
 VOLUME /data
 
 ENTRYPOINT ["/usr/local/bin/any-sync-bundle"]
-CMD ["start"]
+CMD ["start-bundle"]
 
 # 
 # Stage: stage-final
 #
 FROM docker.io/redis/redis-stack-server:7.4.0-v2 AS stage-release
 
-# Install supervisor and tool to intall mongoDB
+# Install prerequisites and MongoDB
 RUN DEBIAN_FRONTEND=noninteractive \
  && apt-get update && apt-get install -y --no-install-recommends \
         gnupg \
         curl \
         ca-certificates \
-        supervisor \
  # Install MongoDB
  && curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor \
  && echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] http://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-8.0.list \
@@ -78,15 +76,13 @@ RUN DEBIAN_FRONTEND=noninteractive \
     /usr/share/keyrings/mongodb-server-8.0.gpg \
     /etc/apt/sources.list.d/mongodb-org-8.0.list
 
-COPY ./docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --from=stage-bin /bin/any-sync-bundle /usr/local/bin/any-sync-bundle
 
-# All default ports of any-sync-bundle
-# NOTE: Need to specify UDP, because the default is TCP
-EXPOSE 33010-33013 \
-       33020-33023/udp
+# Bundle network ports (TCP 33010, UDP 33020)
+EXPOSE 33010
+EXPOSE 33020/udp
 
 VOLUME /data
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
-
+ENTRYPOINT ["/usr/local/bin/any-sync-bundle"]
+CMD ["start-all-in-one"]

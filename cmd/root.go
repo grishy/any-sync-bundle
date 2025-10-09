@@ -56,9 +56,8 @@ func Root(ctx context.Context) *cli.App {
 		Flags:  buildGlobalFlags(),
 		Before: setupLogger,
 		Commands: []*cli.Command{
-			cmdConfig(ctx),
-			cmdMongo(ctx),
-			cmdStart(ctx),
+			cmdStartAllInOne(ctx),
+			cmdStartBundle(ctx),
 		},
 	}
 }

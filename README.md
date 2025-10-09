@@ -51,8 +51,8 @@ Then use the client config YAML in `./data/client-config.yml`.
 ```sh
 docker run -d \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
-    -p 33010-33013:33010-33013 \
-    -p 33020-33023:33020-33023/udp \
+    -p 33010:33010 \
+    -p 33020:33020/udp \
     -v $(pwd)/data:/data \
     --restart unless-stopped \
     --name any-sync-bundle \

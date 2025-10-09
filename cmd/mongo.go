@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/urfave/cli/v2"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -22,45 +21,7 @@ const (
 
 	// Default MongoDB parameters.
 	defaultMongoReplica = "rs0"
-	defaultMongoURI     = "mongodb://127.0.0.1:27017/"
 )
-
-func cmdMongo(ctx context.Context) *cli.Command {
-	return &cli.Command{
-		Name:        "mongo",
-		Usage:       "MongoDB management commands",
-		Subcommands: []*cli.Command{cmdMongoInit(ctx)},
-	}
-}
-
-func cmdMongoInit(ctx context.Context) *cli.Command {
-	return &cli.Command{
-		Name:  "init",
-		Usage: "Initialize MongoDB replica set",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "replica",
-				Aliases: []string{"r"},
-				Value:   defaultMongoReplica,
-				Usage:   "Name of the replica set",
-				EnvVars: []string{"ANY_SYNC_BUNDLE_MONGO_REPLICA"},
-			},
-			&cli.StringFlag{
-				Name:    "uri",
-				Aliases: []string{"u"},
-				Value:   defaultMongoURI,
-				Usage:   "MongoDB connection URI",
-				EnvVars: []string{"ANY_SYNC_BUNDLE_MONGO_URI"},
-			},
-		},
-		Action: func(cCtx *cli.Context) error {
-			replica := cCtx.String("replica")
-			mongoURI := cCtx.String("uri")
-
-			return initReplicaSetAction(ctx, replica, mongoURI)
-		},
-	}
-}
 
 func initReplicaSetAction(ctx context.Context, replica, mongoURI string) error {
 	// For exponential backoff, limit number of attempts.
