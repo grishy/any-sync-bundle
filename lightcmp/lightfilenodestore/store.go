@@ -231,7 +231,11 @@ func (s *LightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 
 	start := time.Now()
 	err := s.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(c.String()))
+		deleteErr := txn.Delete([]byte(c.String()))
+		if errors.Is(deleteErr, badger.ErrKeyNotFound) {
+			return nil
+		}
+		return deleteErr
 	})
 
 	log.Debug("badger delete",
@@ -252,6 +256,9 @@ func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) e
 		key := c.String()
 		keys = append(keys, key)
 		if err := wb.Delete([]byte(key)); err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				continue
+			}
 			log.Warn("can't delete cid", zap.Error(err), zap.String("key", key))
 		}
 	}
@@ -279,7 +286,6 @@ func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, er
 		item, getErr := txn.Get([]byte(indexKey))
 		if getErr != nil {
 			if errors.Is(getErr, badger.ErrKeyNotFound) {
-				log.Warn("index key not found", zap.String("key", indexKey))
 				return nil
 			}
 
@@ -289,7 +295,6 @@ func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, er
 		var copyErr error
 		value, copyErr = item.ValueCopy(nil)
 
-		log.Debug("badger index get", zap.String("key", indexKey))
 		if copyErr != nil {
 			return fmt.Errorf("failed to copy index value: %w", copyErr)
 		}
@@ -297,7 +302,6 @@ func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, er
 		return nil
 	})
 
-	log.Debug("badger index get result", zap.String("key", indexKey))
 	return value, err
 }
 
