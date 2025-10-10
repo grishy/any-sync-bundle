@@ -37,7 +37,7 @@
 
 This is a zero-config version of the official Anytype server. It uses the same upstream modules Anytype ships, but compacts them into a single binary - think of it as "K3s for Any Sync".
 
-Replace the external address (e.g., `192.168.100.9`) with an address or hostname clients should connect to. Multiple addresses can be added, separated by commas. After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`.
+Replace the external address (e.g., `192.168.100.9`) with an address or hostname clients should connect to.
 
 ```sh
 docker run \
@@ -48,11 +48,13 @@ docker run \
   ghcr.io/grishy/any-sync-bundle:0.6.0+2025-09-08
 ```
 
+After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`.
+
 ## Key features
 
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
-- **Lightweight**: No MinIO included, and no duplicate logical services
+- **Lightweight**: No MinIO, and no duplicate logical services
 - **Only 2 opne ports**: TCP 33010 and UDP 33020 (configurable)
 
 ## Architecture
@@ -75,7 +77,8 @@ Pick one of the published tags, for example `v0.6.0+2025-09-08` (see [Packages](
 
 Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recommendation).
 
-`ANY_SYNC_BUNDLE_INIT_*` variables seed the initial configuration on first start; their values are persisted to `bundle-config.yml` afterward.
+- `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` multiple addresses can be added, separated by commas.
+- `ANY_SYNC_BUNDLE_INIT_*` variables seed the initial configuration on first start; their values are persisted to `bundle-config.yml` afterward.
 
 1. Container (all-in-one with embedded MongoDB/Redis)
 
