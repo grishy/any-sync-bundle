@@ -14,13 +14,16 @@
 
 Global flags / env vars:
 
+- `--debug`, `--log-level`
+
+Command flags (`start-all-in-one`, `start-bundle`):
+
 - `--bundle-config` (`ANY_SYNC_BUNDLE_CONFIG`, default `./data/bundle-config.yml`)
 - `--client-config` (`ANY_SYNC_BUNDLE_CLIENT_CONFIG`, default `./data/client-config.yml`)
 - `--storage` (`ANY_SYNC_BUNDLE_STORAGE`, default `./data/storage/`)
 - `--initial-external-addrs` (`ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`)
 - `--initial-mongo-uri` (`ANY_SYNC_BUNDLE_INIT_MONGO_URI`)
 - `--initial-redis-uri` (`ANY_SYNC_BUNDLE_INIT_REDIS_URI`)
-- `--debug`, `--log-level`
 
 Config bootstrap (cmd/start.go):
 

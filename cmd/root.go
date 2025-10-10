@@ -21,14 +21,18 @@ const (
 
 // Global CLI flags.
 const (
-	fGlobalIsDbg             = "debug"
-	fGlobalLogLevel          = "log-level"
-	fGlobalStoragePath       = "storage"
-	fGlobalBundleConfigPath  = "bundle-config"
-	fGlobalClientConfigPath  = "client-config"
-	fGlobalInitExternalAddrs = "initial-external-addrs"
-	fGlobalInitMongoURI      = "initial-mongo-uri"
-	fGlobalInitRedisURI      = "initial-redis-uri"
+	flagDebug    = "debug"
+	flagLogLevel = "log-level"
+)
+
+// Command-scoped flags for start commands.
+const (
+	flagStartBundleConfigPath = "bundle-config"
+	flagStartClientConfigPath = "client-config"
+	flagStartStoragePath      = "storage"
+	flagStartExternalAddrs    = "initial-external-addrs"
+	flagStartMongoURI         = "initial-mongo-uri"
+	flagStartRedisURI         = "initial-redis-uri"
 )
 
 var log = logger.NewNamed("cli")
@@ -65,49 +69,54 @@ func Root(ctx context.Context) *cli.App {
 func buildGlobalFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.BoolFlag{
-			Name:    fGlobalIsDbg,
+			Name:    flagDebug,
 			Usage:   "Enable debug mode with detailed logging",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_DEBUG"},
 		},
 		&cli.StringFlag{
-			Name:    fGlobalLogLevel,
+			Name:    flagLogLevel,
 			Usage:   "Log level (debug, info, warn, error, fatal)",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_LOG_LEVEL"},
 		},
+	}
+}
+
+func buildStartFlags() []cli.Flag {
+	return []cli.Flag{
 		&cli.PathFlag{
-			Name:    fGlobalBundleConfigPath,
+			Name:    flagStartBundleConfigPath,
 			Aliases: []string{"c"},
 			Value:   "./data/bundle-config.yml",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_CONFIG"},
 			Usage:   "Path to the bundle configuration YAML file",
 		},
 		&cli.PathFlag{
-			Name:    fGlobalClientConfigPath,
+			Name:    flagStartClientConfigPath,
 			Aliases: []string{"cc"},
 			Value:   "./data/client-config.yml",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_CLIENT_CONFIG"},
 			Usage:   "Path where write to the Anytype client configuration YAML file if needed",
 		},
 		&cli.PathFlag{
-			Name:    fGlobalStoragePath,
+			Name:    flagStartStoragePath,
 			Value:   "./data/storage/",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_STORAGE"},
 			Usage:   "Path to the bundle data directory (must be writable)",
 		},
 		&cli.StringSliceFlag{
-			Name:    fGlobalInitExternalAddrs,
+			Name:    flagStartExternalAddrs,
 			Value:   cli.NewStringSlice("192.168.8.214", "example.local"),
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS"},
 			Usage:   "Initial external addresses for the bundle",
 		},
 		&cli.StringFlag{
-			Name:    fGlobalInitMongoURI,
+			Name:    flagStartMongoURI,
 			Value:   "mongodb://127.0.0.1:27017/",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_MONGO_URI"},
 			Usage:   "Initial MongoDB URI for the bundle",
 		},
 		&cli.StringFlag{
-			Name:    fGlobalInitRedisURI,
+			Name:    flagStartRedisURI,
 			Value:   "redis://127.0.0.1:6379/",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_REDIS_URI"},
 			Usage:   "Initial Redis URI for the bundle",
@@ -122,12 +131,12 @@ func setupLogger(c *cli.Context) error {
 	}
 
 	// --log-level flag
-	if logLevel := c.String(fGlobalLogLevel); logLevel != "" {
+	if logLevel := c.String(flagLogLevel); logLevel != "" {
 		cfg.DefaultLevel = logLevel
 	}
 
 	// --debug flag (overrides everything)
-	if c.Bool(fGlobalIsDbg) {
+	if c.Bool(flagDebug) {
 		cfg.DefaultLevel = "debug"
 		cfg.Format = logger.ColorizedOutput
 	}

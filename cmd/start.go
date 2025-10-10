@@ -46,6 +46,7 @@ func cmdStartAllInOne(ctx context.Context) *cli.Command {
 	return &cli.Command{
 		Name:  "start-all-in-one",
 		Usage: "Start bundle together with embedded MongoDB and Redis",
+		Flags: buildStartFlags(),
 		Action: func(cCtx *cli.Context) error {
 			printWelcomeMsg()
 
@@ -71,6 +72,7 @@ func cmdStartBundle(ctx context.Context) *cli.Command {
 	return &cli.Command{
 		Name:  "start-bundle",
 		Usage: "Start bundle services and use external MongoDB/Redis",
+		Flags: buildStartFlags(),
 		Action: func(cCtx *cli.Context) error {
 			printWelcomeMsg()
 
@@ -112,7 +114,7 @@ func runBundleServices(ctx context.Context, bundleCfg *bundleConfig.Config) erro
 
 func prepareBundleConfig(cCtx *cli.Context) (*bundleConfig.Config, error) {
 	bundleCfg := loadOrCreateConfig(cCtx, log)
-	clientCfgPath := cCtx.String(fGlobalClientConfigPath)
+	clientCfgPath := cCtx.String(flagStartClientConfigPath)
 
 	if err := writeClientConfig(bundleCfg, clientCfgPath); err != nil {
 		return nil, err
@@ -122,7 +124,7 @@ func prepareBundleConfig(cCtx *cli.Context) (*bundleConfig.Config, error) {
 }
 
 func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.Config {
-	cfgPath := cCtx.String(fGlobalBundleConfigPath)
+	cfgPath := cCtx.String(flagStartBundleConfigPath)
 	log.Info("loading config")
 
 	if _, err := os.Stat(cfgPath); err == nil {
@@ -133,10 +135,10 @@ func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.C
 	log.Info("creating new config")
 	return bundleConfig.CreateWrite(&bundleConfig.CreateOptions{
 		CfgPath:       cfgPath,
-		StorePath:     cCtx.String(fGlobalStoragePath),
-		MongoURI:      cCtx.String(fGlobalInitMongoURI),
-		RedisURI:      cCtx.String(fGlobalInitRedisURI),
-		ExternalAddrs: cCtx.StringSlice(fGlobalInitExternalAddrs),
+		StorePath:     cCtx.String(flagStartStoragePath),
+		MongoURI:      cCtx.String(flagStartMongoURI),
+		RedisURI:      cCtx.String(flagStartRedisURI),
+		ExternalAddrs: cCtx.StringSlice(flagStartExternalAddrs),
 	})
 }
 
