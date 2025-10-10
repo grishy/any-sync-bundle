@@ -12,6 +12,15 @@ services:
       - "27017:27017"
     volumes:
       - ./data/mongo:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - |
+          test $$(mongosh --quiet --host localhost:27017 --eval "try { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]}).ok } catch (e) { rs.status().ok }") -eq 1
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   redis:
     image: docker.io/redis/redis-stack-server:7.4.0-v2
@@ -35,3 +44,9 @@ services:
       - "6379:6379"
     volumes:
       - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-h", "localhost", "-p", "6379", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s

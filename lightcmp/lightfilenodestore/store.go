@@ -100,7 +100,12 @@ func (s *LightFileNodeStore) Close(_ context.Context) error {
 	if s.gcCancel != nil {
 		s.gcCancel()
 	}
-	return s.db.Close()
+	if s.db == nil {
+		return nil
+	}
+	err := s.db.Close()
+	s.db = nil
+	return err
 }
 
 func (s *LightFileNodeStore) Get(_ context.Context, k cid.Cid) (blocks.Block, error) {

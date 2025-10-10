@@ -48,6 +48,10 @@ func cmdStartAllInOne(ctx context.Context) *cli.Command {
 		Usage: "Start bundle together with embedded MongoDB and Redis",
 		Flags: buildStartFlags(),
 		Action: func(cCtx *cli.Context) error {
+			if err := assertContainerRuntime(); err != nil {
+				return err
+			}
+
 			printWelcomeMsg()
 
 			bundleCfg, err := prepareBundleConfig(cCtx)
@@ -432,7 +436,7 @@ func printWelcomeMsg() {
 ┌───────────────────────────────────────────────────────────────────┐
 
                  Welcome to the AnySync Bundle!
-           https://github.com/grishy/any-sync-bundle                   
+           https://github.com/grishy/any-sync-bundle
 
     Version: %s
     Built:   %s
@@ -478,4 +482,18 @@ func printShutdownMsg() {
 
 └───────────────────────────────────────────────────────────────────┘
 `)
+}
+
+func assertContainerRuntime() error {
+	// Docker creates /.dockerenv, Podman creates /run/.containerenv.
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return nil
+	}
+	if _, err := os.Stat("/run/.containerenv"); err == nil {
+		return nil
+	}
+
+	return errors.New(
+		"start-all-in-one is only supported inside the official container image; please run the all-in-one container or use start-bundle with external MongoDB/Redis",
+	)
 }
