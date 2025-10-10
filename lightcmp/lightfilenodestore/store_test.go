@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,8 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// Test helpers
 
 func setupTestStore(t *testing.T) (*LightFileNodeStore, func()) {
 	tmpDir := t.TempDir()
@@ -513,9 +510,9 @@ func TestLightFileNodeStore_ConcurrentReads(t *testing.T) {
 			<-start
 			for j := range readsPerGoroutine {
 				block := testBlocks[(id+j)%len(testBlocks)]
-				retrieved, err := store.Get(ctx, block.Cid())
-				if err != nil {
-					errCh <- err
+				retrieved, getErr := store.Get(ctx, block.Cid())
+				if getErr != nil {
+					errCh <- getErr
 					return
 				}
 				if !assert.ObjectsAreEqual(block.RawData(), retrieved.RawData()) {
@@ -541,90 +538,130 @@ func TestLightFileNodeStore_ConcurrentMixedOperations(t *testing.T) {
 	ctx := context.Background()
 	testBlocks := createTestBlocks(t, 20)
 
-	// Add initial blocks
-	err := store.Add(ctx, testBlocks[:10])
-	require.NoError(t, err)
+	require.NoError(t, store.Add(ctx, testBlocks[:10]))
 
+	cases := []concurrentCase{
+		readerConcurrentCase(ctx, store, testBlocks[:10]),
+		writerConcurrentCase(ctx, store, testBlocks[10:]),
+		getManyConcurrentCase(ctx, store, testBlocks[:10], 5),
+	}
+
+	if err := runConcurrentCases(cases); err != nil {
+		t.Fatalf("concurrent operations failed: %v", err)
+	}
+
+	require.NoError(t, verifyBlocks(ctx, store, testBlocks))
+}
+
+type concurrentCase struct {
+	name  string
+	start func(<-chan struct{}) error
+}
+
+func runConcurrentCases(cases []concurrentCase) error {
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(len(cases))
+
 	start := make(chan struct{})
-	readerErr := make(chan error, 1)
-	writerErr := make(chan error, 1)
-	getManyErr := make(chan error, 1)
-	var getManyCount atomic.Int32
+	errCh := make(chan error, len(cases))
 
-	// Reader goroutine
-	go func() {
-		defer wg.Done()
-		<-start
-		for _, block := range testBlocks[:10] {
-			retrieved, err := store.Get(ctx, block.Cid())
-			if err != nil {
-				readerErr <- err
-				return
-			}
-			if !assert.ObjectsAreEqual(block.RawData(), retrieved.RawData()) {
-				readerErr <- fmt.Errorf("reader mismatch for %s", block.Cid())
-				return
-			}
-		}
-		readerErr <- nil
-	}()
-
-	// Writer goroutine
-	go func() {
-		defer wg.Done()
-		<-start
-		for _, block := range testBlocks[10:] {
-			if err := store.Add(ctx, []blocks.Block{block}); err != nil {
-				writerErr <- err
-				return
-			}
-		}
-		writerErr <- nil
-	}()
-
-	// GetMany goroutine
-	go func() {
-		defer wg.Done()
-		<-start
-		cids := make([]cid.Cid, 10)
-		for i := range 10 {
-			cids[i] = testBlocks[i].Cid()
-		}
-		for range 5 {
-			resultChan := store.GetMany(ctx, cids)
-			// Consume results to avoid blocking
-			for range resultChan {
-				getManyCount.Add(1)
-			}
-		}
-		getManyErr <- nil
-	}()
+	for _, cs := range cases {
+		go func(cs concurrentCase) {
+			defer wg.Done()
+			errCh <- cs.start(start)
+		}(cs)
+	}
 
 	close(start)
 	wg.Wait()
-	close(readerErr)
-	for err := range readerErr {
-		require.NoError(t, err)
-	}
-	close(writerErr)
-	for err := range writerErr {
-		require.NoError(t, err)
-	}
-	close(getManyErr)
-	for err := range getManyErr {
-		require.NoError(t, err)
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			return err
+		}
 	}
 
-	// Ensure all blocks (original + new) are available after concurrent operations.
-	for _, block := range testBlocks {
-		retrieved, err := store.Get(ctx, block.Cid())
-		require.NoError(t, err)
-		assert.Equal(t, block.RawData(), retrieved.RawData())
+	return nil
+}
+
+func readerConcurrentCase(ctx context.Context, store *LightFileNodeStore, expected []blocks.Block) concurrentCase {
+	blocksCopy := append([]blocks.Block(nil), expected...)
+	return concurrentCase{
+		name: "read",
+		start: func(ready <-chan struct{}) error {
+			<-ready
+			return verifyBlocks(ctx, store, blocksCopy)
+		},
+	}
+}
+
+func writerConcurrentCase(ctx context.Context, store *LightFileNodeStore, toAdd []blocks.Block) concurrentCase {
+	blocksCopy := append([]blocks.Block(nil), toAdd...)
+	return concurrentCase{
+		name: "write",
+		start: func(ready <-chan struct{}) error {
+			<-ready
+			return addBlocks(ctx, store, blocksCopy)
+		},
+	}
+}
+
+func getManyConcurrentCase(
+	ctx context.Context,
+	store *LightFileNodeStore,
+	source []blocks.Block,
+	iterations int,
+) concurrentCase {
+	cids := make([]cid.Cid, len(source))
+	for i, block := range source {
+		cids[i] = block.Cid()
 	}
 
-	assert.GreaterOrEqual(t, getManyCount.Load(), int32(10)) // Expect at least one full batch to be read.
+	return concurrentCase{
+		name: "getMany",
+		start: func(ready <-chan struct{}) error {
+			<-ready
+			return consumeGetMany(ctx, store, cids, iterations)
+		},
+	}
+}
+
+func verifyBlocks(ctx context.Context, store *LightFileNodeStore, expected []blocks.Block) error {
+	for _, block := range expected {
+		got, err := store.Get(ctx, block.Cid())
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(block.RawData(), got.RawData()) {
+			return fmt.Errorf("data mismatch for %s", block.Cid())
+		}
+	}
+	return nil
+}
+
+func addBlocks(ctx context.Context, store *LightFileNodeStore, toAdd []blocks.Block) error {
+	for _, block := range toAdd {
+		if err := store.Add(ctx, []blocks.Block{block}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func consumeGetMany(ctx context.Context, store *LightFileNodeStore, cids []cid.Cid, iterations int) error {
+	var delivered int32
+	for range iterations {
+		resCh := store.GetMany(ctx, cids)
+		for range resCh {
+			delivered++
+		}
+	}
+
+	if delivered < int32(len(cids)) {
+		return fmt.Errorf("expected >= %d results, got %d", len(cids), delivered)
+	}
+	return nil
 }
 
 // Edge Cases Tests
@@ -724,71 +761,6 @@ func TestLightFileNodeStore_ContextCancellation(t *testing.T) {
 	// Should get fewer results due to cancellation
 	assert.Less(t, count, len(testBlocks))
 }
-
-// Benchmarks
-
-func BenchmarkLightFileNodeStore_Add(b *testing.B) {
-	store, cleanup := setupTestStore(&testing.T{})
-	defer cleanup()
-
-	ctx := context.Background()
-	data := []byte("benchmark data")
-
-	for i := 0; b.Loop(); i++ {
-		block := createTestBlock(&testing.T{}, append(data, byte(i)))
-		addErr := store.Add(ctx, []blocks.Block{block})
-		if addErr != nil {
-			b.Fatal(addErr)
-		}
-	}
-}
-
-func BenchmarkLightFileNodeStore_Get(b *testing.B) {
-	store, cleanup := setupTestStore(&testing.T{})
-	defer cleanup()
-
-	ctx := context.Background()
-	blocks := createTestBlocks(&testing.T{}, 100)
-	err := store.Add(ctx, blocks)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	for i := 0; b.Loop(); i++ {
-		block := blocks[i%len(blocks)]
-		_, getErr := store.Get(ctx, block.Cid())
-		if getErr != nil {
-			b.Fatal(getErr)
-		}
-	}
-}
-
-func BenchmarkLightFileNodeStore_GetMany(b *testing.B) {
-	store, cleanup := setupTestStore(&testing.T{})
-	defer cleanup()
-
-	ctx := context.Background()
-	blocks := createTestBlocks(&testing.T{}, 100)
-	err := store.Add(ctx, blocks)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	cids := make([]cid.Cid, len(blocks))
-	for i, block := range blocks {
-		cids[i] = block.Cid()
-	}
-
-	for b.Loop() {
-		resultChan := store.GetMany(ctx, cids)
-		// Consume results to measure full operation
-		for range resultChan {
-			_ = struct{}{}
-		}
-	}
-}
-
-// Test for Garbage Collection (harder to test deterministically)
 
 func TestLightFileNodeStore_GarbageCollection(t *testing.T) {
 	tmpDir := t.TempDir()
