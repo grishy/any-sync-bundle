@@ -56,7 +56,7 @@ You can use this file in Anytype desktop/mobile apps.
 
 ## Architecture
 
-
+![Comparations with original](./docs/arch.png)
 
 ## How to start
 
