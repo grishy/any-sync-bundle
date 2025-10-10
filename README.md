@@ -59,7 +59,7 @@ After the first run, point Anytype desktop/mobile apps at the generated client c
 
 ## Architecture
 
-![Comparison with original deployment](./docs/arch.png)
+![Comparison with original deployment](./docs/arch.svg)
 
 ## Version format
 
