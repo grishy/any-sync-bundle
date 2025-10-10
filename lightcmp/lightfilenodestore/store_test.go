@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -81,6 +82,10 @@ func TestLightFileNodeStore_Init(t *testing.T) {
 }
 
 func TestLightFileNodeStore_Run_UnwritablePath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: directory permissions work differently")
+	}
+
 	baseDir := t.TempDir()
 	require.NoError(t, os.Chmod(baseDir, 0o555))
 	defer os.Chmod(baseDir, 0o755)
@@ -130,7 +135,6 @@ func TestLightFileNodeStore_AddGetVariants(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			store, cleanup := setupTestStore(t)
 			defer cleanup()
@@ -454,7 +458,7 @@ func TestLightFileNodeStore_ConcurrentWrites(t *testing.T) {
 	cidCh := make(chan cid.Cid, numGoroutines*blocksPerGoroutine)
 	errCh := make(chan error, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(batch []blocks.Block) {
 			defer wg.Done()
 			for _, block := range batch {
@@ -503,11 +507,11 @@ func TestLightFileNodeStore_ConcurrentReads(t *testing.T) {
 	start := make(chan struct{})
 	errCh := make(chan error, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
 			<-start
-			for j := 0; j < readsPerGoroutine; j++ {
+			for j := range readsPerGoroutine {
 				block := testBlocks[(id+j)%len(testBlocks)]
 				retrieved, err := store.Get(ctx, block.Cid())
 				if err != nil {
@@ -588,7 +592,7 @@ func TestLightFileNodeStore_ConcurrentMixedOperations(t *testing.T) {
 		for i := range 10 {
 			cids[i] = testBlocks[i].Cid()
 		}
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			resultChan := store.GetMany(ctx, cids)
 			// Consume results to avoid blocking
 			for range resultChan {
@@ -799,7 +803,7 @@ func TestLightFileNodeStore_GarbageCollection(t *testing.T) {
 	defer store.Close(context.Background())
 
 	// Add and delete blocks to create garbage
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		block := createTestBlock(t, fmt.Appendf(nil, "gc-test-%d", i))
 		require.NoError(t, store.Add(ctx, []blocks.Block{block}))
 		require.NoError(t, store.Delete(ctx, block.Cid()))
