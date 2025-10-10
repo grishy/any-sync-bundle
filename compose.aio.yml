@@ -1,0 +1,20 @@
+# Example: Any-Sync-Bundle with embedded MongoDB and Redis (all-in-one image)
+#
+# Usage:
+#   docker compose -f compose.aio.yml up -d
+#
+# The bundle image already contains MongoDB and Redis. Only the bundle service is required.
+
+services:
+  any-sync-bundle:
+    image: ghcr.io/grishy/any-sync-bundle:0.5.0-2024-12-18
+    container_name: any-sync-bundle-aio
+    restart: unless-stopped
+    ports:
+      - "33010:33010"
+      - "33020:33020/udp"
+    volumes:
+      - ./data:/data
+    environment:
+      # Advertise addresses clients should use. Replace with your hostname/IP.
+      ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS: "192.168.100.9"

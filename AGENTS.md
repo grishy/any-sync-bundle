@@ -45,6 +45,12 @@ storage-sync/    # AnyStore
 
 ## Development
 
+### Compose files
+
+- `compose.dev.yml` – development dependencies (MongoDB replica set + Redis Stack).
+- `compose.aio.yml` – bundle image with embedded MongoDB/Redis.
+- `compose.external.yml` – bundle image plus external MongoDB and Redis containers.
+
 ```bash
 go build -o any-sync-bundle .
 go test ./...

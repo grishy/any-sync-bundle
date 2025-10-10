@@ -10,12 +10,6 @@ services:
       - "27017"
     ports:
       - "27017:27017"
-    # Yes, we init the replica set here...
-    # In All-in-One mode, we will do that internally
-    healthcheck:
-      test: test $$(mongosh --port 27017 --quiet --eval "try {rs.initiate({_id:'rs0',members:[{_id:0,host:\"127.0.0.1:27017\"}]})} catch(e) {rs.status().ok}") -eq 1
-      interval: 10s
-      start_period: 30s
     volumes:
       - ./data/mongo:/data
 

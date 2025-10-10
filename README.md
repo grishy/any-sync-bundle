@@ -76,9 +76,22 @@ docker run -d \
 
 Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate.
 
+**Docker Compose**
+
+- All-in-one image only:
+  ```sh
+  docker compose -f compose.aio.yml up -d
+  ```
+- Bundle + external MongoDB + Redis:
+  ```sh
+  docker compose -f compose.external.yml up -d
+  ```
+
 **Without container (binary)**
 
 ```sh
+go build -o any-sync-bundle .
+
 ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
 ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://127.0.0.1:27017/" \
 ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://127.0.0.1:6379/" \

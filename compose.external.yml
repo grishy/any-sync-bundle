@@ -1,0 +1,65 @@
+# Example: Any-Sync-Bundle with external MongoDB and Redis services
+#
+# Usage:
+#   docker compose -f compose.external.yml up -d
+#
+# The bundle container runs alongside dedicated MongoDB and Redis instances.
+
+services:
+  mongo:
+    image: docker.io/mongo:8.0.4
+    container_name: any-sync-bundle-mongo
+    command:
+      - "--replSet"
+      - "rs0"
+      - "--port"
+      - "27017"
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongo:/data
+
+  redis:
+    image: docker.io/redis/redis-stack-server:7.4.0-v2
+    container_name: any-sync-bundle-redis
+    command:
+      - "redis-server"
+      - "--port"
+      - "6379"
+      - "--dir"
+      - "/data/"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory"
+      - "256mb"
+      - "--maxmemory-policy"
+      - "noeviction"
+      - "--protected-mode"
+      - "no"
+      - "--loadmodule"
+      - "/opt/redis-stack/lib/redisbloom.so"
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+
+  any-sync-bundle:
+    image: ghcr.io/grishy/any-sync-bundle:0.5.0-2024-12-18-minimal
+    container_name: any-sync-bundle
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "33010:33010"
+      - "33020:33020/udp"
+    volumes:
+      - ./data/bundle:/data
+    environment:
+      ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS: "192.168.100.9"
+      ANY_SYNC_BUNDLE_INIT_MONGO_URI: "mongodb://mongo:27017/?replicaSet=rs0"
+      ANY_SYNC_BUNDLE_INIT_REDIS_URI: "redis://redis:6379/"
