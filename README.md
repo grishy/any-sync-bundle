@@ -35,28 +35,37 @@
 
 ## TL;DR – How to start a self-hosted Anytype server
 
-This is a zero config version of official Anytype server. Base on original modules, that are used in official Anytype server, but merged into one binary.
+This is a zero-config version of the official Anytype server. It uses the same upstream modules Anytype ships, but compacts them into a single binary - think of it as "K3s for Any Sync".
 
-Replace the external address (e.g., `192.168.100.9`) with a external address how clients should conenct. Multiple addresses can be added, separated by commas.
-Then use the client config YAML in `./data/client-config.yml` after the first run.
-You can use this file in Anytype desktop/mobile apps.
+Replace the external address (e.g., `192.168.100.9`) with an address or hostname clients should connect to. Multiple addresses can be added, separated by commas. After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`.
+
+```sh
+docker run \
+    -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+    -p 33010:33010 \
+    -p 33020:33020/udp \
+    -v $(pwd)/data:/data \
+  ghcr.io/grishy/any-sync-bundle:0.6.0+2025-09-08
+```
 
 ## Key features
 
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
-- **Lightweight**: No MinIO included, and plans exist to reduce size further
-- **2 ports only**: TCP 33010 and UDP 33020 (configurable)
-
-## Why created?
-
-1. Existing solutions required many containers and complicated config
-2. MinIO was too large for some servers
-3. Documentation and generated configs were incomplete
+- **Lightweight**: No MinIO included, and no duplicate logical services
+- **Only 2 opne ports**: TCP 33010 and UDP 33020 (configurable)
 
 ## Architecture
 
-![Comparations with original](./docs/arch.png)
+![Comparison with original deployment](./docs/arch.png)
+
+## Version format
+
+The project version combines the bundle version and the original Anytype version.
+Example: `v0.6.0+2025-09-08`
+
+- `v0.6.0` – The bundle’s semver version
+- `2025-09-08` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 ## How to start
 
@@ -64,9 +73,9 @@ You can use this file in Anytype desktop/mobile apps.
 
 Pick one of the published tags, for example `v0.6.0+2025-09-08` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
 
-Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recomendation).
+Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recommendation).
 
-`ANY_SYNC_BUNDLE_INIT_*` - used only on the first run, then saved in `bundle-config.yml` later.
+`ANY_SYNC_BUNDLE_INIT_*` variables seed the initial configuration on first start; their values are persisted to `bundle-config.yml` afterward.
 
 1. Container (all-in-one with embedded MongoDB/Redis)
 
@@ -110,6 +119,7 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
 
 1. Download the binary from the [Release page](https://github.com/grishy/any-sync-bundle/releases)
 2. Start as below (replace IP and URIs as needed):
+
    ```sh
    ./any-sync-bundle start-bundle \
      --initial-external-addrs "192.168.100.9" \
@@ -117,21 +127,6 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
      --initial-redis-uri "redis://127.0.0.1:6379/" \
      --storage ./data/storage
    ```
-
-## Version format
-
-The project version combines the bundle version and the original Anytype version.
-Example: `v0.6.0+2025-09-08`
-
-- `v0.6.0` – The bundle’s semver version
-- `2025-09-08` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
-
-## Issues on Anytype side in work to improve bundle
-
-1. https://github.com/anyproto/any-sync/issues/373
-2. https://github.com/anyproto/any-sync-dockercompose/issues/126
-3. https://github.com/anyproto/any-sync/pull/374
-4. https://github.com/anyproto/anytype-ts/pull/1186
 
 ## Release
 
