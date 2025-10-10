@@ -8,7 +8,7 @@
   <table align="center">
     <tr>
       <td><strong>Status</strong></td>
-      <td><b>⚠️ Under Validation</b></td>
+      <td><b>Maintained</b></td>
     </tr>
     <tr>
       <td><strong>Stable Version</strong></td>
@@ -33,50 +33,69 @@
 
 ---
 
-TODO: Table with benchmaks and cpu/memory/etc.
-
-for ortiginal, allinone, light
-
 ## TL;DR – How to start a self-hosted Anytype server
 
 This is a zero config version of official Anytype server. Base on original modules, that are used in official Anytype server, but merged into one binary.
 
-Replace the external address (e.g., `192.168.100.9`) with a local IP address or domain.  
-Multiple addresses can be added, separated by commas.  
-Then use the client config YAML in `./data/client-config.yml`.
+Replace the external address (e.g., `192.168.100.9`) with a external address how clients should conenct. Multiple addresses can be added, separated by commas.
+Then use the client config YAML in `./data/client-config.yml` after the first run.
+You can use this file in Anytype desktop/mobile apps.
 
-**Container (solo bundle, external MongoDB/Redis)**
+## Key features
 
-Pick one of the published tags, for example `0.5.0-2024-12-18` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
+- **Easy to start**: A single command to launch the server
+- **All-in-one option**: All services in a single container or in separate binaries
+- **Lightweight**: No MinIO included, and plans exist to reduce size further
+- **2 ports only**: TCP 33010 and UDP 33020 (configurable)
 
-```sh
-docker run -d \
-    -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
-    -e ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://user:pass@mongo:27017/" \
-    -e ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://redis:6379/" \
-    -p 33010:33010 \
-    -p 33020:33020/udp \
-    -v $(pwd)/data:/data \
-    --restart unless-stopped \
-    --name any-sync-bundle \
-  ghcr.io/grishy/any-sync-bundle:0.5.0-2024-12-18-minimal
-```
+## Why created?
 
-**Container (all-in-one with embedded MongoDB/Redis)**
+1. Existing solutions required many containers and complicated config
+2. MinIO was too large for some servers
+3. Documentation and generated configs were incomplete
 
-```sh
-docker run -d \
-    -p 33010:33010 \
-    -p 33020:33020/udp \
-    -v $(pwd)/data:/data \
-    --restart unless-stopped \
-    --name any-sync-bundle-aio \
-  ghcr.io/grishy/any-sync-bundle:0.5.0-2024-12-18
-```
+## Architecture
 
-Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate.
 
-**Docker Compose**
+
+## How to start
+
+### Container
+
+Pick one of the published tags, for example `v0.6.0+2025-09-08` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
+
+Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recomendation).
+
+`ANY_SYNC_BUNDLE_INIT_*` - used only on the first run, then saved in `bundle-config.yml` later.
+
+1. Container (all-in-one with embedded MongoDB/Redis)
+
+   ```sh
+   docker run -d \
+       -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+       -p 33010:33010 \
+       -p 33020:33020/udp \
+       -v $(pwd)/data:/data \
+       --restart unless-stopped \
+       --name any-sync-bundle-aio \
+     ghcr.io/grishy/any-sync-bundle:0.6.0+2025-09-08
+   ```
+
+2. Container (solo bundle, external MongoDB/Redis)
+   ```sh
+   docker run -d \
+       -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+       -e ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://user:pass@mongo:27017/" \
+       -e ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://redis:6379/" \
+       -p 33010:33010 \
+       -p 33020:33020/udp \
+       -v $(pwd)/data:/data \
+       --restart unless-stopped \
+       --name any-sync-bundle \
+     ghcr.io/grishy/any-sync-bundle:0.6.0+2025-09-08-minimal
+   ```
+
+### Docker Compose
 
 - All-in-one image only:
   ```sh
@@ -87,44 +106,25 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
   docker compose -f compose.external.yml up -d
   ```
 
-**Without container (binary)**
+### Without container (binary)
 
-```sh
-go build -o any-sync-bundle .
+1. Download the binary from the [Release page](https://github.com/grishy/any-sync-bundle/releases)
+2. Start as below (replace IP and URIs as needed):
+   ```sh
+   ./any-sync-bundle start-bundle \
+     --initial-external-addrs "192.168.100.9" \
+     --initial-mongo-uri "mongodb://127.0.0.1:27017/" \
+     --initial-redis-uri "redis://127.0.0.1:6379/" \
+     --storage ./data/storage
+   ```
 
-ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
-ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://127.0.0.1:27017/" \
-ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://127.0.0.1:6379/" \
-./any-sync-bundle start-bundle
-```
+## Version format
 
-## Version
-
-### Bundle version
-
-The project version combines the bundle version and the original Anytype version.  
+The project version combines the bundle version and the original Anytype version.
 Example: `v0.6.0+2025-09-08`
 
 - `v0.6.0` – The bundle’s semver version
 - `2025-09-08` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
-
-### Bundle start version
-
-1. Binary file for each release on the [Release page](https://github.com/grishy/any-sync-bundle/releases)
-2. All-in-one container on [ghcr.io/grishy/any-sync-bundle](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle) with Mongo and Redis included
-3. Minimal container (`-minimal`) with only any-sync-bundle, without Mongo or Redis
-
-## Key features
-
-- **Easy to start**: A single command to launch the server
-- **All-in-one option**: All services in a single container or in separate binaries
-- **Lightweight**: No MinIO included, and plans exist to reduce size further
-
-## Why created?
-
-1. Existing solutions required many containers and complicated config
-2. MinIO was too large for some servers
-3. Documentation and generated configs were incomplete
 
 ## Issues on Anytype side in work to improve bundle
 
@@ -144,8 +144,8 @@ goreleaser release --snapshot --clean
 
 ```sh
 # 1. Set variables (fish-shell)
-set VERSION v0.5.0
-set ANYTYPE_UNIX_TIMESTAMP 1734517522
+set VERSION v0.6.0
+set ANYTYPE_UNIX_TIMESTAMP 1757347920
 
 # 2. Format date
 set ANYTYPE_FORMATTED (date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d')
@@ -162,5 +162,5 @@ git push origin tag $FINAL_VERSION
 
 ## License
 
-© 2025 [Sergei G.](https://github.com/grishy)  
+© 2025 [Sergei G.](https://github.com/grishy)
 Licensed under [MIT](./LICENSE).

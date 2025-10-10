@@ -46,7 +46,7 @@ services:
       - ./data/redis:/data
 
   any-sync-bundle:
-    image: ghcr.io/grishy/any-sync-bundle:0.5.0-2024-12-18-minimal
+    image: ghcr.io/grishy/any-sync-bundle:0.6.0+2025-09-08-minimal
     container_name: any-sync-bundle
     restart: unless-stopped
     depends_on:
