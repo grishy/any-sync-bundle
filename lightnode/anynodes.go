@@ -62,6 +62,48 @@ import (
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
 
+// newCoordinatorApp creates a coordinator application instance.
+// This is the primary app that creates the full network stack.
+func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
+	a := new(app.App).
+		Register(cfg).
+		Register(db.New()).
+		Register(metric.New()).
+		Register(coordinatorAccount.New()).
+
+		// Configuration
+		Register(nodeconfstore.New()).
+		Register(nodeconf.New()).
+		Register(coordinatorNodeconfsource.New()).
+
+		// Data
+		Register(deletionlog.New()).
+
+		// Security & Transport
+		Register(secureservice.New()).
+		Register(yamux.New()).
+		Register(quic.New()).
+
+		// Network Services
+		Register(peerservice.New()).
+		Register(pool.New()).
+		Register(server.New()).
+
+		// Logging & Monitoring
+		Register(coordinatorlog.New()).
+		Register(acleventlog.New()).
+		Register(spacestatus.New()).
+
+		// Service Logic
+		Register(consensusclient.New()).
+		Register(acl.New()).
+		Register(accountlimit.New()).
+		Register(identityrepo.New()).
+		Register(coordinator.New())
+
+	return a
+}
+
 // newSyncApp creates a sync node application instance with shared network.
 // Only modern nodestorage (any-store format) is included; legacy oldstorage and migrator are omitted.
 func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
@@ -73,7 +115,7 @@ func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
 		Register(credentialprovider.NewNoOp()).
 		Register(nodeconfsource.New()).
 
-		// Shared network components (from coordinator)
+		// Shared network components
 		Register(net.NodeConfStore).
 		Register(net.NodeConf).
 		Register(net.SecureService).
@@ -94,7 +136,7 @@ func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
 		// migrator.New() - SKIPPED: Not needed for new installations (migrates oldstorage → nodestorage)
 		Register(syncqueues.New()).
 
-		// Space Sync (depends on network)
+		// Space Sync
 		Register(nodespace.NewStreamOpener()).
 		Register(streampool.New()).
 		Register(nodehead.New()).
@@ -103,13 +145,13 @@ func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
 		Register(coldsync.New()).
 		Register(nodesync.New()).
 
-		// Space Services (depend on sync)
+		// Space Services
 		Register(commonspace.New()).
 		Register(nodespace.New()).
 		Register(spacedeleter.New()).
 		Register(peermanager.New()).
 
-		// Debug (can be last)
+		// Debug
 		Register(debugserver.New()).
 		Register(nodedebugrpc.New())
 }
@@ -122,7 +164,7 @@ func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedNetwo
 		Register(filenodeStat.New()).
 		Register(nodeconfsource.New()).
 
-		// Shared network components (from coordinator)
+		// Shared network components
 		Register(net.NodeConfStore).
 		Register(net.NodeConf).
 		Register(net.SecureService).
@@ -138,59 +180,15 @@ func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedNetwo
 		Register(consensusclient.New()).
 		Register(acl.New()).
 
-		// File Storage (depends on network)
+		// File Storage
 		// store() - REPLACED: lightfilenodestore.New() uses BadgerDB instead of original S3/MinIO store
 		Register(lightfilenodestore.New(fileDir)).
 		Register(redisprovider.New()).
 		Register(index.New()).
 
-		// Service Logic (depends on storage)
+		// Service Logic
 		Register(filenode.New()).
 		Register(deletelog.New())
-}
-
-// newCoordinatorApp creates a coordinator application instance.
-// This is the primary app that creates the full network stack.
-func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
-	a := new(app.App).
-		Register(cfg).
-
-		// Foundation (db early for MongoDB, metric for telemetry)
-		Register(db.New()).
-		Register(metric.New()).
-		Register(coordinatorAccount.New()).
-
-		// Configuration (depends on foundation)
-		Register(nodeconfstore.New()).
-		Register(nodeconf.New()).
-		Register(coordinatorNodeconfsource.New()).
-
-		// Data (depends on config)
-		Register(deletionlog.New()).
-
-		// Security & Transport (secureservice MUST be before yamux/quic - they require it in Init)
-		Register(secureservice.New()).
-		Register(yamux.New()).
-		Register(quic.New()).
-
-		// Network Services (depend on transport)
-		Register(peerservice.New()).
-		Register(pool.New()).
-		Register(server.New()).
-
-		// Logging & Monitoring (depend on network)
-		Register(coordinatorlog.New()).
-		Register(acleventlog.New()).
-		Register(spacestatus.New()).
-
-		// Service Logic (depends on all infrastructure)
-		Register(consensusclient.New()).
-		Register(acl.New()).
-		Register(accountlimit.New()).
-		Register(identityrepo.New()).
-		Register(coordinator.New())
-
-	return a
 }
 
 // newConsensusApp creates a consensus node application instance with shared network.
@@ -200,7 +198,7 @@ func newConsensusApp(cfg *consensusnodeConfig.Config, net *sharedNetwork) *app.A
 		Register(net.Account).
 		Register(nodeconfsource.New()).
 
-		// Shared network components (from coordinator)
+		// Shared network components
 		Register(net.NodeConfStore).
 		Register(net.NodeConf).
 		Register(net.SecureService).
@@ -214,7 +212,7 @@ func newConsensusApp(cfg *consensusnodeConfig.Config, net *sharedNetwork) *app.A
 		// Network clients
 		Register(coordinatorclient.New()).
 
-		// Storage & Service Logic (depend on all infrastructure)
+		// Storage & Service Logic
 		Register(consensusnodeDB.New()).
 		Register(stream.New()).
 		Register(consensusrpc.New())

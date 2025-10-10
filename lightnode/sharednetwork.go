@@ -29,8 +29,6 @@ type sharedNetwork struct {
 	Metric        app.Component
 }
 
-// extractSharedNetwork extracts network components from coordinator.
-// Wrapped components have no-op Init/Run/Close to prevent re-initialization.
 func extractSharedNetwork(coordinator *app.App) *sharedNetwork {
 	return &sharedNetwork{
 		// Shared account (peer ID) - all services use coordinator's identity

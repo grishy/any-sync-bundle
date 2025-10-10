@@ -28,6 +28,7 @@ const (
 	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
 
 	// Number of concurrent block retrievals in GetMany, took from S3 implementation.
+	// TODO: make in sequential, because local disk is fast enough.
 	getManyWorkers = 4
 
 	// Prefix for index keys to separate them from block keys.
@@ -201,7 +202,7 @@ func (s *LightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
 	wb := s.db.NewWriteBatch()
 	defer wb.Cancel()
 
-	// Usually one block, so no concurrent writes needed
+	// Usually one block (what I saw), so no concurrent writes needed
 	var dataLen int
 	keys := make([]string, 0, 1)
 
@@ -310,7 +311,6 @@ func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, er
 	return value, err
 }
 
-// IndexPut stores a value in the index with the given key.
 func (s *LightFileNodeStore) IndexPut(_ context.Context, key string, value []byte) error {
 	indexKey := indexKeyPrefix + key
 
@@ -322,7 +322,6 @@ func (s *LightFileNodeStore) IndexPut(_ context.Context, key string, value []byt
 	return err
 }
 
-// IndexDelete deletes a value from the index with the given key.
 func (s *LightFileNodeStore) IndexDelete(_ context.Context, key string) error {
 	indexKey := indexKeyPrefix + key
 
