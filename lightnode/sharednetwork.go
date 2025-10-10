@@ -15,8 +15,7 @@ import (
 )
 
 // sharedNetwork holds network components extracted from coordinator.
-// Components with lifecycle side effects are wrapped to prevent re-initialization.
-// Pure data components (NodeConf, NodeConfStore, Metric) are passed through unwrapped.
+// Lifecycle components are wrapped to prevent re-initialization.
 type sharedNetwork struct {
 	Account       app.Component
 	Pool          *sharedPool
@@ -30,9 +29,8 @@ type sharedNetwork struct {
 	Metric        app.Component
 }
 
-// extractSharedNetwork extracts network components from coordinator and wraps them.
-// Wrapped components have no-op Init/Run/Close to prevent re-initialization side effects.
-// This allows secondary services to register and use shared network infrastructure.
+// extractSharedNetwork extracts network components from coordinator.
+// Wrapped components have no-op Init/Run/Close to prevent re-initialization.
 func extractSharedNetwork(coordinator *app.App) *sharedNetwork {
 	return &sharedNetwork{
 		// Shared account (peer ID) - all services use coordinator's identity

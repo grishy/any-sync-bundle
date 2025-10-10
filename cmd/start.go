@@ -333,9 +333,7 @@ func streamPipe(name string, reader io.Reader) {
 	}
 }
 
-// waitForTCPReady waits for a TCP listener to be ready to accept connections.
-// It polls the address until a connection succeeds or timeout is reached.
-// Returns error if listener doesn't become ready within timeout.
+// waitForTCPReady polls the address until a TCP connection succeeds or timeout is reached.
 func waitForTCPReady(addr string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

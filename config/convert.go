@@ -30,16 +30,11 @@ import (
 )
 
 const (
-	// Sync node configuration defaults (based on docker-compose reference).
-	// IMPORTANT: These values are required for sync node to function properly.
-	// - SyncOnStart must be true, otherwise sync won't initialize.
-	// - PeriodicSyncHours must be > 0 for periodic sync, or sync will be one-time only.
+	// Sync node configuration defaults.
 	defaultSyncOnStart       = true
 	defaultPeriodicSyncHours = 2
-
-	// Space configuration defaults for garbage collection and sync periods.
-	defaultSpaceGCTTL      = 60  // Seconds
-	defaultSpaceSyncPeriod = 600 // Seconds
+	defaultSpaceGCTTL        = 60  // Seconds
+	defaultSpaceSyncPeriod   = 600 // Seconds
 )
 
 // NodeConfigs holds configuration for all node types in the system.
@@ -75,9 +70,7 @@ func (bc *Config) NodeConfigs() *NodeConfigs {
 		pathStorageSync:             filepath.Join(bc.StoragePath, "storage-sync"),
 		pathStorageFilenode:         filepath.Join(bc.StoragePath, "storage-file"),
 		networkCfg:                  bc.networkCfg(),
-		// TODO: Don't turn on metrics.
-		// https://github.com/anyproto/any-sync/issues/373
-		metricCfg: metric.Config{},
+		metricCfg:                   metric.Config{}, // TODO: Enable metrics (https://github.com/anyproto/any-sync/issues/373)
 	}
 
 	return &NodeConfigs{
@@ -152,7 +145,7 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 		Quic:   bc.quicConfig(),
 		Metric: opts.metricCfg,
 		Redis: redisprovider.Config{
-			IsCluster: false, // Not using Redis Cluster (matches docker-compose reference)
+			IsCluster: false,
 			Url:       bc.FileNode.RedisConnect,
 		},
 		Network:                  opts.networkCfg,
@@ -164,7 +157,7 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 
 func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 	return &syncconfig.Config{
-		// APIServer omitted - disabled by default. Add APIServer: debugserver.Config{ListenAddr: "..."} to enable.
+		// APIServer omitted - disabled by default.
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
 		},
@@ -181,13 +174,10 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 		},
 		Metric: opts.metricCfg,
 		Log:    logger.Config{Production: false},
-		// NodeSync configuration - CRITICAL for sync node to function.
-		// Without SyncOnStart=true and PeriodicSyncHours>0, the sync node will not sync spaces.
-		// This would cause the sync node to appear to "hang" as it waits indefinitely.
 		NodeSync: nodesync.Config{
 			SyncOnStart:       defaultSyncOnStart,
 			PeriodicSyncHours: defaultPeriodicSyncHours,
-			HotSync:           hotsync.Config{}, // SimultaneousRequests defaults to 300
+			HotSync:           hotsync.Config{},
 		},
 		Yamux:   bc.yamuxConfig(),
 		Quic:    bc.quicConfig(),
@@ -231,8 +221,7 @@ func (bc *Config) networkCfg() nodeconf.Configuration {
 	}
 }
 
-// convertListenToConnect converts listen addresses to connection addresses,
-// replacing 0.0.0.0 with 127.0.0.1 for local connections.
+// convertListenToConnect replaces 0.0.0.0 with 127.0.0.1 for local connections.
 func (bc *Config) convertListenToConnect() []string {
 	hostTCP, portTCP, err := net.SplitHostPort(bc.Network.ListenTCPAddr)
 	if err != nil {

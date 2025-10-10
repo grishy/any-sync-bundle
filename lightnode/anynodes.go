@@ -63,18 +63,7 @@ import (
 )
 
 // newSyncApp creates a sync node application instance with shared network.
-//
-// Storage architecture: We ONLY include nodestorage, which uses AnyStorePath (modern any-store format).
-// The oldstorage component (uses Path field for legacy BadgerDB format) is NOT included - new installations only.
-// The migrator component is also NOT included - it migrates from oldstorage to nodestorage, unnecessary here.
-// Result: config.Storage.Path field is unused, only config.Storage.AnyStorePath is accessed.
-//
-// Component registration order is based on actual initialization dependencies.
-// Order is CRITICAL - components can only access previously registered components in Init().
-// IMPORTANT: If sync node hangs on startup, check:
-// 1. Coordinator is fully initialized before sync node starts
-// 2. NodeSync config has SyncOnStart=true and PeriodicSyncHours>0
-// 3. Storage.AnyStorePath is accessible and writable.
+// Only modern nodestorage (any-store format) is included; legacy oldstorage and migrator are omitted.
 func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
 	return new(app.App).
 		Register(cfg).
@@ -126,9 +115,6 @@ func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
 }
 
 // newFileNodeApp creates a filenode application instance with shared network.
-//
-// Component registration order is based on actual initialization dependencies.
-// Order is CRITICAL - components can only access previously registered components in Init().
 func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedNetwork) *app.App {
 	return new(app.App).
 		Register(cfg).
@@ -164,12 +150,7 @@ func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedNetwo
 }
 
 // newCoordinatorApp creates a coordinator application instance.
-//
 // This is the primary app that creates the full network stack.
-// Other services extract and reuse components from this app.
-//
-// Component registration order is based on actual initialization dependencies.
-// Order is CRITICAL - components can only access previously registered components in Init().
 func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 	a := new(app.App).
 		Register(cfg).
@@ -213,9 +194,6 @@ func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 }
 
 // newConsensusApp creates a consensus node application instance with shared network.
-//
-// Component registration order is based on actual initialization dependencies.
-// Order is CRITICAL - components can only access previously registered components in Init().
 func newConsensusApp(cfg *consensusnodeConfig.Config, net *sharedNetwork) *app.App {
 	return new(app.App).
 		Register(cfg).

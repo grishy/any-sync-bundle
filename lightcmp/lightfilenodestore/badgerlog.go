@@ -4,8 +4,7 @@ import (
 	"fmt"
 )
 
-// badgerLogger implements badger.Logger interface to redirect BadgerDB logs
-// to our application logger.
+// badgerLogger implements badger.Logger interface.
 type badgerLogger struct{}
 
 func (b badgerLogger) Errorf(s string, i ...any) {
