@@ -24,12 +24,12 @@ func main() {
 	go func() {
 		<-ctx.Done()
 		time.Sleep(30 * time.Second)
-		fmt.Println("Forced exit by timeout")
+		fmt.Println("\nForced exit by timeout")
 		os.Exit(1)
 	}()
 
 	if err := cliRoot.Run(os.Args); err != nil {
-		fmt.Println("Error:")
+		fmt.Println("\nError:")
 		fmt.Printf(" > %+v\n", err)
 		cancel()
 		os.Exit(1) //nolint:gocritic // need to exit with error code
