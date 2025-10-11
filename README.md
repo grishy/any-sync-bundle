@@ -56,7 +56,16 @@ After the first run, point Anytype desktop/mobile apps at the generated client c
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
 - **Lightweight**: No MinIO, and no duplicate logical services
-- **Only 2 opne ports**: TCP 33010 and UDP 33020 (configurable)
+- **Only 2 open ports**: TCP 33010 and UDP 33020 (configurable)
+
+## Who is this for?
+
+- Self‑hosters and small teams who want a simpler, single‑binary Any Sync deployment.
+- Homelab or small server setups where fewer moving parts and clear defaults matter.
+
+What this is not:
+
+- A high‑availability or horizontally scaled deployment. If you need HA, use upstream components directly and follow Anytype’s official guidance.
 
 ## Architecture
 
@@ -132,16 +141,49 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
      --storage ./data/storage
    ```
 
-## Configurations files
+   systemd example:
 
-We have a two configuration files:
+   ```ini
+   [Unit]
+   Description=Any Sync Bundle
+   After=network-online.target
+   Wants=network-online.target
 
-- `bundle-config.yml` – (Private/Important) Generated on the first run, contains the configuration for Anytype services as private keys.
-- `client-config.yml` - Regenerated on each start, needed to connect Anytype clients to the server.
+   [Service]
+   WorkingDirectory=/opt/any-sync-bundle
+   ExecStart=/opt/any-sync-bundle/any-sync-bundle start-bundle \
+     --initial-external-addrs "example.local,192.168.100.9" \
+     --initial-mongo-uri "mongodb://127.0.0.1:27017/?replicaSet=rs0" \
+     --initial-redis-uri "redis://127.0.0.1:6379/" \
+     --storage /opt/any-sync-bundle/data/storage
+   Restart=on-failure
+   RestartSec=5
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+## Configuration files
+
+There are two configuration files under `./data` by default:
+
+- `bundle-config.yml` — Private/important. Created on the first run. Contains service configuration and private keys. Back this up.
+- `client-config.yml` — Regenerated on each start. Import this into Anytype apps to connect to your server.
+
+### Client setup
+
+After the first start, point Anytype desktop/mobile apps to `./data/client-config.yml`.
+
+Read more about it in the official docs:
+
+- [Anytype Docs -> Self-hosted](https://doc.anytype.io/anytype-docs/advanced/data-and-security/self-hosting/self-hosted#how-to-switch-to-a-self-hosted-network)
+- [Anytype Tech -> Self-hosting](https://tech.anytype.io/how-to/self-hosting)
 
 ## Parameters
 
-All parameters that you see possible to generate in two wasys: flags to the binary or environment variables to the container. See `./any-sync-bundle --help` for details.
+All parameters are available in two ways: binary flags or container environment variables. See `./any-sync-bundle --help` for details.
+
+Important: “initial-_” options (for example `--initial-external-addrs` or `ANY*SYNC_BUNDLE_INIT*_`) are used only on the first run to create `bundle-config.yml`. Subsequent starts read from the persisted `bundle-config.yml`.
 
 ### Global parameters
 
@@ -154,9 +196,9 @@ All parameters that you see possible to generate in two wasys: flags to the bina
 
 ### Commands
 
-- `help` – Show help for the binary.
-- `start-bundle` – Start all services, used to start the server if you wanna start binaty no in container. You need to create MongoDB and Redis by yourself and init replica set for MongoDB before start.
-- `start-all-in-one` – This is command used inside the contaier all-in-one. This start by itself Redis and MongoDB and create replica set for MongoDB.
+- `help` — Show help for the binary.
+- `start-bundle` — Start all services, using external MongoDB and Redis. Ensure MongoDB has a replica set initialized before starting.
+- `start-all-in-one` — Used inside the official all‑in‑one container. Starts Redis and MongoDB inside the container and initializes the MongoDB replica set automatically.
 
 Flags for `start-bundle` and `start-all-in-one`:
 
@@ -171,10 +213,38 @@ Flags for `start-bundle` and `start-all-in-one`:
 
 ## Light version (not in development)
 
-I was thinking and developed a "light" version of the Any Sync server that does not include MongoDB and Redis, and uses one instance of BadgerDB for all logical services. It was touched filenode, consensus, and coordinator services. But I decided not to continue its development because of the load to support it later.
-Currenly we have only one modified sligtly filenode to remove MinIO dependency.
+I explored a “light” Any Sync variant without MongoDB and Redis, using a single BadgerDB instance for all logical services (touching filenode, consensus, and coordinator). I decided not to continue due to long‑term maintenance cost.
+Currently, only the filenode is slightly modified to remove the MinIO dependency.
 
-This light version is live in the PR as draft and currenly I do not plan to continue its development.
+The light version exists as [a draft PR](https://github.com/grishy/any-sync-bundle/pull/19) and is not planned for active development.
+
+## Data & Backups
+
+Default layout under `./data`:
+
+- `bundle-config.yml` — private configuration and keys. Back this up securely.
+- `client-config.yml` — shareable client configuration, regenerated on each start.
+- `storage/` — persistent data for the sync service.
+- All‑in‑one image only: internal databases persist under the same mount
+  - MongoDB data: `/data/mongo` (see `cmd/start.go` constants)
+  - Redis data: `/data/redis`
+
+Backup tips:
+
+- Stop the process/container, then copy the entire `./data` directory.
+
+## Troubleshooting
+
+- MongoDB replica set is not initiated (external DB):
+  - Initialize manually once: `mongosh --host <mongo:27017> --eval "rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]})"`
+  - Ensure your URI includes `?replicaSet=rs0` for external deployments. The bundle adds `w=majority` for the consensus connection automatically.
+- Embedded MongoDB/Redis in AIO does not start:
+  - Check logs for “starting embedded MongoDB/Redis”. If the data directories are corrupted, stop the container and remove `/data/mongo` or `/data/redis` before restarting.
+- QUIC/UDP blocked:
+  - Open UDP 33020 on firewalls/NAT. Some environments block UDP by default.
+  - Advertise both hostname and IP in `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` for clients behind NAT.
+- Wrong external address after first run:
+  - Edit `./data/bundle-config.yml` → `externalAddr:` list, then restart the server. The new `client-config.yml` will be regenerated.
 
 ## Release
 

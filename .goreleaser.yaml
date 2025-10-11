@@ -35,7 +35,7 @@ release:
   target_commitish: "{{ .Commit }}"
   mode: replace
   header: |
-    ## ℹ️ For information on how to install and use, please see [README.md](https://github.com/grishy/go-avahi-cname)
+    ## ⚠️ For information on how to install and use, please see [README.md](https://github.com/grishy/any-sync-bundle#readme)
   footer: |
     Your PRs and issues are welcome! Thanks 🙂
   disable: false
