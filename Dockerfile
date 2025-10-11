@@ -34,11 +34,9 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
     -o /bin/any-sync-bundle
 
 #
-# Stage: stage-final-minimal
+# Stage: stage-release-minimal
 #
 FROM gcr.io/distroless/static-debian12 AS stage-release-minimal
-
-COPY --from=stage-bin /bin/any-sync-bundle /usr/local/bin/any-sync-bundle
 
 # Bundle network ports (TCP 33010, UDP 33020)
 EXPOSE 33010
@@ -46,13 +44,21 @@ EXPOSE 33020/udp
 
 VOLUME /data
 
+COPY --from=stage-bin /bin/any-sync-bundle /usr/local/bin/any-sync-bundle
+
 ENTRYPOINT ["/usr/local/bin/any-sync-bundle"]
 CMD ["start-bundle"]
 
 #
-# Stage: stage-final
+# Stage: stage-release-all-in-one
 #
-FROM docker.io/redis/redis-stack-server:7.4.0-v2 AS stage-release
+FROM docker.io/redis/redis-stack-server:7.4.0-v2 AS stage-release-all-in-one
+
+# Bundle network ports (TCP 33010, UDP 33020)
+EXPOSE 33010
+EXPOSE 33020/udp
+
+VOLUME /data
 
 # Install prerequisites and MongoDB
 RUN DEBIAN_FRONTEND=noninteractive \
@@ -77,12 +83,6 @@ RUN DEBIAN_FRONTEND=noninteractive \
     /etc/apt/sources.list.d/mongodb-org-8.0.list
 
 COPY --from=stage-bin /bin/any-sync-bundle /usr/local/bin/any-sync-bundle
-
-# Bundle network ports (TCP 33010, UDP 33020)
-EXPOSE 33010
-EXPOSE 33020/udp
-
-VOLUME /data
 
 ENTRYPOINT ["/usr/local/bin/any-sync-bundle"]
 CMD ["start-all-in-one"]

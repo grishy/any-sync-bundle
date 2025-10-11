@@ -78,7 +78,7 @@ jobs:
           provenance: true
           sbom: true
 
-      - name: Build and push Docker image (stage-release)
+      - name: Build and push Docker image (stage-release-all-in-one)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -87,7 +87,7 @@ jobs:
           platforms: |
             linux/arm64
             linux/amd64
-          target: stage-release
+          target: stage-release-all-in-one
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ${{ steps.meta.outputs.tags }}

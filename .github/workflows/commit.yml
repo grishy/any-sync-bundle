@@ -133,7 +133,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Test build Docker image (stage-release)
+      - name: Test build Docker image (stage-release-all-in-one)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -142,7 +142,7 @@ jobs:
           platforms: |
             linux/arm64
             linux/amd64
-          target: stage-release
+          target: stage-release-all-in-one
           tags: test-build-release
           build-args: |
             VERSION=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
