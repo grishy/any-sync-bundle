@@ -52,7 +52,7 @@ CMD ["start-bundle"]
 #
 # Stage: stage-release-all-in-one
 #
-FROM docker.io/redis/redis-stack-server:7.4.0-v2 AS stage-release-all-in-one
+FROM docker.io/redis/redis-stack-server:7.4.0-v7 AS stage-release-all-in-one
 
 # Bundle network ports (TCP 33010, UDP 33020)
 EXPOSE 33010

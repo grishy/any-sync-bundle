@@ -23,7 +23,7 @@ services:
       start_period: 10s
 
   redis:
-    image: docker.io/redis/redis-stack-server:7.4.0-v2
+    image: docker.io/redis/redis-stack-server:7.4.0-v7
     command:
       - "redis-server"
       - "--port"

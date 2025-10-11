@@ -5,26 +5,6 @@
 - The filenode uses `lightcmp/lightfilenodestore` (BadgerDB) instead of the upstream S3 implementation.
 - External dependencies: MongoDB for coordinator/consensus, Redis for filenode. Sync node persists to AnyStore on disk.
 
-## CLI (cmd/root.go)
-
-| Command | Notes |
-| ------- | ----- |
-| `start-all-in-one` | Launch bundle plus embedded `mongod` + `redis-server` (see `cmd/start.go`). |
-| `start-bundle` | Launch bundle only; uses URIs from config or env. |
-
-Global flags / env vars:
-
-- `--debug`, `--log-level`
-
-Command flags (`start-all-in-one`, `start-bundle`):
-
-- `--bundle-config` (`ANY_SYNC_BUNDLE_CONFIG`, default `./data/bundle-config.yml`)
-- `--client-config` (`ANY_SYNC_BUNDLE_CLIENT_CONFIG`, default `./data/client-config.yml`)
-- `--storage` (`ANY_SYNC_BUNDLE_STORAGE`, default `./data/storage/`)
-- `--initial-external-addrs` (`ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`)
-- `--initial-mongo-uri` (`ANY_SYNC_BUNDLE_INIT_MONGO_URI`)
-- `--initial-redis-uri` (`ANY_SYNC_BUNDLE_INIT_REDIS_URI`)
-
 Config bootstrap (cmd/start.go):
 
 1. Load existing bundle YAML if present.
@@ -38,13 +18,6 @@ Config bootstrap (cmd/start.go):
 - DRPC routes by method prefix (`/CoordinatorService`, `/ConsensusService`, `/FileService`, `/SpaceSyncService`).
 - Data layout (default `./data`):
 
-```
-bundle-config.yml
-client-config.yml
-network-store/{coordinator,consensus,filenode,sync}/
-storage-file/    # Badger
-storage-sync/    # AnyStore
-```
 
 ## Development
 
@@ -56,10 +29,6 @@ storage-sync/    # AnyStore
 
 ```bash
 go build -o any-sync-bundle .
-go test ./...
-golangci-lint run
+golangci-lint run --fix 
+go test -race -shuffle=on -vet=all -failfast ./...
 ```
-
-Focused store tests: `go test ./lightcmp/lightfilenodestore -v`
-
-The store tests cover CRUD, idempotent deletes, concurrent readers/writers, `GetMany` cancellation, and GC via `LightFileNodeStore.gcOnce`.

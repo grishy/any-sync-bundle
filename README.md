@@ -28,6 +28,7 @@
   <ul>
     <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB and Redis built in.</li>
     <li><strong>✅ Bundle (solo bundle)</strong>: A variant without MongoDB and Redis inside. You can use your own instances.</li>
+    <li><strong>🧶 Light version<a href="#light-version-not-in-development">*</a></strong>: Not in development.</li>
   </ul>
 </div>
 
@@ -37,7 +38,7 @@
 
 This is a zero-config version of the official Anytype server. It uses the same upstream modules Anytype ships, but compacts them into a single binary - think of it as "K3s for Any Sync".
 
-Replace the external address (e.g., `192.168.100.9`) with an address or hostname clients should connect to.
+Replace the external address (e.g., `192.168.100.9`) with an address or hostname clients should connect to. This is test start, check below more real configuration.
 
 ```sh
 docker run \
@@ -130,6 +131,50 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
      --initial-redis-uri "redis://127.0.0.1:6379/" \
      --storage ./data/storage
    ```
+
+## Configurations files
+
+We have a two configuration files:
+
+- `bundle-config.yml` – (Private/Important) Generated on the first run, contains the configuration for Anytype services as private keys.
+- `client-config.yml` - Regenerated on each start, needed to connect Anytype clients to the server.
+
+## Parameters
+
+All parameters that you see possible to generate in two wasys: flags to the binary or environment variables to the container. See `./any-sync-bundle --help` for details.
+
+### Global parameters
+
+| Flag            | Description                                             | Default | Environment Variable         |
+| --------------- | ------------------------------------------------------- | ------- | ---------------------------- |
+| `--debug`       | Enable debug mode with detailed logging                 | false   | `$ANY_SYNC_BUNDLE_DEBUG`     |
+| `--log-level`   | Log level (debug, info, warn, error, fatal)             | info    | `$ANY_SYNC_BUNDLE_LOG_LEVEL` |
+| `--help, -h`    | show help                                               |         |                              |
+| `--version, -v` | print the version, use it if you wanna create an issue. |         |                              |
+
+### Commands
+
+- `help` – Show help for the binary.
+- `start-bundle` – Start all services, used to start the server if you wanna start binaty no in container. You need to create MongoDB and Redis by yourself and init replica set for MongoDB before start.
+- `start-all-in-one` – This is command used inside the contaier all-in-one. This start by itself Redis and MongoDB and create replica set for MongoDB.
+
+Flags for `start-bundle` and `start-all-in-one`:
+
+| Flag                     | Description                                                              | Default                       | Environment Variable                   |
+| ------------------------ | ------------------------------------------------------------------------ | ----------------------------- | -------------------------------------- |
+| --bundle-config          | Path to the bundle configuration YAML file                               | `./data/bundle-config.yml`    | `$ANY_SYNC_BUNDLE_CONFIG`              |
+| --client-config          | Path where write to the Anytype client configuration YAML file if needed | `./data/client-config.yml`    | `$ANY_SYNC_BUNDLE_CLIENT_CONFIG`       |
+| --storage                | Path to the bundle data directory (must be writable)                     | `./data/storage/`             | `$ANY_SYNC_BUNDLE_STORAGE`             |
+| --initial-external-addrs | Initial external addresses for the bundle                                | `192.168.8.214,example.local` | `$ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` |
+| --initial-mongo-uri      | Initial MongoDB URI for the bundle                                       | `mongodb://127.0.0.1:27017/`  | `$ANY_SYNC_BUNDLE_INIT_MONGO_URI`      |
+| --initial-redis-uri      | Initial Redis URI for the bundle                                         | `redis://127.0.0.1:6379/`     | `$ANY_SYNC_BUNDLE_INIT_REDIS_URI`      |
+
+## Light version (not in development)
+
+I was thinking and developed a "light" version of the Any Sync server that does not include MongoDB and Redis, and uses one instance of BadgerDB for all logical services. It was touched filenode, consensus, and coordinator services. But I decided not to continue its development because of the load to support it later.
+Currenly we have only one modified sligtly filenode to remove MinIO dependency.
+
+This light version is live in the PR as draft and currenly I do not plan to continue its development.
 
 ## Release
 

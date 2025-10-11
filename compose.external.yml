@@ -30,7 +30,7 @@ services:
       start_period: 10s
 
   redis:
-    image: docker.io/redis/redis-stack-server:7.4.0-v2
+    image: docker.io/redis/redis-stack-server:7.4.0-v7
     container_name: any-sync-bundle-redis
     command:
       - "redis-server"
