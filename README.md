@@ -46,7 +46,7 @@ docker run \
     -p 33010:33010 \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
-  ghcr.io/grishy/any-sync-bundle:0.7.0+2025-09-08
+  ghcr.io/grishy/any-sync-bundle:0.8.0+2025-09-08
 ```
 
 After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`.
@@ -74,16 +74,16 @@ What this is not:
 ## Version format
 
 The project version combines the bundle version and the original Anytype version.
-Example: `v0.7.0+2025-09-08`
+Example: `v0.8.0+2025-09-08`
 
-- `v0.6.0` – The bundle’s semver version
+- `v0.8.0` – The bundle’s semver version
 - `2025-09-08` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 ## How to start
 
 ### Container
 
-Pick one of the published tags, for example `v0.7.0+2025-09-08` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
+Pick one of the published tags, for example `v0.8.0+2025-09-08` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
 
 Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recommendation).
 
@@ -100,7 +100,7 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
        -v $(pwd)/data:/data \
        --restart unless-stopped \
        --name any-sync-bundle-aio \
-     ghcr.io/grishy/any-sync-bundle:0.7.0+2025-09-08
+     ghcr.io/grishy/any-sync-bundle:0.8.0+2025-09-08
    ```
 
 2. Container (solo bundle, external MongoDB/Redis)
@@ -114,7 +114,7 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
        -v $(pwd)/data:/data \
        --restart unless-stopped \
        --name any-sync-bundle \
-     ghcr.io/grishy/any-sync-bundle:0.7.0+2025-09-08-minimal
+     ghcr.io/grishy/any-sync-bundle:0.8.0+2025-09-08-minimal
    ```
 
 ### Docker Compose
@@ -257,7 +257,7 @@ goreleaser release --snapshot --clean
 
 ```sh
 # 1. Set variables (fish-shell)
-set VERSION v0.7.0
+set VERSION v0.8.0
 set ANYTYPE_UNIX_TIMESTAMP 1757347920
 
 # 2. Format date
