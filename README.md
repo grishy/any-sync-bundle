@@ -183,16 +183,16 @@ Read more about it in the official docs:
 
 All parameters are available in two ways: binary flags or container environment variables. See `./any-sync-bundle --help` for details.
 
-Important: “initial-_” options (for example `--initial-external-addrs` or `ANY_SYNC_BUNDLE_INIT*`) are used only on the first run to create `bundle-config.yml`. Subsequent starts read from the persisted `bundle-config.yml`.
+Important: "initial-\_" options (for example `--initial-external-addrs` or `ANY_SYNC_BUNDLE_INIT*`) are used only on the first run to create `bundle-config.yml`. Subsequent starts read from the persisted `bundle-config.yml`.
 
 ### Global parameters
 
-| Flag              | Description                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Flag              | Description                                                                                                                 |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `--debug`         | Enable debug mode with detailed logging <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_DEBUG`        |
 | `--log-level`     | Log level (debug, info, warn, error, fatal) <br> ‣ Default: `info` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_LOG_LEVEL` |
-| `--help`, `-h`    | show help                                                                                                                |
-| `--version`, `-v` | print the version, use it if you wanna create an issue.                                                                  |
+| `--help`, `-h`    | show help                                                                                                                   |
+| `--version`, `-v` | print the version, use it if you wanna create an issue.                                                                     |
 
 ### Commands
 
@@ -202,8 +202,8 @@ Important: “initial-_” options (for example `--initial-external-addrs` or `A
 
 Flags for `start-bundle` and `start-all-in-one`:
 
-| Flag                       | Description                                                                                                                                                                   |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flag                       | Description                                                                                                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--bundle-config`          | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
 | `--client-config`          | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
 | `--storage`                | Path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_STORAGE`                                    |
@@ -213,7 +213,7 @@ Flags for `start-bundle` and `start-all-in-one`:
 
 ## Light version (not in development)
 
-I explored a “light” Any Sync variant without MongoDB and Redis, using a single BadgerDB instance for all logical services (touching filenode, consensus, and coordinator). I decided not to continue due to long‑term maintenance cost.
+I explored a "light" Any Sync variant without MongoDB and Redis, using a single BadgerDB instance for all logical services (touching filenode, consensus, and coordinator). I decided not to continue due to long‑term maintenance cost.
 Currently, only the filenode is slightly modified to remove the MinIO dependency.
 
 The light version exists as [a draft PR](https://github.com/grishy/any-sync-bundle/pull/19) and is not planned for active development.
@@ -231,7 +231,7 @@ Default layout under `./data`:
 
 Backup tips:
 
-- Stop the process/container, then copy the entire `./data` directory.
+- Stop the process/container, then copy the entire `./data` directory. [Original](https://github.com/anyproto/any-sync-dockercompose/wiki/Backups) instruction say to do it in the fly, I assume to stop it before backup if possible.
 
 ## Troubleshooting
 
@@ -239,7 +239,7 @@ Backup tips:
   - Initialize manually once: `mongosh --host <mongo:27017> --eval "rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]})"`
   - Ensure your URI includes `?replicaSet=rs0` for external deployments. The bundle adds `w=majority` for the consensus connection automatically.
 - Embedded MongoDB/Redis in AIO does not start:
-  - Check logs for “starting embedded MongoDB/Redis”. If the data directories are corrupted, stop the container and remove `/data/mongo` or `/data/redis` before restarting.
+  - Check logs for "starting embedded MongoDB/Redis". If the data directories are corrupted, stop the container and **if you no need data**, remove `/data/mongo` or `/data/redis` before restarting.
 - QUIC/UDP blocked:
   - Open UDP 33020 on firewalls/NAT. Some environments block UDP by default.
   - Advertise both hostname and IP in `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` for clients behind NAT.
