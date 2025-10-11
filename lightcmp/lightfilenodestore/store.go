@@ -20,14 +20,14 @@ import (
 const CName = fileblockstore.CName
 
 const (
-
 	// GC configuration.
 	defaultGCInterval    = 29 * time.Hour // Prime number to avoid alignment
 	defaultMaxGCDuration = time.Minute
 	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
 
-	// Prefix for index keys to separate them from block keys.
-	indexKeyPrefix = "idx:"
+	// Key prefixes.
+	blockKeyPrefix = "f:b:"
+	indexKeyPrefix = "f:i:"
 )
 
 var (
@@ -36,6 +36,14 @@ var (
 
 	log = logger.NewNamed(CName)
 )
+
+func blockKeyString(k cid.Cid) string { return blockKeyPrefix + k.String() }
+
+func blockKeyBytes(k cid.Cid) []byte { return []byte(blockKeyString(k)) }
+
+func indexKeyString(key string) string { return indexKeyPrefix + key }
+
+func indexKeyBytes(key string) []byte { return []byte(indexKeyString(key)) }
 
 type storeConfig struct {
 	storePath     string
@@ -146,9 +154,9 @@ func (s *LightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan b
 			bl, err := s.loadBlock(k)
 			if err != nil {
 				if errors.Is(err, fileblockstore.ErrCIDNotFound) {
-					log.Debug("block not found", zap.String("key", k.String()))
+					log.Debug("block not found", zap.String("cid", k.String()))
 				} else {
-					log.Warn("failed to load block", zap.Error(err), zap.String("key", k.String()))
+					log.Warn("failed to load block", zap.Error(err), zap.String("cid", k.String()))
 				}
 				continue
 			}
@@ -180,8 +188,9 @@ func (s *LightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan b
 // loadBlock retrieves a single block from the database.
 func (s *LightFileNodeStore) loadBlock(k cid.Cid) (blocks.Block, error) {
 	var val []byte
+	key := blockKeyBytes(k)
 	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(k.String()))
+		item, err := txn.Get(key)
 		if err != nil {
 			if errors.Is(err, badger.ErrKeyNotFound) {
 				return fileblockstore.ErrCIDNotFound
@@ -191,7 +200,7 @@ func (s *LightFileNodeStore) loadBlock(k cid.Cid) (blocks.Block, error) {
 
 		val, err = item.ValueCopy(nil)
 		if err != nil {
-			log.Warn("failed to copy block value", zap.Error(err), zap.String("key", k.String()))
+			log.Warn("failed to copy block value", zap.Error(err), zap.String("cid", k.String()))
 			return err
 		}
 		return nil
@@ -202,7 +211,7 @@ func (s *LightFileNodeStore) loadBlock(k cid.Cid) (blocks.Block, error) {
 
 	bl, err := blocks.NewBlockWithCid(val, k)
 	if err != nil {
-		log.Warn("failed to create block", zap.Error(err), zap.String("key", k.String()))
+		log.Warn("failed to create block", zap.Error(err), zap.String("cid", k.String()))
 		return nil, err
 	}
 
@@ -220,10 +229,11 @@ func (s *LightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
 	for _, bl := range bs {
 		data := bl.RawData()
 		dataLen += len(data)
-		key := bl.Cid().String()
 
-		if err := wb.Set([]byte(key), data); err != nil {
-			return fmt.Errorf("failed to set key %s: %w", key, err)
+		key := blockKeyBytes(bl.Cid())
+
+		if err := wb.Set(key, data); err != nil {
+			return fmt.Errorf("failed to set key %s: %w", bl.Cid().String(), err)
 		}
 	}
 
@@ -244,7 +254,7 @@ func (s *LightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 
 	st := time.Now()
 	err := s.db.Update(func(txn *badger.Txn) error {
-		deleteErr := txn.Delete([]byte(c.String()))
+		deleteErr := txn.Delete(blockKeyBytes(c))
 		if errors.Is(deleteErr, badger.ErrKeyNotFound) {
 			return nil
 		}
@@ -254,7 +264,7 @@ func (s *LightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 	log.Debug("badger delete",
 		zap.Error(err),
 		zap.Duration("total", time.Since(st)),
-		zap.String("key", c.String()),
+		zap.String("cid", c.String()),
 	)
 
 	return err
@@ -268,12 +278,11 @@ func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) e
 	// S3 implementation deletes sequentially and logs each failure. We keep the behavior but
 	// rely on Badger's batch API for efficiency and aggregate logging.
 	for _, c := range toDelete {
-		key := c.String()
-		if err := wb.Delete([]byte(key)); err != nil {
+		if err := wb.Delete(blockKeyBytes(c)); err != nil {
 			if errors.Is(err, badger.ErrKeyNotFound) {
 				continue
 			}
-			log.Warn("can't delete cid", zap.Error(err), zap.String("key", key))
+			log.Warn("can't delete cid", zap.Error(err), zap.String("cid", c.String()))
 		}
 	}
 
@@ -285,23 +294,18 @@ func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) e
 		zap.Int("count", len(toDelete)),
 	)
 
-	if err != nil {
-		return fmt.Errorf("failed to flush write batch: %w", err)
-	}
-
 	// Original implementation newer return an error
 	return nil
 }
 
 func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, error) {
 	st := time.Now()
-	indexKey := indexKeyPrefix + key
 	var value []byte
 
 	// Unlike S3 store's remote round-trip, Badger lookups are local; we still mirror the
 	// not-found semantics (return nil without error).
 	err := s.db.View(func(txn *badger.Txn) error {
-		item, getErr := txn.Get([]byte(indexKey))
+		item, getErr := txn.Get(indexKeyBytes(key))
 		if getErr != nil {
 			if errors.Is(getErr, badger.ErrKeyNotFound) {
 				return nil
@@ -323,7 +327,7 @@ func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, er
 	log.Debug("badger index get",
 		zap.Error(err),
 		zap.Duration("total", time.Since(st)),
-		zap.String("key", indexKey),
+		zap.String("key", key),
 	)
 
 	return value, err
@@ -331,16 +335,14 @@ func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, er
 
 func (s *LightFileNodeStore) IndexPut(_ context.Context, key string, value []byte) error {
 	st := time.Now()
-	indexKey := indexKeyPrefix + key
-
 	err := s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(indexKey), value)
+		return txn.Set(indexKeyBytes(key), value)
 	})
 
 	log.Debug("badger index put",
 		zap.Error(err),
 		zap.Duration("total", time.Since(st)),
-		zap.String("key", indexKey),
+		zap.String("key", key),
 	)
 
 	return err
@@ -348,16 +350,14 @@ func (s *LightFileNodeStore) IndexPut(_ context.Context, key string, value []byt
 
 func (s *LightFileNodeStore) IndexDelete(_ context.Context, key string) error {
 	st := time.Now()
-	indexKey := indexKeyPrefix + key
-
 	err := s.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(indexKey))
+		return txn.Delete(indexKeyBytes(key))
 	})
 
 	log.Debug("badger index delete",
 		zap.Error(err),
 		zap.Duration("total", time.Since(st)),
-		zap.String("key", indexKey),
+		zap.String("key", key),
 	)
 
 	return err
