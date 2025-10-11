@@ -165,6 +165,18 @@ func writeClientConfig(cfg *bundleConfig.Config, path string) error {
 }
 
 func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
+	// Create required data directories with proper permissions
+	if err := os.MkdirAll(dockerMongoDataDir, 0o750); err != nil {
+		return nil, fmt.Errorf("failed to create mongo data dir: %w", err)
+	}
+	if err := os.MkdirAll(dockerRedisDataDir, 0o750); err != nil {
+		return nil, fmt.Errorf("failed to create redis data dir: %w", err)
+	}
+
+	log.Info("data directories prepared",
+		zap.String("mongo", dockerMongoDataDir),
+		zap.String("redis", dockerRedisDataDir))
+
 	mongoArgs := []string{
 		"--port", dockerMongoPort,
 		"--dbpath", dockerMongoDataDir,
@@ -208,7 +220,7 @@ func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
 	}
 
 	mongoAddr := net.JoinHostPort("127.0.0.1", dockerMongoPort)
-	if readyErr := waitForTCPReady(mongoAddr, 15*time.Second); readyErr != nil {
+	if readyErr := waitForTCPReady(mongoAddr, 180*time.Second); readyErr != nil {
 		suite.stop()
 		return nil, fmt.Errorf("mongo listener not ready: %w", readyErr)
 	}
@@ -219,7 +231,7 @@ func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
 	}
 
 	redisAddr := net.JoinHostPort("127.0.0.1", dockerRedisPort)
-	if readyErr := waitForTCPReady(redisAddr, 10*time.Second); readyErr != nil {
+	if readyErr := waitForTCPReady(redisAddr, 30*time.Second); readyErr != nil {
 		suite.stop()
 		return nil, fmt.Errorf("redis listener not ready: %w", readyErr)
 	}
