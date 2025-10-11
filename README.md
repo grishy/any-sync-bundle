@@ -21,6 +21,8 @@
   </table>
 </p>
 
+> Compatibility: 0.x (e.g., 0.5) is not supported. From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
+
 ---
 
 <div style="border: 1px solid #ffa500; background-color: #fff7e6; padding: 16px; border-radius: 6px; margin: 16px 0;">
