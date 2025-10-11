@@ -1,7 +1,6 @@
 package config
 
 import (
-	"net"
 	"path/filepath"
 	"time"
 
@@ -25,8 +24,6 @@ import (
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
-
-	"go.uber.org/zap"
 )
 
 const (
@@ -223,24 +220,20 @@ func (bc *Config) networkCfg() nodeconf.Configuration {
 
 // convertListenToConnect replaces 0.0.0.0 with 127.0.0.1 for local connections.
 func (bc *Config) convertListenToConnect() []string {
-	hostTCP, portTCP, err := net.SplitHostPort(bc.Network.ListenTCPAddr)
-	if err != nil {
-		log.Panic("failed to split TCP listen addr", zap.Error(err))
-	}
+	endpoints := bc.listenEndpoints()
+
+	hostTCP := endpoints.tcpHost
 	if hostTCP == "0.0.0.0" {
 		hostTCP = "127.0.0.1"
 	}
 
-	hostUDP, portUDP, err := net.SplitHostPort(bc.Network.ListenUDPAddr)
-	if err != nil {
-		log.Panic("failed to split UDP listen addr", zap.Error(err))
-	}
+	hostUDP := endpoints.udpHost
 	if hostUDP == "0.0.0.0" {
 		hostUDP = "127.0.0.1"
 	}
 
 	return []string{
-		"quic://" + hostUDP + ":" + portUDP,
-		hostTCP + ":" + portTCP,
+		"quic://" + hostUDP + ":" + endpoints.udpPort,
+		hostTCP + ":" + endpoints.tcpPort,
 	}
 }

@@ -13,27 +13,12 @@ import (
 func (bc *Config) convertExternalAddrs() []string {
 	// TCP and UDP
 	addrs := make([]string, 0, len(bc.ExternalAddr)*2)
+	endpoints := bc.listenEndpoints()
 
 	for _, externalAddr := range bc.ExternalAddr {
-		_, tcpPort, err := net.SplitHostPort(bc.Network.ListenTCPAddr)
-		if err != nil {
-			log.With(
-				zap.Error(err),
-				zap.String("addr", bc.Network.ListenTCPAddr),
-			).Panic("invalid TCP listen address")
-		}
-
-		_, udpPort, err := net.SplitHostPort(bc.Network.ListenUDPAddr)
-		if err != nil {
-			log.With(
-				zap.Error(err),
-				zap.String("addr", bc.Network.ListenUDPAddr),
-			).Panic("invalid UDP listen address")
-		}
-
 		addrs = append(addrs,
-			"quic://"+externalAddr+":"+udpPort,
-			externalAddr+":"+tcpPort,
+			"quic://"+externalAddr+":"+endpoints.udpPort,
+			externalAddr+":"+endpoints.tcpPort,
 		)
 	}
 
@@ -65,4 +50,36 @@ func (bc *Config) YamlClientConfig() ([]byte, error) {
 	}
 
 	return yamlData, nil
+}
+
+type listenEndpoints struct {
+	tcpHost string
+	tcpPort string
+	udpHost string
+	udpPort string
+}
+
+func (bc *Config) listenEndpoints() listenEndpoints {
+	tcpHost, tcpPort, err := net.SplitHostPort(bc.Network.ListenTCPAddr)
+	if err != nil {
+		log.With(
+			zap.Error(err),
+			zap.String("addr", bc.Network.ListenTCPAddr),
+		).Panic("invalid TCP listen address")
+	}
+
+	udpHost, udpPort, err := net.SplitHostPort(bc.Network.ListenUDPAddr)
+	if err != nil {
+		log.With(
+			zap.Error(err),
+			zap.String("addr", bc.Network.ListenUDPAddr),
+		).Panic("invalid UDP listen address")
+	}
+
+	return listenEndpoints{
+		tcpHost: tcpHost,
+		tcpPort: tcpPort,
+		udpHost: udpHost,
+		udpPort: udpPort,
+	}
 }
