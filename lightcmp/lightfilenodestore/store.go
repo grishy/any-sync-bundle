@@ -15,7 +15,6 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 const CName = fileblockstore.CName
@@ -26,10 +25,6 @@ const (
 	defaultGCInterval    = 29 * time.Hour // Prime number to avoid alignment
 	defaultMaxGCDuration = time.Minute
 	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
-
-	// Number of concurrent block retrievals in GetMany, took from S3 implementation.
-	// TODO: make in sequential, because local disk is fast enough.
-	getManyWorkers = 4
 
 	// Prefix for index keys to separate them from block keys.
 	indexKeyPrefix = "idx:"
@@ -110,66 +105,86 @@ func (s *LightFileNodeStore) Close(_ context.Context) error {
 }
 
 func (s *LightFileNodeStore) Get(_ context.Context, k cid.Cid) (blocks.Block, error) {
-	start := time.Now()
-	var val []byte
-
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(k.String()))
-		if err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return fileblockstore.ErrCIDNotFound
-			}
-			return err
-		}
-		val, err = item.ValueCopy(nil)
-		return err
-	})
+	st := time.Now()
+	bl, err := s.loadBlock(k)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Debug("badger get",
-		zap.Duration("total", time.Since(start)),
-		zap.Int("kbytes", len(val)/1024),
+		zap.Duration("total", time.Since(st)),
+		zap.Int("kbytes", len(bl.RawData())/1024),
 		zap.String("key", k.String()),
 	)
 
-	return blocks.NewBlockWithCid(val, k)
+	return bl, nil
 }
 
 func (s *LightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan blocks.Block {
+	st := time.Now()
 	res := make(chan blocks.Block)
 
-	go s.getManyWorker(ctx, ks, res)
+	go func() {
+		defer close(res)
+
+		// Upstream S3 store fans out requests across workers. Local Badger access is
+		// already low latency, so we iterate sequentially and surface a single summary log.
+		delivered := 0
+		for _, k := range ks {
+			select {
+			case <-ctx.Done():
+				log.Debug("badger get many",
+					zap.Duration("total", time.Since(st)),
+					zap.Int("requested", len(ks)),
+					zap.Int("delivered", delivered),
+					zap.Error(ctx.Err()),
+				)
+				return
+			default:
+			}
+
+			bl, err := s.loadBlock(k)
+			if err != nil {
+				if errors.Is(err, fileblockstore.ErrCIDNotFound) {
+					log.Debug("block not found", zap.String("key", k.String()))
+				} else {
+					log.Warn("failed to load block", zap.Error(err), zap.String("key", k.String()))
+				}
+				continue
+			}
+
+			select {
+			case res <- bl:
+				delivered++
+			case <-ctx.Done():
+				log.Debug("badger get many",
+					zap.Duration("total", time.Since(st)),
+					zap.Int("requested", len(ks)),
+					zap.Int("delivered", delivered),
+					zap.Error(ctx.Err()),
+				)
+				return
+			}
+		}
+
+		log.Debug("badger get many",
+			zap.Duration("total", time.Since(st)),
+			zap.Int("requested", len(ks)),
+			zap.Int("delivered", delivered),
+		)
+	}()
 
 	return res
 }
 
-// getManyWorker processes GetMany requests concurrently.
-func (s *LightFileNodeStore) getManyWorker(ctx context.Context, ks []cid.Cid, res chan<- blocks.Block) {
-	defer close(res)
-
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(getManyWorkers)
-
-	for _, k := range ks {
-		g.Go(func() error {
-			s.fetchBlock(gctx, k, res)
-			return nil
-		})
-	}
-
-	_ = g.Wait() // Ignore error since individual errors are already logged
-}
-
-// fetchBlock retrieves a single block from the database.
-func (s *LightFileNodeStore) fetchBlock(ctx context.Context, k cid.Cid, res chan<- blocks.Block) {
+// loadBlock retrieves a single block from the database.
+func (s *LightFileNodeStore) loadBlock(k cid.Cid) (blocks.Block, error) {
 	var val []byte
 	err := s.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(k.String()))
 		if err != nil {
-			if !errors.Is(err, badger.ErrKeyNotFound) {
-				log.Warn("failed to get block", zap.Error(err), zap.String("key", k.String()))
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				return fileblockstore.ErrCIDNotFound
 			}
 			return err
 		}
@@ -182,60 +197,52 @@ func (s *LightFileNodeStore) fetchBlock(ctx context.Context, k cid.Cid, res chan
 		return nil
 	})
 	if err != nil {
-		return // Already logged above
+		return nil, err
 	}
 
 	bl, err := blocks.NewBlockWithCid(val, k)
 	if err != nil {
 		log.Warn("failed to create block", zap.Error(err), zap.String("key", k.String()))
-		return
+		return nil, err
 	}
 
-	select {
-	case res <- bl:
-	case <-ctx.Done():
-	}
+	return bl, nil
 }
 
 func (s *LightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
-	start := time.Now()
+	st := time.Now()
 	wb := s.db.NewWriteBatch()
 	defer wb.Cancel()
 
 	// Usually one block (what I saw), so no concurrent writes needed
 	var dataLen int
-	keys := make([]string, 0, 1)
 
 	for _, bl := range bs {
 		data := bl.RawData()
 		dataLen += len(data)
 		key := bl.Cid().String()
-		keys = append(keys, key)
 
 		if err := wb.Set([]byte(key), data); err != nil {
 			return fmt.Errorf("failed to set key %s: %w", key, err)
 		}
 	}
 
-	if err := wb.Flush(); err != nil {
-		return fmt.Errorf("failed to flush write batch: %w", err)
-	}
+	err := wb.Flush()
 
 	log.Debug("badger put",
-		zap.Duration("total", time.Since(start)),
+		zap.Duration("total", time.Since(st)),
 		zap.Int("blocks", len(bs)),
 		zap.Int("kbytes", dataLen/1024),
-		zap.Strings("keys", keys),
 	)
 
-	return nil
+	return err
 }
 
 func (s *LightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 	// TODO: Create an issue that no Delete call after clean up of Bin in Anytype.
 	// Check before, that here is no deferred call to Delete
 
-	start := time.Now()
+	st := time.Now()
 	err := s.db.Update(func(txn *badger.Txn) error {
 		deleteErr := txn.Delete([]byte(c.String()))
 		if errors.Is(deleteErr, badger.ErrKeyNotFound) {
@@ -245,7 +252,8 @@ func (s *LightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 	})
 
 	log.Debug("badger delete",
-		zap.Duration("total", time.Since(start)),
+		zap.Error(err),
+		zap.Duration("total", time.Since(st)),
 		zap.String("key", c.String()),
 	)
 
@@ -253,14 +261,14 @@ func (s *LightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
 }
 
 func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) error {
-	start := time.Now()
+	st := time.Now()
 	wb := s.db.NewWriteBatch()
 	defer wb.Cancel()
 
-	var keys []string
+	// S3 implementation deletes sequentially and logs each failure. We keep the behavior but
+	// rely on Badger's batch API for efficiency and aggregate logging.
 	for _, c := range toDelete {
 		key := c.String()
-		keys = append(keys, key)
 		if err := wb.Delete([]byte(key)); err != nil {
 			if errors.Is(err, badger.ErrKeyNotFound) {
 				continue
@@ -272,22 +280,26 @@ func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) e
 	err := wb.Flush()
 
 	log.Debug("badger delete many",
-		zap.Duration("total", time.Since(start)),
+		zap.Error(err),
+		zap.Duration("total", time.Since(st)),
 		zap.Int("count", len(toDelete)),
-		zap.Strings("keys", keys),
 	)
 
 	if err != nil {
 		return fmt.Errorf("failed to flush write batch: %w", err)
 	}
 
+	// Original implementation newer return an error
 	return nil
 }
 
 func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, error) {
+	st := time.Now()
 	indexKey := indexKeyPrefix + key
 	var value []byte
 
+	// Unlike S3 store's remote round-trip, Badger lookups are local; we still mirror the
+	// not-found semantics (return nil without error).
 	err := s.db.View(func(txn *badger.Txn) error {
 		item, getErr := txn.Get([]byte(indexKey))
 		if getErr != nil {
@@ -308,28 +320,46 @@ func (s *LightFileNodeStore) IndexGet(_ context.Context, key string) ([]byte, er
 		return nil
 	})
 
+	log.Debug("badger index get",
+		zap.Error(err),
+		zap.Duration("total", time.Since(st)),
+		zap.String("key", indexKey),
+	)
+
 	return value, err
 }
 
 func (s *LightFileNodeStore) IndexPut(_ context.Context, key string, value []byte) error {
+	st := time.Now()
 	indexKey := indexKeyPrefix + key
 
 	err := s.db.Update(func(txn *badger.Txn) error {
 		return txn.Set([]byte(indexKey), value)
 	})
 
-	log.Debug("badger index put", zap.String("key", indexKey))
+	log.Debug("badger index put",
+		zap.Error(err),
+		zap.Duration("total", time.Since(st)),
+		zap.String("key", indexKey),
+	)
+
 	return err
 }
 
 func (s *LightFileNodeStore) IndexDelete(_ context.Context, key string) error {
+	st := time.Now()
 	indexKey := indexKeyPrefix + key
 
 	err := s.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(indexKey))
 	})
 
-	log.Debug("badger index delete", zap.String("key", indexKey))
+	log.Debug("badger index delete",
+		zap.Error(err),
+		zap.Duration("total", time.Since(st)),
+		zap.String("key", indexKey),
+	)
+
 	return err
 }
 
