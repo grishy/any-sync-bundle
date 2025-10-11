@@ -183,16 +183,16 @@ Read more about it in the official docs:
 
 All parameters are available in two ways: binary flags or container environment variables. See `./any-sync-bundle --help` for details.
 
-Important: “initial-_” options (for example `--initial-external-addrs` or `ANY*SYNC_BUNDLE_INIT*_`) are used only on the first run to create `bundle-config.yml`. Subsequent starts read from the persisted `bundle-config.yml`.
+Important: “initial-_” options (for example `--initial-external-addrs` or `ANY_SYNC_BUNDLE_INIT*`) are used only on the first run to create `bundle-config.yml`. Subsequent starts read from the persisted `bundle-config.yml`.
 
 ### Global parameters
 
-| Flag            | Description                                             | Default | Environment Variable         |
-| --------------- | ------------------------------------------------------- | ------- | ---------------------------- |
-| `--debug`       | Enable debug mode with detailed logging                 | false   | `$ANY_SYNC_BUNDLE_DEBUG`     |
-| `--log-level`   | Log level (debug, info, warn, error, fatal)             | info    | `$ANY_SYNC_BUNDLE_LOG_LEVEL` |
-| `--help, -h`    | show help                                               |         |                              |
-| `--version, -v` | print the version, use it if you wanna create an issue. |         |                              |
+| Flag              | Description                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--debug`         | Enable debug mode with detailed logging <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_DEBUG`        |
+| `--log-level`     | Log level (debug, info, warn, error, fatal) <br> ‣ Default: `info` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_LOG_LEVEL` |
+| `--help`, `-h`    | show help                                                                                                                |
+| `--version`, `-v` | print the version, use it if you wanna create an issue.                                                                  |
 
 ### Commands
 
@@ -202,14 +202,14 @@ Important: “initial-_” options (for example `--initial-external-addrs` or `A
 
 Flags for `start-bundle` and `start-all-in-one`:
 
-| Flag                     | Description                                                              | Default                       | Environment Variable                   |
-| ------------------------ | ------------------------------------------------------------------------ | ----------------------------- | -------------------------------------- |
-| --bundle-config          | Path to the bundle configuration YAML file                               | `./data/bundle-config.yml`    | `$ANY_SYNC_BUNDLE_CONFIG`              |
-| --client-config          | Path where write to the Anytype client configuration YAML file if needed | `./data/client-config.yml`    | `$ANY_SYNC_BUNDLE_CLIENT_CONFIG`       |
-| --storage                | Path to the bundle data directory (must be writable)                     | `./data/storage/`             | `$ANY_SYNC_BUNDLE_STORAGE`             |
-| --initial-external-addrs | Initial external addresses for the bundle                                | `192.168.8.214,example.local` | `$ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` |
-| --initial-mongo-uri      | Initial MongoDB URI for the bundle                                       | `mongodb://127.0.0.1:27017/`  | `$ANY_SYNC_BUNDLE_INIT_MONGO_URI`      |
-| --initial-redis-uri      | Initial Redis URI for the bundle                                         | `redis://127.0.0.1:6379/`     | `$ANY_SYNC_BUNDLE_INIT_REDIS_URI`      |
+| Flag                       | Description                                                                                                                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bundle-config`          | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
+| `--client-config`          | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
+| `--storage`                | Path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_STORAGE`                                    |
+| `--initial-external-addrs` | Initial external addresses for the bundle <br> ‣ Default: `192.168.8.214,example.local` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`                       |
+| `--initial-mongo-uri`      | Initial MongoDB URI for the bundle <br> ‣ Default: `mongodb://127.0.0.1:27017/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_MONGO_URI`                                    |
+| `--initial-redis-uri`      | Initial Redis URI for the bundle <br> ‣ Default: `redis://127.0.0.1:6379/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_REDIS_URI`                                         |
 
 ## Light version (not in development)
 
