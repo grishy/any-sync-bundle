@@ -2,6 +2,7 @@ package lightnode
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/anyproto/any-sync/app"
 )
@@ -25,11 +26,18 @@ type sharedComponent[T any] struct {
 	component T
 }
 
-// newSharedComponent creates a wrapper around a component that prevents re-initialization.
-func newSharedComponent[T any](name string, comp T) *sharedComponent[T] {
+// newSharedComponent fetches a typed component from the app, wraps it, and prevents re-initialization.
+func newSharedComponent[T any](appInstance *app.App, name string) *sharedComponent[T] {
+	comp := appInstance.MustComponent(name)
+
+	typed, ok := comp.(T)
+	if !ok {
+		panic(fmt.Sprintf("component %s has unexpected type %T", name, comp))
+	}
+
 	return &sharedComponent[T]{
 		noOpComponent: noOpComponent{name: name},
-		component:     comp,
+		component:     typed,
 	}
 }
 

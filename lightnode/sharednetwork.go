@@ -37,30 +37,12 @@ func extractSharedNetwork(coordinator *app.App) *sharedNetwork {
 		Account: coordinator.MustComponent(accountservice.CName),
 
 		// Wrap lifecycle-aware components to prevent re-initialization
-		Pool: newSharedComponent(
-			pool.CName,
-			coordinator.MustComponent(pool.CName).(pool.Pool),
-		), //nolint:errcheck // MustComponent panics, doesn't return error
-		Server: newSharedComponent(
-			server.CName,
-			coordinator.MustComponent(server.CName).(server.DRPCServer),
-		), //nolint:errcheck // MustComponent panics, doesn't return error
-		Yamux: newSharedComponent(
-			yamux.CName,
-			coordinator.MustComponent(yamux.CName).(transport.Transport),
-		), //nolint:errcheck // MustComponent panics, doesn't return error
-		Quic: newSharedComponent(
-			quic.CName,
-			coordinator.MustComponent(quic.CName).(transport.Transport),
-		), //nolint:errcheck // MustComponent panics, doesn't return error
-		PeerService: newSharedComponent(
-			peerservice.CName,
-			coordinator.MustComponent(peerservice.CName).(peerservice.PeerService),
-		), //nolint:errcheck // MustComponent panics, doesn't return error
-		SecureService: newSharedComponent(
-			secureservice.CName,
-			coordinator.MustComponent(secureservice.CName).(secureservice.SecureService),
-		), //nolint:errcheck // MustComponent panics, doesn't return error
+		Pool:          newSharedComponent[pool.Pool](coordinator, pool.CName),
+		Server:        newSharedComponent[server.DRPCServer](coordinator, server.CName),
+		Yamux:         newSharedComponent[transport.Transport](coordinator, yamux.CName),
+		Quic:          newSharedComponent[transport.Transport](coordinator, quic.CName),
+		PeerService:   newSharedComponent[peerservice.PeerService](coordinator, peerservice.CName),
+		SecureService: newSharedComponent[secureservice.SecureService](coordinator, secureservice.CName),
 
 		// Pass through (pure data, no lifecycle side effects)
 		NodeConf:      coordinator.MustComponent(nodeconf.CName),
