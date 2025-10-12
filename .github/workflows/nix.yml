@@ -31,7 +31,7 @@ jobs:
         run: nix build -L .#default
 
       - name: Run binary version check
-        run: nix run .#any-sync-bundle -- --version
+        run: ./result/bin/any-sync-bundle --version
 
   devShell:
     runs-on: ubuntu-24.04
