@@ -56,7 +56,7 @@ jobs:
       - run: go test -v ./... -coverprofile=./coverage.txt -covermode=atomic -coverpkg=./...
 
       - name: Archive code coverage results
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage
@@ -64,7 +64,7 @@ jobs:
 
   code_coverage:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: tests
     permissions:
       contents: read
@@ -150,3 +150,40 @@ jobs:
             COMMIT_DATE=${{ fromJSON(steps.goreleaser.outputs.metadata).date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  nix-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - macos-15
+          - macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v14
+      - uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Check flake
+        run: nix flake check --all-systems
+
+      - name: Build package
+        run: nix build -L .#default
+
+      - name: Run binary version check
+        run: ./result/bin/any-sync-bundle --version
+
+  nix-devshell:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v14
+      - uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Check dev shell
+        run: |
+          nix develop --command go version
+          nix develop --command golangci-lint version
+          nix develop --command goreleaser --version
