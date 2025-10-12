@@ -165,6 +165,82 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
    WantedBy=multi-user.target
    ```
 
+## Building from Source
+
+### Traditional Go Build
+
+**Prerequisites:**
+
+- Go 1.25.2 or later
+- Docker (optional, for testing with containers)
+
+**Build:**
+
+```sh
+go build -o any-sync-bundle .
+./any-sync-bundle --version
+```
+
+**Run tests:**
+
+```sh
+go test -race -shuffle=on -vet=all ./...
+```
+
+**Run linter:**
+
+```sh
+golangci-lint run
+```
+
+### With Nix
+
+[Nix](https://nixos.org/) provides reproducible builds and a complete development environment with one command.
+
+**Prerequisites:**
+
+- Install Nix: `curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install`
+- Install direnv: `nix-env -iA nixpkgs.direnv` and [hook it into your shell](https://direnv.net/docs/hook.html)
+
+**Build the binary:**
+
+```sh
+nix build
+./result/bin/any-sync-bundle --version
+```
+
+**Run directly:**
+
+```sh
+nix run . -- --help
+```
+
+**Development environment:**
+
+```sh
+# Enter development shell with all tools (Go, golangci-lint, goreleaser, etc.)
+nix develop
+
+# Or use direnv for automatic environment activation
+echo "use flake" > .envrc
+direnv allow
+```
+
+**What's included in the dev shell:**
+
+- Go 1.25 toolchain
+- golangci-lint for code quality
+- goreleaser for releases
+- moq for code generation
+- git, make, and other build tools
+- Docker and docker-compose for testing
+
+**Check flake:**
+
+```sh
+nix flake check
+```
+
 ## Configuration files
 
 There are two configuration files under `./data` by default:
