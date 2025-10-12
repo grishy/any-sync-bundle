@@ -38,5 +38,6 @@ go.work.sum
 /tmp/
 
 # nixos/nix
-.direnv
+.direnv/
 result
+result-*
