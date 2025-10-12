@@ -193,6 +193,8 @@ Important: "initial-\_" options (for example `--initial-external-addrs` or `ANY_
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `--debug`         | Enable debug mode with detailed logging <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_DEBUG`        |
 | `--log-level`     | Log level (debug, info, warn, error, fatal) <br> ‣ Default: `info` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_LOG_LEVEL` |
+| `--pprof`         | Enable pprof HTTP server for profiling <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_PPROF`        |
+| `--pprof-addr`    | Address for pprof HTTP server (only used when --pprof is enabled) <br> ‣ Default: `localhost:6060` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_PPROF_ADDR` |
 | `--help`, `-h`    | show help                                                                                                                   |
 | `--version`, `-v` | print the version, use it if you wanna create an issue.                                                                     |
 
