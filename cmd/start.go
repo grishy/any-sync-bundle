@@ -99,6 +99,8 @@ func cmdStartBundle(ctx context.Context) *cli.Command {
 }
 
 func runBundleServices(ctx context.Context, bundleCfg *bundleConfig.Config) error {
+	printConfigurationInfo(bundleCfg)
+
 	cfgNodes := bundleCfg.NodeConfigs()
 	bundle := lightnode.NewBundle(cfgNodes)
 
@@ -500,6 +502,27 @@ func printShutdownMsg() {
 
 └───────────────────────────────────────────────────────────────────┘
 `)
+}
+
+func printConfigurationInfo(cfg *bundleConfig.Config) {
+	log.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Info("Configuration Summary")
+	log.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Info("→ Network Configuration",
+		zap.String("tcp_listen", cfg.Network.ListenTCPAddr),
+		zap.String("udp_listen", cfg.Network.ListenUDPAddr))
+	log.Info("→ MongoDB Configuration",
+		zap.String("coordinator_uri", cfg.Coordinator.MongoConnect),
+		zap.String("coordinator_db", cfg.Coordinator.MongoDatabase),
+		zap.String("consensus_uri", cfg.Consensus.MongoConnect),
+		zap.String("consensus_db", cfg.Consensus.MongoDatabase))
+	log.Info("→ Redis Configuration",
+		zap.String("filenode_uri", cfg.FileNode.RedisConnect))
+	log.Info("→ External Addresses",
+		zap.Strings("addresses", cfg.ExternalAddr))
+	log.Info("→ Node Identity",
+		zap.String("peer_id", cfg.Account.PeerId))
+	log.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 }
 
 func assertContainerRuntime() error {
