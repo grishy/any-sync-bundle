@@ -174,11 +174,11 @@ func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedNetwo
 		Register(net.Pool).
 		Register(net.Server).
 		Register(net.Metric).
+		Register(net.ACL).
 
 		// Network clients
 		Register(coordinatorclient.New()).
 		Register(consensusclient.New()).
-		Register(acl.New()).
 
 		// File Storage
 		// store() - REPLACED: lightfilenodestore.New() uses BadgerDB instead of original S3/MinIO store

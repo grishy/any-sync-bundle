@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/anyproto/any-sync/accountservice"
+	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
+	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/net/peerservice"
 	"github.com/anyproto/any-sync/net/pool"
 	"github.com/anyproto/any-sync/net/rpc/server"
@@ -13,6 +16,7 @@ import (
 	"github.com/anyproto/any-sync/net/transport"
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
+	"github.com/anyproto/any-sync/nodeconf"
 )
 
 // extractComponent extracts a component from the coordinator and performs type assertion.
@@ -138,3 +142,158 @@ func (s *sharedTransportComponent) Name() string                  { return s.noO
 func (s *sharedTransportComponent) Init(_ *app.App) error         { return nil }
 func (s *sharedTransportComponent) Run(_ context.Context) error   { return nil }
 func (s *sharedTransportComponent) Close(_ context.Context) error { return nil }
+
+// sharedMetricComponent wraps metric.Metric with no-op lifecycle methods.
+type sharedMetricComponent struct {
+	noOpComponent
+	metric.Metric
+}
+
+func newSharedMetricComponent(coordinator *app.App) *sharedMetricComponent {
+	return &sharedMetricComponent{
+		noOpComponent: noOpComponent{name: metric.CName},
+		Metric:        extractComponent[metric.Metric](coordinator, metric.CName),
+	}
+}
+
+func (s *sharedMetricComponent) Name() string                  { return s.noOpComponent.Name() }
+func (s *sharedMetricComponent) Init(_ *app.App) error         { return nil }
+func (s *sharedMetricComponent) Run(_ context.Context) error   { return nil }
+func (s *sharedMetricComponent) Close(_ context.Context) error { return nil }
+
+// sharedACLComponent wraps acl.AclService with no-op lifecycle methods.
+//
+// ACL (Access Control List) manages space permissions by providing a caching layer
+// over the consensus database. It answers: "Who owns space X? Can user Y write to it?"
+//
+// Architecture:
+//   - Stateless service with no mutable state
+//   - Caches parsed ACL state per spaceId (5min TTL) using thread-safe ocache
+//   - Reads consensus records via RPC, validates them, provides high-level permission APIs
+//
+// Thread Safety:
+//   - All read operations use RLock (concurrent readers safe)
+//   - Cache (ocache) is internally synchronized with sync.RWMutex
+//   - No shared mutable state between callers
+//
+// Usage Pattern in Bundle:
+//   - Coordinator: writes new permissions (AclAddRecord) + reads for validation
+//   - Filenode: reads only (OwnerPubKey, Permissions) for authorization checks
+//   - Consensus: stores raw ACL records (doesn't use ACL component)
+//   - Sync: doesn't use ACL
+//
+// Why Safe to Share:
+//  1. Thread-safe: Multiple services can call concurrently without races
+//  2. Stateless: No per-service state, just a shared cache over consensus DB
+//  3. Cache benefits: Both services warm the same cache (better hit rate, less memory)
+//  4. Permission semantics: "User X can write to space Y" is a global fact, not service-specific
+//  5. Prevents duplicate Prometheus metrics registration (acl_cache_hit, etc.)
+type sharedACLComponent struct {
+	noOpComponent
+	acl.AclService
+}
+
+func newSharedACLComponent(coordinator *app.App) *sharedACLComponent {
+	return &sharedACLComponent{
+		noOpComponent: noOpComponent{name: acl.CName},
+		AclService:    extractComponent[acl.AclService](coordinator, acl.CName),
+	}
+}
+
+func (s *sharedACLComponent) Name() string                  { return s.noOpComponent.Name() }
+func (s *sharedACLComponent) Init(_ *app.App) error         { return nil }
+func (s *sharedACLComponent) Run(_ context.Context) error   { return nil }
+func (s *sharedACLComponent) Close(_ context.Context) error { return nil }
+
+// sharedNodeConfComponent wraps nodeconf.Service with no-op lifecycle methods.
+//
+// NodeConf manages network configuration (node addresses, peer discovery, consensus peers).
+// It periodically fetches updated configuration from the coordinator via periodicsync.
+//
+// Critical: Must be wrapped to prevent multiple Run() calls.
+//
+// The Problem Without Wrapping:
+//   - NodeConf.Run() spawns a background goroutine via periodicsync
+//   - If 4 services call Run(), we get 4 goroutines all sharing the same periodicCall.loopDone channel
+//   - During shutdown, all 4 goroutines execute "defer close(loopDone)"
+//   - First close succeeds, remaining 3 panic: "close of closed channel"
+//
+// Why Safe to Share:
+//  1. Configuration is global: All services need the same network topology
+//  2. Thread-safe: All reads use RWMutex, updates are synchronized
+//  3. Single updater: Only one goroutine fetches updates, all services read same state
+//  4. Prevents panic: Wrapper ensures Run() executes once, avoiding channel close race
+type sharedNodeConfComponent struct {
+	noOpComponent
+	nodeconf.Service
+}
+
+func newSharedNodeConfComponent(coordinator *app.App) *sharedNodeConfComponent {
+	return &sharedNodeConfComponent{
+		noOpComponent: noOpComponent{name: nodeconf.CName},
+		Service:       extractComponent[nodeconf.Service](coordinator, nodeconf.CName),
+	}
+}
+
+func (s *sharedNodeConfComponent) Name() string                  { return s.noOpComponent.Name() }
+func (s *sharedNodeConfComponent) Init(_ *app.App) error         { return nil }
+func (s *sharedNodeConfComponent) Run(_ context.Context) error   { return nil }
+func (s *sharedNodeConfComponent) Close(_ context.Context) error { return nil }
+
+// sharedNodeConfStoreComponent wraps nodeconf.Store with no-op lifecycle methods.
+//
+// NodeConfStore is a simple file-based storage for network configuration.
+// It has no Run() or Close() methods, only Init() which creates the storage directory.
+//
+// Why Wrap:
+//  1. Consistency: All shared components should use the wrapper pattern
+//  2. Future-proofing: Prevents issues if upstream adds lifecycle methods
+//  3. Clarity: Makes sharing explicit and intentional
+//
+// Why Safe to Share:
+//   - Thread-safe: Uses sync.Mutex for file I/O operations
+//   - Stateless I/O: Just reads/writes YAML files, no goroutines or resources
+//   - All services use same network configuration storage
+type sharedNodeConfStoreComponent struct {
+	noOpComponent
+	nodeconf.Store
+}
+
+func newSharedNodeConfStoreComponent(coordinator *app.App) *sharedNodeConfStoreComponent {
+	return &sharedNodeConfStoreComponent{
+		noOpComponent: noOpComponent{name: nodeconf.CNameStore},
+		Store:         extractComponent[nodeconf.Store](coordinator, nodeconf.CNameStore),
+	}
+}
+
+func (s *sharedNodeConfStoreComponent) Name() string          { return s.noOpComponent.Name() }
+func (s *sharedNodeConfStoreComponent) Init(_ *app.App) error { return nil }
+
+// sharedAccountComponent wraps accountservice.Service with no-op lifecycle methods.
+//
+// Account holds the node's cryptographic identity (peer key + signing key).
+// All services in the bundle share the same identity - they are one logical node.
+//
+// Why Wrap:
+//  1. Consistency: All shared components should use the wrapper pattern
+//  2. Future-proofing: Prevents issues if upstream adds lifecycle methods
+//  3. Clarity: Makes it explicit all services share one identity
+//
+// Why Safe to Share:
+//   - Immutable: Keys are loaded once during Init(), never change
+//   - No lifecycle: Only Init() method, no Run() or Close()
+//   - Single identity: Bundle is one node with one peer ID, not 4 separate nodes
+type sharedAccountComponent struct {
+	noOpComponent
+	accountservice.Service
+}
+
+func newSharedAccountComponent(coordinator *app.App) *sharedAccountComponent {
+	return &sharedAccountComponent{
+		noOpComponent: noOpComponent{name: accountservice.CName},
+		Service:       extractComponent[accountservice.Service](coordinator, accountservice.CName),
+	}
+}
+
+func (s *sharedAccountComponent) Name() string          { return s.noOpComponent.Name() }
+func (s *sharedAccountComponent) Init(_ *app.App) error { return nil }

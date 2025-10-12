@@ -397,39 +397,111 @@ func waitForTCPReady(addr string, timeout time.Duration) error {
 	}
 }
 
+// startServices initializes and runs all bundle services using a custom two-phase approach.
+//
+// Why we can't use app.Start() directly:
+// The bundle architecture has 4 separate apps (coordinator, consensus, filenode, sync) that
+// share a single DRPC multiplexer from the coordinator's server component. If we call
+// app.Start() sequentially on each service, a race condition occurs:
+//
+//  1. coordinator.Start() = Init (registers handlers) + Run (starts network listeners)
+//  2. Network is now accepting connections and calling mux.HandleRPC()
+//  3. consensus.Start() = Init tries to register handlers on the same mux
+//  4. RACE: goroutine reads mux map (HandleRPC) while another writes to it (register)
 func startServices(ctx context.Context, apps []node, cfg *bundleConfig.Config) error {
 	log.Info("initiating service startup", zap.Int("count", len(apps)))
+	log.Info("━━━ Phase 1: Initializing all services ━━━")
 
-	started := []node{}
-	for _, a := range apps {
-		log.Info("▶ starting service", zap.String("name", a.name))
-		if err := a.app.Start(ctx); err != nil {
-			log.Error("service startup failed, rolling back",
-				zap.String("failed", a.name),
-				zap.Int("started", len(started)),
+	initialized := []node{}
+	for _, app := range apps {
+		if err := initOneApp(app); err != nil {
+			shutdownServices(initialized)
+			return err
+		}
+		initialized = append(initialized, app)
+	}
+	log.Info("✓ all services initialized, all DRPC handlers registered")
+
+	// Phase 2: Run all services
+	// Track which services have been successfully Run() to avoid closing
+	// components that were Init'd but never Run'd (they may have nil pointers).
+	log.Info("━━━ Phase 2: Running all services ━━━")
+	running := []node{}
+	for _, app := range initialized {
+		if err := runOneApp(ctx, app, cfg); err != nil {
+			shutdownServices(running)
+			return err
+		}
+		running = append(running, app)
+	}
+	log.Info("✓ all services running")
+
+	return nil
+}
+
+// initOneApp initializes all components for a single app.
+func initOneApp(n node) error {
+	log.Info("▶ initializing service", zap.String("name", n.name))
+
+	var firstError error
+	n.app.IterateComponents(func(c app.Component) {
+		if firstError != nil {
+			return
+		}
+		if err := c.Init(n.app); err != nil {
+			firstError = fmt.Errorf("component '%s': %w", c.Name(), err)
+			log.Error("component init failed",
+				zap.String("service", n.name),
+				zap.String("component", c.Name()),
 				zap.Error(err))
-
-			shutdownServices(started)
-			return fmt.Errorf("service startup failed: %w", err)
 		}
+	})
 
-		log.Info("✓ service started successfully", zap.String("name", a.name))
-		started = append(started, a)
-
-		if a.name == "coordinator" {
-			coordinatorAddr := cfg.Network.ListenTCPAddr
-			log.Info("waiting for coordinator TCP listener to be ready",
-				zap.String("addr", coordinatorAddr))
-
-			if err := waitForTCPReady(coordinatorAddr, 3*time.Second); err != nil {
-				shutdownServices(started)
-				return fmt.Errorf("coordinator failed to start listener: %w", err)
-			}
-
-			log.Info("coordinator ready, starting dependent services")
-		}
+	if firstError != nil {
+		return fmt.Errorf("service '%s' init failed: %w", n.name, firstError)
 	}
 
+	log.Info("✓ service initialized", zap.String("name", n.name))
+	return nil
+}
+
+// runOneApp runs all runnable components for a single app.
+func runOneApp(ctx context.Context, n node, cfg *bundleConfig.Config) error {
+	log.Info("▶ running service", zap.String("name", n.name))
+
+	var firstError error
+	n.app.IterateComponents(func(c app.Component) {
+		if firstError != nil {
+			return
+		}
+		if runnable, ok := c.(app.ComponentRunnable); ok {
+			if err := runnable.Run(ctx); err != nil {
+				firstError = fmt.Errorf("component '%s': %w", runnable.Name(), err)
+				log.Error("component run failed",
+					zap.String("service", n.name),
+					zap.String("component", runnable.Name()),
+					zap.Error(err))
+			}
+		}
+	})
+
+	if firstError != nil {
+		return fmt.Errorf("service '%s' run failed: %w", n.name, firstError)
+	}
+
+	// Coordinator-specific: wait for network to be ready
+	if n.name == "coordinator" {
+		addr := cfg.Network.ListenTCPAddr
+		log.Info("waiting for coordinator TCP listener", zap.String("addr", addr))
+
+		if err := waitForTCPReady(addr, 5*time.Second); err != nil {
+			return fmt.Errorf("coordinator network not ready: %w", err)
+		}
+
+		log.Info("coordinator network ready")
+	}
+
+	log.Info("✓ service running", zap.String("name", n.name))
 	return nil
 }
 
