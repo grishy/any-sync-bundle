@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,6 +63,9 @@ func cmdStartAllInOne(ctx context.Context) *cli.Command {
 
 			applyAllInOneDefaults(bundleCfg)
 
+			// Start pprof server if enabled
+			startPprofServer(ctx, cCtx)
+
 			infra, err := startAllInOneInfra(ctx)
 			if err != nil {
 				return err
@@ -84,6 +89,9 @@ func cmdStartBundle(ctx context.Context) *cli.Command {
 			if err != nil {
 				return err
 			}
+
+			// Start pprof server if enabled
+			startPprofServer(ctx, cCtx)
 
 			return runBundleServices(ctx, bundleCfg)
 		},
@@ -506,4 +514,60 @@ func assertContainerRuntime() error {
 	return errors.New(
 		"start-all-in-one is only supported inside the official container image; please run the all-in-one container or use start-bundle with external MongoDB/Redis",
 	)
+}
+
+func startPprofServer(ctx context.Context, cCtx *cli.Context) {
+	if !cCtx.Bool(flagPprof) {
+		return
+	}
+
+	addr := cCtx.String(flagPprofAddr)
+	log.Info("🔍 starting pprof HTTP server",
+		zap.String("addr", addr),
+		zap.String("url", "http://"+addr+"/debug/pprof/"))
+
+	// Create a custom mux and manually register pprof handlers
+	// This avoids gosec G108 warning and is more secure than using the default mux
+	mux := http.NewServeMux()
+
+	// Register pprof handlers
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	// Register additional profile types
+	mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	mux.Handle("/debug/pprof/block", pprof.Handler("block"))
+	mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+	mux.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("pprof server failed", zap.Error(err))
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Warn("pprof server shutdown failed", zap.Error(err))
+		}
+	}()
+
+	log.Info("✓ pprof server started - use 'go tool pprof' to analyze",
+		zap.String("cpu_profile", "go tool pprof http://"+addr+"/debug/pprof/profile?seconds=30"),
+		zap.String("heap_profile", "go tool pprof http://"+addr+"/debug/pprof/heap"),
+		zap.String("goroutine_profile", "go tool pprof http://"+addr+"/debug/pprof/goroutine"))
 }

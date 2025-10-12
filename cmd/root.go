@@ -21,8 +21,10 @@ const (
 
 // Global CLI flags.
 const (
-	flagDebug    = "debug"
-	flagLogLevel = "log-level"
+	flagDebug     = "debug"
+	flagLogLevel  = "log-level"
+	flagPprof     = "pprof"
+	flagPprofAddr = "pprof-addr"
 )
 
 // Command-scoped flags for start commands.
@@ -77,6 +79,17 @@ func buildGlobalFlags() []cli.Flag {
 			Name:    flagLogLevel,
 			Usage:   "Log level (debug, info, warn, error, fatal)",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_LOG_LEVEL"},
+		},
+		&cli.BoolFlag{
+			Name:    flagPprof,
+			Usage:   "Enable pprof HTTP server for profiling",
+			EnvVars: []string{"ANY_SYNC_BUNDLE_PPROF"},
+		},
+		&cli.StringFlag{
+			Name:    flagPprofAddr,
+			Usage:   "Address for pprof HTTP server (only used when --pprof is enabled)",
+			Value:   "localhost:6060",
+			EnvVars: []string{"ANY_SYNC_BUNDLE_PPROF_ADDR"},
 		},
 	}
 }
