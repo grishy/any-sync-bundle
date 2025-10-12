@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
 
-
 #
 # Stage: Initial bin build
 #
@@ -38,7 +37,7 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 #
 FROM gcr.io/distroless/static-debian12 AS stage-release-minimal
 
-# Bundle network ports (TCP 33010, UDP 33020)
+# Bundle network ports
 EXPOSE 33010
 EXPOSE 33020/udp
 
@@ -54,7 +53,7 @@ CMD ["start-bundle"]
 #
 FROM docker.io/redis/redis-stack-server:7.4.0-v7 AS stage-release-all-in-one
 
-# Bundle network ports (TCP 33010, UDP 33020)
+# Bundle network ports
 EXPOSE 33010
 EXPOSE 33020/udp
 

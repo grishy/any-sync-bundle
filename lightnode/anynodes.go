@@ -104,9 +104,9 @@ func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 	return a
 }
 
-// newSyncApp creates a sync node application instance with shared network.
+// newSyncApp creates a sync node application instance with shared components.
 // Only modern nodestorage (any-store format) is included; legacy oldstorage and migrator are omitted.
-func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
+func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 	return new(app.App).
 		Register(cfg).
 		Register(net.Account).
@@ -115,7 +115,7 @@ func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
 		Register(credentialprovider.NewNoOp()).
 		Register(nodeconfsource.New()).
 
-		// Shared network components
+		// Shared components
 		Register(net.NodeConfStore).
 		Register(net.NodeConf).
 		Register(net.SecureService).
@@ -156,15 +156,15 @@ func newSyncApp(cfg *config.Config, net *sharedNetwork) *app.App {
 		Register(nodedebugrpc.New())
 }
 
-// newFileNodeApp creates a filenode application instance with shared network.
-func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedNetwork) *app.App {
+// newFileNodeApp creates a filenode application instance with shared components.
+func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedCmp) *app.App {
 	return new(app.App).
 		Register(cfg).
 		Register(net.Account).
 		Register(filenodeStat.New()).
 		Register(nodeconfsource.New()).
 
-		// Shared network components
+		// Shared components
 		Register(net.NodeConfStore).
 		Register(net.NodeConf).
 		Register(net.SecureService).
@@ -191,14 +191,14 @@ func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedNetwo
 		Register(deletelog.New())
 }
 
-// newConsensusApp creates a consensus node application instance with shared network.
-func newConsensusApp(cfg *consensusnodeConfig.Config, net *sharedNetwork) *app.App {
+// newConsensusApp creates a consensus node application instance with shared components.
+func newConsensusApp(cfg *consensusnodeConfig.Config, net *sharedCmp) *app.App {
 	return new(app.App).
 		Register(cfg).
 		Register(net.Account).
 		Register(nodeconfsource.New()).
 
-		// Shared network components
+		// Shared components
 		Register(net.NodeConfStore).
 		Register(net.NodeConf).
 		Register(net.SecureService).

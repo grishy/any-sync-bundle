@@ -4,9 +4,9 @@ import (
 	"github.com/anyproto/any-sync/app"
 )
 
-// sharedNetwork holds network components extracted from coordinator.
+// sharedCmp holds components extracted from coordinator.
 // Lifecycle components are wrapped to prevent re-initialization.
-type sharedNetwork struct {
+type sharedCmp struct {
 	Account       *sharedAccountComponent
 	Pool          *sharedPoolComponent
 	Server        *sharedServerComponent
@@ -20,11 +20,9 @@ type sharedNetwork struct {
 	ACL           *sharedACLComponent
 }
 
-// extractSharedNetwork extracts network components from coordinator.
-// All components are wrapped to prevent re-initialization and ensure consistency.
-func extractSharedNetwork(coordinator *app.App) *sharedNetwork {
-	return &sharedNetwork{
-		// All shared components are wrapped for consistency and safety
+// extractSharedCmp extracts components from coordinator.
+func extractSharedCmp(coordinator *app.App) *sharedCmp {
+	return &sharedCmp{
 		Account:       newSharedAccountComponent(coordinator),
 		Pool:          newSharedPoolComponent(coordinator),
 		Server:        newSharedServerComponent(coordinator),

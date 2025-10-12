@@ -16,5 +16,5 @@ services:
     volumes:
       - ./data:/data
     environment:
-      # Advertise addresses clients should use. Replace with your hostname/IP.
+      # Advertise addresses clients should use. Replace with your server hostname/IP.
       ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS: "192.168.100.9"

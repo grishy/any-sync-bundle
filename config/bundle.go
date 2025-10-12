@@ -18,6 +18,13 @@ import (
 
 var log = logger.NewNamed("bundle-config")
 
+const (
+	// MinSupportedBundleFormat is the oldest config format version this binary can load.
+	MinSupportedBundleFormat = 1
+	// CurrentBundleFormat is the config format version this binary creates.
+	CurrentBundleFormat = 1
+)
+
 type Config struct {
 	BundleVersion string                `yaml:"bundleVersion"`
 	BundleFormat  int                   `yaml:"bundleFormat"`
@@ -60,6 +67,20 @@ func Load(cfgPath string) *Config {
 	var cfg Config
 	if errUnmarshal := yaml.Unmarshal(data, &cfg); errUnmarshal != nil {
 		log.Panic("can't unmarshal config", zap.Error(errUnmarshal))
+	}
+
+	// Validate bundleFormat version
+	if cfg.BundleFormat < MinSupportedBundleFormat {
+		log.Panic("config format too old, please migrate your configuration",
+			zap.Int("format", cfg.BundleFormat),
+			zap.Int("min_supported", MinSupportedBundleFormat),
+			zap.String("path", cfgPath))
+	}
+	if cfg.BundleFormat > CurrentBundleFormat {
+		log.Panic("config format too new, please upgrade the binary",
+			zap.Int("format", cfg.BundleFormat),
+			zap.Int("current", CurrentBundleFormat),
+			zap.String("path", cfgPath))
 	}
 
 	return &cfg
@@ -125,7 +146,7 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		ConfigID:      cfgID,
 		NetworkID:     netID,
 		StoragePath:   cfg.StorePath,
-		Account:       newAcc(),
+		Account:       newAcc(netKey),
 		Network: NetworkConfig{
 			ListenTCPAddr: "0.0.0.0:33010",
 			ListenUDPAddr: "0.0.0.0:33020",
@@ -143,18 +164,10 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		},
 	}
 
-	// Base on docs https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
-	// "Signing key of coordinator is private key of the network and sync and file nodes use their peerKey"
-	privNetKey, err := crypto.EncodeKeyToString(netKey)
-	if err != nil {
-		log.Panic("can't encode network key to string", zap.Error(err))
-	}
-	defaultCfg.Account.SigningKey = privNetKey
-
 	return defaultCfg
 }
 
-func newAcc() accountservice.Config {
+func newAcc(netKey crypto.PrivKey) accountservice.Config {
 	signKey, _, err := crypto.GenerateRandomEd25519KeyPair()
 	if err != nil {
 		log.Panic("can't generate ed25519 key for account", zap.Error(err))
@@ -165,9 +178,17 @@ func newAcc() accountservice.Config {
 		log.Panic("can't encode key to string", zap.Error(err))
 	}
 
+	// Base on docs https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
+	// "Signing key of coordinator is private key of the network and sync and file nodes use their peerKey"
+	// Because we create account for bundle, we reuse only logic here of configurator.
+	privNetKey, err := crypto.EncodeKeyToString(netKey)
+	if err != nil {
+		log.Panic("can't encode network key to string", zap.Error(err))
+	}
+
 	return accountservice.Config{
 		PeerId:     signKey.GetPublic().PeerId(), // public key
 		PeerKey:    encPeerSignKey,               // private key
-		SigningKey: encPeerSignKey,               // private key
+		SigningKey: privNetKey,                   // private key
 	}
 }

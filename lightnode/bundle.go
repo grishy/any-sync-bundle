@@ -9,8 +9,8 @@ import (
 // Bundle holds all any-sync service applications with shared network infrastructure.
 //
 // Architecture:
-// - Coordinator creates the network stack (TCP 33010, UDP 33020, DRPC mux, connection pool)
-// - Other services (Consensus, FileNode, Sync) reuse coordinator's network components.
+// - Coordinator creates the network stack (TCP 33010, UDP 33020, DRPC mux, connection pool, etc.)
+// - Other services (Consensus, FileNode, Sync) reuse coordinator's components.
 type Bundle struct {
 	Coordinator *app.App
 	Consensus   *app.App
@@ -18,10 +18,10 @@ type Bundle struct {
 	Sync        *app.App
 }
 
-// NewBundle creates all services with shared network infrastructure.
+// NewBundle creates all services with shared  infrastructure.
 func NewBundle(configs *config.NodeConfigs) *Bundle {
 	coordinator := newCoordinatorApp(configs.Coordinator)
-	net := extractSharedNetwork(coordinator)
+	net := extractSharedCmp(coordinator)
 
 	return &Bundle{
 		Coordinator: coordinator,
