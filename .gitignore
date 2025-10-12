@@ -36,3 +36,7 @@ go.work.sum
 /data/
 /any-sync-bundle
 /tmp/
+
+# nixos/nix
+.direnv
+result
