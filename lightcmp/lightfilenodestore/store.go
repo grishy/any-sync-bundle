@@ -396,6 +396,11 @@ func (s *LightFileNodeStore) gcOnce() (int, time.Duration, error) {
 			if errors.Is(err, badger.ErrNoRewrite) {
 				return gcCount, time.Since(start), nil
 			}
+			// ErrRejected happens when another GC is already running or DB is closed.
+			// This is not an error condition - just means GC is busy.
+			if errors.Is(err, badger.ErrRejected) {
+				return gcCount, time.Since(start), nil
+			}
 			return gcCount, time.Since(start), err
 		}
 		gcCount++

@@ -765,7 +765,8 @@ func TestLightFileNodeStore_ContextCancellation(t *testing.T) {
 func TestLightFileNodeStore_GarbageCollection(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := New(tmpDir)
-	store.cfg.gcInterval = time.Millisecond
+	// Use a very long interval so background GC doesn't interfere with manual gcOnce() call
+	store.cfg.gcInterval = 24 * time.Hour
 	store.cfg.maxGCDuration = 100 * time.Millisecond
 
 	require.NoError(t, store.Init(&app.App{}))
@@ -781,6 +782,7 @@ func TestLightFileNodeStore_GarbageCollection(t *testing.T) {
 		require.NoError(t, store.Delete(ctx, block.Cid()))
 	}
 
+	// Manually trigger GC (background GC won't run due to long interval)
 	_, _, err := store.gcOnce()
 	require.NoError(t, err)
 
