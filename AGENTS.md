@@ -18,7 +18,6 @@ Config bootstrap (cmd/start.go):
 - DRPC routes by method prefix (`/CoordinatorService`, `/ConsensusService`, `/FileService`, `/SpaceSyncService`).
 - Data layout (default `./data`):
 
-
 ## Development
 
 ### Compose files
@@ -29,6 +28,6 @@ Config bootstrap (cmd/start.go):
 
 ```bash
 go build -o any-sync-bundle .
-golangci-lint run --fix 
+golangci-lint run --fix
 go test -race -shuffle=on -vet=all -failfast ./...
 ```

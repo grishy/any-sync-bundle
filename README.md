@@ -140,7 +140,7 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
      --initial-external-addrs "192.168.100.9" \
      --initial-mongo-uri "mongodb://127.0.0.1:27017/" \
      --initial-redis-uri "redis://127.0.0.1:6379/" \
-     --storage ./data/storage
+     --initial-storage ./data/storage
    ```
 
    systemd example:
@@ -157,7 +157,7 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
      --initial-external-addrs "example.local,192.168.100.9" \
      --initial-mongo-uri "mongodb://127.0.0.1:27017/?replicaSet=rs0" \
      --initial-redis-uri "redis://127.0.0.1:6379/" \
-     --storage /opt/any-sync-bundle/data/storage
+     --initial-storage /opt/any-sync-bundle/data/storage
    Restart=on-failure
    RestartSec=5
 
@@ -189,14 +189,14 @@ Important: "initial-\_" options (for example `--initial-external-addrs` or `ANY_
 
 ### Global parameters
 
-| Flag              | Description                                                                                                                 |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `--debug`         | Enable debug mode with detailed logging <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_DEBUG`        |
-| `--log-level`     | Log level (debug, info, warn, error, fatal) <br> ‣ Default: `info` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_LOG_LEVEL` |
-| `--pprof`         | Enable pprof HTTP server for profiling <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_PPROF`        |
+| Flag              | Description                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--debug`         | Enable debug mode with detailed logging <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_DEBUG`                                         |
+| `--log-level`     | Log level (debug, info, warn, error, fatal) <br> ‣ Default: `info` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_LOG_LEVEL`                                  |
+| `--pprof`         | Enable pprof HTTP server for profiling <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_PPROF`                                          |
 | `--pprof-addr`    | Address for pprof HTTP server (only used when --pprof is enabled) <br> ‣ Default: `localhost:6060` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_PPROF_ADDR` |
-| `--help`, `-h`    | show help                                                                                                                   |
-| `--version`, `-v` | print the version, use it if you wanna create an issue.                                                                     |
+| `--help`, `-h`    | show help                                                                                                                                                    |
+| `--version`, `-v` | print the version, use it if you wanna create an issue.                                                                                                      |
 
 ### Commands
 
@@ -210,7 +210,7 @@ Flags for `start-bundle` and `start-all-in-one`:
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--bundle-config`          | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
 | `--client-config`          | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
-| `--storage`                | Path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_STORAGE`                                    |
+| `--initial-storage`        | Initial path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_STORAGE`                       |
 | `--initial-external-addrs` | Initial external addresses for the bundle <br> ‣ Default: `192.168.8.214,example.local` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`                       |
 | `--initial-mongo-uri`      | Initial MongoDB URI for the bundle <br> ‣ Default: `mongodb://127.0.0.1:27017/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_MONGO_URI`                                    |
 | `--initial-redis-uri`      | Initial Redis URI for the bundle <br> ‣ Default: `redis://127.0.0.1:6379/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_REDIS_URI`                                         |

@@ -31,7 +31,7 @@ const (
 const (
 	flagStartBundleConfigPath = "bundle-config"
 	flagStartClientConfigPath = "client-config"
-	flagStartStoragePath      = "storage"
+	flagStartStoragePath      = "initial-storage"
 	flagStartExternalAddrs    = "initial-external-addrs"
 	flagStartMongoURI         = "initial-mongo-uri"
 	flagStartRedisURI         = "initial-redis-uri"
@@ -113,8 +113,8 @@ func buildStartFlags() []cli.Flag {
 		&cli.PathFlag{
 			Name:    flagStartStoragePath,
 			Value:   "./data/storage/",
-			EnvVars: []string{"ANY_SYNC_BUNDLE_STORAGE"},
-			Usage:   "Path to the bundle data directory (must be writable)",
+			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_STORAGE"},
+			Usage:   "Initial path to the bundle data directory (must be writable)",
 		},
 		&cli.StringSliceFlag{
 			Name:    flagStartExternalAddrs,
