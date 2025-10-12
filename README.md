@@ -240,13 +240,13 @@ Backup tips:
 ## Troubleshooting
 
 - MongoDB replica set is not initiated (external DB):
-  - Initialize manually once: `mongosh --host <mongo:27017> --eval "rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]})"`
-  - Ensure your URI includes `?replicaSet=rs0` for external deployments. The bundle adds `w=majority` for the consensus connection automatically.
+  - Initialize manually once: `mongosh --host <mongo:27017> --eval "rs.initiate({_id:'rs0', members:[{_id:0, host:'localhost:27017'}]})"`
+  - Replace `localhost` with the actual hostname or IP of your MongoDB server that will be used by the bundle later, if needed.
 - Embedded MongoDB/Redis in AIO does not start:
   - Check logs for "starting embedded MongoDB/Redis". If the data directories are corrupted, stop the container and **if you no need data**, remove `/data/mongo` or `/data/redis` before restarting.
 - QUIC/UDP blocked:
   - Open UDP 33020 on firewalls/NAT. Some environments block UDP by default.
-  - Advertise both hostname and IP in `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` for clients behind NAT.
+  - Advertise both hostname and IP in `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` for clients behind NAT. Anytype will select one of the addresses to connect to that works.
 - Wrong external address after first run:
   - Edit `./data/bundle-config.yml` → `externalAddr:` list, then restart the server. The new `client-config.yml` will be regenerated.
 
