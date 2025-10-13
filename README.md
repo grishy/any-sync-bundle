@@ -197,10 +197,7 @@ golangci-lint run
 
 [Nix](https://nixos.org/) provides reproducible builds and a complete development environment with one command.
 
-**Prerequisites:**
-
-- Install Nix: `curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install`
-- Install direnv: `nix-env -iA nixpkgs.direnv` and [hook it into your shell](https://direnv.net/docs/hook.html)
+**Prerequisites:** Nix; direnv and [hook it into your shell](https://direnv.net/docs/hook.html)
 
 **Build the binary:**
 
@@ -225,15 +222,6 @@ nix develop
 echo "use flake" > .envrc
 direnv allow
 ```
-
-**What's included in the dev shell:**
-
-- Go 1.25 toolchain
-- golangci-lint for code quality
-- goreleaser for releases
-- moq for code generation
-- git, make, and other build tools
-- Docker and docker-compose for testing
 
 **Check flake:**
 
