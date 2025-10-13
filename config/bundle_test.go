@@ -128,7 +128,7 @@ func TestLoad_FutureFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "future-format.yml")
 
-	futureConfig := `bundleVersion: "0.15.0"
+	futureConfig := `bundleVersion: "1.0.0"
 bundleFormat: 2
 externalAddr:
   - "192.168.1.100"
