@@ -21,16 +21,18 @@
   </table>
 </p>
 
-> Compatibility: 0.x (e.g., 0.5) is not supported. From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
+## Overview
+
+**any-sync-bundle** is a prepackaged, all-in-one self-hosted server solution designed for [Anytype](https://anytype.io/), a local-first, peer-to-peer note-taking and knowledge management application. It is based on the original modules used in the official Anytype server but merges them into a single binary for simplified deployment and zero-configuration setup.
 
 ---
 
 <div style="border: 1px solid #ffa500; background-color: #fff7e6; padding: 16px; border-radius: 6px; margin: 16px 0;">
-  <p>It is better to use <b>Release</b>. The main branch contains code that is under active development. Available variants:</p>
+  <p>Available variants:</p>
   <ul>
     <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB and Redis built in.</li>
-    <li><strong>✅ Bundle (solo bundle)</strong>: A variant without MongoDB and Redis inside. You can use your own instances.</li>
-    <li><strong>🧶 Light version<a href="#light-version-not-in-development">*</a></strong>: Not in development.</li>
+    <li><strong>✅ Bundle (solo bundle / container)</strong>: A variant without MongoDB and Redis. You can use your own instances.</li>
+    <li><strong>🧶 Light version<a href="#light-version-not-in-development">*</a></strong>: Not in development currently.</li>
   </ul>
 </div>
 
@@ -73,13 +75,15 @@ What this is not:
 
 ![Comparison with original deployment](./docs/arch.svg)
 
-## Version format
+## Version
 
 The project version combines the bundle version and the original Anytype version.
 Example: `v1.0.0-2025-09-08`
 
 - `v1.0.0` – The bundle's semver version
 - `2025-09-08` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+
+> Compatibility: 0.x (e.g., 0.5) is not supported. From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
 
 ## How to start
 
