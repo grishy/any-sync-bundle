@@ -9,7 +9,7 @@ import (
 // Bundle holds all any-sync service applications with shared network infrastructure.
 //
 // Architecture:
-// - Coordinator creates the network stack (TCP 33010, UDP 33020, DRPC mux, connection pool, etc.)
+// - Coordinator creates the network stack (port 33010 TCP and UDP, DRPC mux, connection pool, etc.)
 // - Other services (Consensus, FileNode, Sync) reuse coordinator's components.
 type Bundle struct {
 	Coordinator *app.App

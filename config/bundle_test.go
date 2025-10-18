@@ -27,7 +27,7 @@ account:
   signingKey: "test-signing-key"
 network:
   listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
+  listenUDPAddr: "0.0.0.0:33010"
 coordinator:
   mongoConnect: "mongodb://localhost:27017/"
   mongoDatabase: "coordinator"
@@ -65,7 +65,7 @@ account:
   signingKey: "test-signing-key"
 network:
   listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
+  listenUDPAddr: "0.0.0.0:33010"
 coordinator:
   mongoConnect: "mongodb://localhost:27017/"
   mongoDatabase: "coordinator"
@@ -103,7 +103,7 @@ account:
   signingKey: "test-signing-key"
 network:
   listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
+  listenUDPAddr: "0.0.0.0:33010"
 coordinator:
   mongoConnect: "mongodb://localhost:27017/"
   mongoDatabase: "coordinator"
@@ -141,7 +141,7 @@ account:
   signingKey: "test-signing-key"
 network:
   listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
+  listenUDPAddr: "0.0.0.0:33010"
 coordinator:
   mongoConnect: "mongodb://localhost:27017/"
   mongoDatabase: "coordinator"
@@ -179,7 +179,7 @@ account:
   signingKey: "test-signing-key"
 network:
   listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
+  listenUDPAddr: "0.0.0.0:33010"
 coordinator:
   mongoConnect: "mongodb://localhost:27017/"
   mongoDatabase: "coordinator"

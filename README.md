@@ -47,8 +47,8 @@ Replace the external address (e.g., `192.168.100.9`) with an address or hostname
 ```sh
 docker run \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
-    -p 33010:33010 \
-    -p 33020:33020/udp \
+    -p 33010:33010/tcp \
+    -p 33010:33010/udp \
     -v $(pwd)/data:/data \
   ghcr.io/grishy/any-sync-bundle:1.0.0-2025-09-08
 ```
@@ -60,7 +60,7 @@ After the first run, point Anytype desktop/mobile apps at the generated client c
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
 - **Lightweight**: No MinIO, and no duplicate logical services
-- **Only 2 open ports**: TCP 33010 and UDP 33020 (configurable)
+- **Only 1 port number**: 33010 (TCP and UDP, configurable)
 
 ## Who is this for?
 
@@ -313,7 +313,7 @@ Backup tips:
 - Embedded MongoDB/Redis in AIO does not start:
   - Check logs for "starting embedded MongoDB/Redis". If the data directories are corrupted, stop the container and **if you no need data**, remove `/data/mongo` or `/data/redis` before restarting.
 - QUIC/UDP blocked:
-  - Open UDP 33020 on firewalls/NAT. Some environments block UDP by default.
+  - Open UDP 33010 on firewalls/NAT. Some environments block UDP by default.
   - Advertise both hostname and IP in `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` for clients behind NAT. Anytype will select one of the addresses to connect to that works.
 - Wrong external address after first run:
   - Edit `./data/bundle-config.yml` → `externalAddr:` list, then restart the server. The new `client-config.yml` will be regenerated.
