@@ -149,7 +149,7 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		Account:       newAcc(netKey),
 		Network: NetworkConfig{
 			ListenTCPAddr: "0.0.0.0:33010",
-			ListenUDPAddr: "0.0.0.0:33020",
+			ListenUDPAddr: "0.0.0.0:33010",
 		},
 		Coordinator: CoordinatorConfig{
 			MongoConnect:  cfg.MongoURI,

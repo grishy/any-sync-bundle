@@ -1,7 +1,7 @@
 ## Overview
 
 - `any-sync-bundle` wraps the Anytype coordinator, consensus, filenode, and sync services into one binary (`lightnode/anynodes.go`).
-- All services share the coordinator’s network stack: TCP 33010, QUIC/UDP 33020, one PeerID, one DRPC mux.
+- All services share the coordinator's network stack: port 33010 (TCP and QUIC/UDP), one PeerID, one DRPC mux.
 - The filenode uses `lightcmp/lightfilenodestore` (BadgerDB) instead of the upstream S3 implementation.
 - External dependencies: MongoDB for coordinator/consensus, Redis for filenode. Sync node persists to AnyStore on disk.
 

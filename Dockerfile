@@ -37,9 +37,9 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 #
 FROM gcr.io/distroless/static-debian12 AS stage-release-minimal
 
-# Bundle network ports
-EXPOSE 33010
-EXPOSE 33020/udp
+# Bundle network ports (TCP and UDP on same port number)
+EXPOSE 33010/tcp
+EXPOSE 33010/udp
 
 VOLUME /data
 
@@ -53,9 +53,9 @@ CMD ["start-bundle"]
 #
 FROM docker.io/redis/redis-stack-server:7.4.0-v7 AS stage-release-all-in-one
 
-# Bundle network ports
-EXPOSE 33010
-EXPOSE 33020/udp
+# Bundle network ports (TCP and UDP on same port number)
+EXPOSE 33010/tcp
+EXPOSE 33010/udp
 
 VOLUME /data
 

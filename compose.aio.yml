@@ -11,8 +11,8 @@ services:
     container_name: any-sync-bundle-aio
     restart: unless-stopped
     ports:
-      - "33010:33010"
-      - "33020:33020/udp"
+      - "33010:33010/tcp"
+      - "33010:33010/udp"
     volumes:
       - ./data:/data
     environment:
