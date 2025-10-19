@@ -60,7 +60,7 @@ After the first run, point Anytype desktop/mobile apps at the generated client c
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
 - **Lightweight**: No MinIO, and no duplicate logical services
-- **Only 2 open ports**: TCP 33010 and UDP 33020 (configurable)
+- **Only 2 open ports**: TCP 33010 (DRPC protocol) and UDP 33020 (QUIC protocol), configurable
 
 ## Who is this for?
 
@@ -133,6 +133,11 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
   ```sh
   docker compose -f compose.external.yml up -d
   ```
+- With Traefik reverse proxy (TCP 33010 + UDP 33020):
+  ```sh
+  docker compose -f compose.traefik.yml up -d
+  ```
+  Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 
 ### Without container (binary)
 
@@ -292,18 +297,49 @@ The light version exists as [a draft PR](https://github.com/grishy/any-sync-bund
 
 ## Data & Backups
 
-Default layout under `./data`:
+⚠️ **Always backup before upgrades**
 
-- `bundle-config.yml` — private configuration and keys. Back this up securely.
-- `client-config.yml` — shareable client configuration, regenerated on each start.
-- `storage/` — persistent data for the sync service.
-- All‑in‑one image only: internal databases persist under the same mount
-  - MongoDB data: `/data/mongo` (see `cmd/start.go` constants)
-  - Redis data: `/data/redis`
+### What Gets Backed Up
 
-Backup tips:
+| Path                       | Critical | Contents                 |
+| -------------------------- | -------- | ------------------------ |
+| `./data/bundle-config.yml` | 🔴 Yes   | Config + private keys    |
+| `./data/storage/`          | 🔴 Yes   | User sync data           |
+| `./data/mongo/` (AIO only) | 🔴 Yes   | Coordinator/consensus DB |
+| `./data/redis/` (AIO only) | 🔴 Yes   | Filenode cache           |
+| `./data/client-config.yml` | 🟢 No    | Regenerated on start     |
 
-- Stop the process/container, then copy the entire `./data` directory. [Original](https://github.com/anyproto/any-sync-dockercompose/wiki/Backups) instruction say to do it in the fly, I assume to stop it before backup if possible.
+### Backup Process
+
+1. Stop your service
+2. Backup the `./data/` directory
+3. Restart service
+
+**Core backup command:**
+
+```bash
+tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz ./data/
+```
+
+### Restore Process
+
+1. Stop your service
+2. Remove current data directory
+3. Extract backup
+4. Restart service
+
+**Core restore command:**
+
+```bash
+rm -rf ./data && tar -xzf backup-YYYYMMDD-HHMMSS.tar.gz
+```
+
+**If update fails to start:**
+
+1. Stop failed service
+2. Remove data: `rm -rf ./data`
+3. Restore backup: `tar -xzf backup-YYYYMMDD-HHMMSS.tar.gz`
+4. Restart with previous version/image
 
 ## Troubleshooting
 
