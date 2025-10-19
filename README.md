@@ -297,18 +297,49 @@ The light version exists as [a draft PR](https://github.com/grishy/any-sync-bund
 
 ## Data & Backups
 
-Default layout under `./data`:
+⚠️ **Always backup before upgrades**
 
-- `bundle-config.yml` — private configuration and keys. Back this up securely.
-- `client-config.yml` — shareable client configuration, regenerated on each start.
-- `storage/` — persistent data for the sync service.
-- All‑in‑one image only: internal databases persist under the same mount
-  - MongoDB data: `/data/mongo` (see `cmd/start.go` constants)
-  - Redis data: `/data/redis`
+### What Gets Backed Up
 
-Backup tips:
+| Path                       | Critical | Contents                 |
+| -------------------------- | -------- | ------------------------ |
+| `./data/bundle-config.yml` | 🔴 Yes   | Config + private keys    |
+| `./data/storage/`          | 🔴 Yes   | User sync data           |
+| `./data/mongo/` (AIO only) | 🔴 Yes   | Coordinator/consensus DB |
+| `./data/redis/` (AIO only) | 🔴 Yes   | Filenode cache           |
+| `./data/client-config.yml` | 🟢 No    | Regenerated on start     |
 
-- Stop the process/container, then copy the entire `./data` directory. [Original](https://github.com/anyproto/any-sync-dockercompose/wiki/Backups) instruction say to do it in the fly, I assume to stop it before backup if possible.
+### Backup Process
+
+1. Stop your service
+2. Backup the `./data/` directory
+3. Restart service
+
+**Core backup command:**
+
+```bash
+tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz ./data/
+```
+
+### Restore Process
+
+1. Stop your service
+2. Remove current data directory
+3. Extract backup
+4. Restart service
+
+**Core restore command:**
+
+```bash
+rm -rf ./data && tar -xzf backup-YYYYMMDD-HHMMSS.tar.gz
+```
+
+**If update fails to start:**
+
+1. Stop failed service
+2. Remove data: `rm -rf ./data`
+3. Restore backup: `tar -xzf backup-YYYYMMDD-HHMMSS.tar.gz`
+4. Restart with previous version/image
 
 ## Troubleshooting
 
