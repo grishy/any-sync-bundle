@@ -7,38 +7,33 @@
 #   2. Run: docker compose -f compose.traefik.yml up -d
 #   3. Get client config: cat ./data/client-config.yml
 #
-# For detailed documentation, see: docs/TRAEFIK.md
-
-version: "3.8"
+# Debugging:
+#   - View Traefik dashboard: http://localhost:8080
+#   - Test TCP port: nc -zv <your-ip> 33010
 
 services:
   traefik:
-    image: docker.io/traefik:v3.4
+    image: docker.io/traefik:v3.5.3
     container_name: traefik
     restart: unless-stopped
     command:
       # Enable Docker provider
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-
       # Define EntryPoints for any-sync TCP and UDP
       - "--entrypoints.any-sync-tcp.address=:33010"
       - "--entrypoints.any-sync-udp.address=:33020/udp"
-
       # Optional: Enable Traefik dashboard for debugging
-      - "--api.dashboard=true"
-      - "--api.insecure=true"
-      - "--entrypoints.traefik.address=:8080"
-
-      # Optional: Enable access logs for debugging
+      # - "--api.dashboard=true"
+      # - "--api.insecure=true"
+      # - "--entrypoints.traefik.address=:8080"
       # - "--accesslog=true"
       # - "--log.level=DEBUG"
-
     ports:
-      - "33010:33010" # TCP for DRPC protocol any-sync-bundle
+      - "33010:33010"     # TCP for DRPC protocol any-sync-bundle
       - "33020:33020/udp" # UDP for QUIC protocol any-sync-bundle
-      - "8080:8080" # Traefik dashboard (remove in production)
-
+      # Optional: Enable Traefik dashboard for debugging
+      # - "8080:8080"
     volumes:
       # Required: Docker socket for service discovery
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -47,35 +42,24 @@ services:
     image: ghcr.io/grishy/any-sync-bundle:1.0.0-2025-09-08
     container_name: any-sync-bundle-aio
     restart: unless-stopped
-
     environment:
       # IMPORTANT: Replace this with your server's public IP or hostname
       # This is the address clients will use to connect (Traefik's public address)
-      # Examples:
-      #   - Domain: "sync.mycompany.com"
-      #   - IP: "203.0.113.10"
-      #   - Result: "sync.mycompany.com,203.0.113.10"
+      # Read the documentation for more details.
       ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS: "192.168.100.9"
-
-      # Optional: Customize other settings (only used on first run)
-      # ANY_SYNC_BUNDLE_INIT_STORAGE: "/data/storage"
-      # ANY_SYNC_BUNDLE_INIT_MONGO_URI: "mongodb://mongo:27017/?replicaSet=rs0"
-      # ANY_SYNC_BUNDLE_INIT_REDIS_URI: "redis://redis:6379/"
-
     volumes:
       - ./data:/data
-
     labels:
       # Enable Traefik for this service
       - "traefik.enable=true"
-
       # TCP Router Configuration
       # Routes all TCP traffic on port 33010 to any-sync-bundle
       - "traefik.tcp.routers.any-sync-tcp.rule=HostSNI(`*`)"
       - "traefik.tcp.routers.any-sync-tcp.entrypoints=any-sync-tcp"
       - "traefik.tcp.routers.any-sync-tcp.service=any-sync-tcp-service"
+      - "traefik.tcp.routers.any-sync-tcp.tls.passthrough=true"
+      # Try TLS passthrough
       - "traefik.tcp.services.any-sync-tcp-service.loadbalancer.server.port=33010"
-
       # UDP Router Configuration
       # Routes all UDP traffic on port 33020 to any-sync-bundle
       - "traefik.udp.routers.any-sync-udp.entrypoints=any-sync-udp"

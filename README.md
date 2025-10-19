@@ -60,7 +60,7 @@ After the first run, point Anytype desktop/mobile apps at the generated client c
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
 - **Lightweight**: No MinIO, and no duplicate logical services
-- **Only 2 open ports**: TCP 33010 and UDP 33020 (configurable)
+- **Only 2 open ports**: TCP 33010 (DRPC protocol) and UDP 33020 (QUIC protocol), configurable
 
 ## Who is this for?
 
@@ -133,11 +133,11 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
   ```sh
   docker compose -f compose.external.yml up -d
   ```
-- With Traefik reverse proxy:
+- With Traefik reverse proxy (TCP 33010 + UDP 33020):
   ```sh
   docker compose -f compose.traefik.yml up -d
   ```
-  See [Traefik documentation](./docs/TRAEFIK.md) for detailed setup instructions and configuration.
+  Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 
 ### Without container (binary)
 
