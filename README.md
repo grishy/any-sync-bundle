@@ -133,6 +133,11 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
   ```sh
   docker compose -f compose.external.yml up -d
   ```
+- With Traefik reverse proxy:
+  ```sh
+  docker compose -f compose.traefik.yml up -d
+  ```
+  See [Traefik documentation](./docs/TRAEFIK.md) for detailed setup instructions and configuration.
 
 ### Without container (binary)
 
