@@ -153,13 +153,13 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 		Register(spacedeleter.New()).
 		Register(peermanager.New()).
 
-		// Archive
-		Register(archivestore.New()).
-		Register(archive.New()).
-
 		// Debug
 		Register(debugserver.New()).
-		Register(nodedebugrpc.New())
+		Register(nodedebugrpc.New()).
+
+		// Archive
+		Register(archivestore.New()).
+		Register(archive.New())
 }
 
 // newFileNodeApp creates a filenode application instance with shared components.
