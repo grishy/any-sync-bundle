@@ -47,6 +47,8 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 	"github.com/anyproto/any-sync/util/syncqueues"
 
+	"github.com/anyproto/any-sync-node/archive"
+	"github.com/anyproto/any-sync-node/archive/archivestore"
 	"github.com/anyproto/any-sync-node/config"
 	"github.com/anyproto/any-sync-node/debug/nodedebugrpc"
 	"github.com/anyproto/any-sync-node/nodehead"
@@ -150,6 +152,10 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 		Register(nodespace.New()).
 		Register(spacedeleter.New()).
 		Register(peermanager.New()).
+
+		// Archive
+		Register(archivestore.New()).
+		Register(archive.New()).
 
 		// Debug
 		Register(debugserver.New()).
