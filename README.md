@@ -50,7 +50,7 @@ docker run \
     -p 33010:33010 \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
-  ghcr.io/grishy/any-sync-bundle:1.1.0-2025-10-16
+  ghcr.io/grishy/any-sync-bundle:1.1.1-2025-10-16
 ```
 
 After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`.
@@ -78,9 +78,9 @@ What this is not:
 ## Version
 
 The project version combines the bundle version and the original Anytype version.
-Example: `v1.1.0-2025-10-16`
+Example: `v1.1.1-2025-10-16`
 
-- `v1.1.0` – The bundle's semver version
+- `v1.1.1` – The bundle's semver version
 - `2025-10-16` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 > Compatibility: 0.x (e.g., 0.5) is not supported. From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
@@ -89,7 +89,7 @@ Example: `v1.1.0-2025-10-16`
 
 ### Container
 
-Pick one of the published tags, for example `v1.1.0-2025-10-16` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
+Pick one of the published tags, for example `v1.1.1-2025-10-16` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
 
 Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recommendation).
 
@@ -365,7 +365,7 @@ goreleaser release --snapshot --clean
 
 ```sh
 # 1. Set variables (fish-shell)
-set VERSION v1.1.0
+set VERSION v1.1.1
 set ANYTYPE_UNIX_TIMESTAMP 1760632373
 
 # 2. Format date
