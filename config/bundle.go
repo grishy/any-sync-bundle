@@ -55,7 +55,26 @@ type ConsensusConfig struct {
 }
 
 type FileNodeConfig struct {
-	RedisConnect string `yaml:"redisConnect"`
+	RedisConnect string    `yaml:"redisConnect"`
+	S3           *S3Config `yaml:"s3,omitempty"` // Optional: if present, use S3 storage instead of BadgerDB
+}
+
+// S3Config configures S3 storage backend for the filenode.
+// When this config is present in FileNodeConfig, S3 storage is automatically enabled.
+type S3Config struct {
+	Region         string         `yaml:"region"`                   // AWS region (e.g., "us-east-1")
+	BlockBucket    string         `yaml:"blockBucket"`              // S3 bucket for file blocks/data
+	IndexBucket    string         `yaml:"indexBucket"`              // S3 bucket for metadata index
+	Endpoint       string         `yaml:"endpoint,omitempty"`       // Optional: Custom endpoint for S3-compatible services (MinIO, etc.)
+	Profile        string         `yaml:"profile,omitempty"`        // Optional: AWS profile name from ~/.aws/credentials
+	ForcePathStyle bool           `yaml:"forcePathStyle,omitempty"` // Optional: Use path-style URLs for S3-compatible services
+	Credentials    *S3Credentials `yaml:"credentials,omitempty"`    // Optional: Static credentials (not recommended for production)
+}
+
+// S3Credentials holds static AWS credentials.
+type S3Credentials struct {
+	AccessKey string `yaml:"accessKey"` // AWS Access Key ID
+	SecretKey string `yaml:"secretKey"` // AWS Secret Access Key
 }
 
 func Load(cfgPath string) *Config {
@@ -92,6 +111,16 @@ type CreateOptions struct {
 	MongoURI      string
 	RedisURI      string
 	ExternalAddrs []string
+
+	// S3 storage (optional - if not set, BadgerDB is used)
+	S3Region         string
+	S3BlockBucket    string
+	S3IndexBucket    string
+	S3Endpoint       string
+	S3Profile        string
+	S3AccessKey      string
+	S3SecretKey      string
+	S3ForcePathStyle bool
 }
 
 func CreateWrite(cfg *CreateOptions) *Config {
@@ -162,6 +191,38 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		FileNode: FileNodeConfig{
 			RedisConnect: cfg.RedisURI,
 		},
+	}
+
+	// Configure S3 storage if S3 flags are provided
+	if cfg.S3BlockBucket != "" || cfg.S3Region != "" || cfg.S3IndexBucket != "" {
+		// Validate: all three required S3 fields must be present
+		if cfg.S3Region == "" || cfg.S3BlockBucket == "" || cfg.S3IndexBucket == "" {
+			log.Panic(
+				"S3 storage requires all three fields: --initial-s3-region, --initial-s3-block-bucket, and --initial-s3-index-bucket",
+			)
+		}
+
+		defaultCfg.FileNode.S3 = &S3Config{
+			Region:         cfg.S3Region,
+			BlockBucket:    cfg.S3BlockBucket,
+			IndexBucket:    cfg.S3IndexBucket,
+			Endpoint:       cfg.S3Endpoint,
+			Profile:        cfg.S3Profile,
+			ForcePathStyle: cfg.S3ForcePathStyle,
+		}
+
+		// Add static credentials if provided
+		if cfg.S3AccessKey != "" && cfg.S3SecretKey != "" {
+			defaultCfg.FileNode.S3.Credentials = &S3Credentials{
+				AccessKey: cfg.S3AccessKey,
+				SecretKey: cfg.S3SecretKey,
+			}
+		}
+
+		log.Info("S3 storage configured",
+			zap.String("region", cfg.S3Region),
+			zap.String("blockBucket", cfg.S3BlockBucket),
+			zap.String("indexBucket", cfg.S3IndexBucket))
 	}
 
 	return defaultCfg
