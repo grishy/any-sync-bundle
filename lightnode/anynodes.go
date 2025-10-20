@@ -47,6 +47,8 @@ import (
 	"github.com/anyproto/any-sync/nodeconf/nodeconfstore"
 	"github.com/anyproto/any-sync/util/syncqueues"
 
+	"github.com/anyproto/any-sync-node/archive"
+	"github.com/anyproto/any-sync-node/archive/archivestore"
 	"github.com/anyproto/any-sync-node/config"
 	"github.com/anyproto/any-sync-node/debug/nodedebugrpc"
 	"github.com/anyproto/any-sync-node/nodehead"
@@ -153,7 +155,11 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 
 		// Debug
 		Register(debugserver.New()).
-		Register(nodedebugrpc.New())
+		Register(nodedebugrpc.New()).
+
+		// Archive
+		Register(archivestore.New()).
+		Register(archive.New())
 }
 
 // newFileNodeApp creates a filenode application instance with shared components.
