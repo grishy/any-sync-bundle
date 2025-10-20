@@ -238,6 +238,136 @@ direnv allow
 nix flake check
 ```
 
+## Storage Options
+
+### Local Storage (Default - BadgerDB)
+
+By default, the bundle uses embedded BadgerDB for file storage. No additional configuration needed.
+
+```
++ Zero configuration setup
++ No external dependencies
++ Lower latency for local access
++ Good for personal/small team use
+- Limited by local disk space
+```
+
+### S3 Storage (Optional - Original)
+
+This feature uses the **original Anytype upstream S3 storage implementation** (from any-sync-filenode), not a custom bundle-specific solution.
+
+```
++ Original Anytype S3 storage implementation
++ Supports AWS S3, MinIO, DigitalOcean Spaces, and other S3-compatible services
+- Network latency compared to local storage
+- Requires configuration
+```
+
+#### Enabling S3 Storage
+
+**Method 1: Via CLI Flags (Recommended for first start)**
+
+Configure S3 at first start using CLI flags or environment variables:
+
+```bash
+./any-sync-bundle start-bundle \
+  --initial-external-addrs "192.168.1.100" \
+  --initial-mongo-uri "mongodb://localhost:27017/" \
+  --initial-redis-uri "redis://localhost:6379/" \
+  --initial-s3-region "us-east-1" \
+  --initial-s3-block-bucket "anytype-data" \
+  --initial-s3-index-bucket "anytype-index"
+```
+
+See [Parameters](#s3-storage-flags-optional) section for all S3 flags.
+
+**Method 2: Edit Configuration File**
+
+Alternatively, add an `s3` section to your `bundle-config.yml` under `filenode`:
+
+```yaml
+filenode:
+  redisConnect: "redis://..."
+  s3:
+    region: "us-east-1"
+    blockBucket: "anytype-filenode-data"
+    indexBucket: "anytype-filenode-index"
+```
+
+**Required fields:**
+
+- `region`: AWS region (e.g., "us-east-1")
+- `blockBucket`: S3 bucket for file blocks/data
+- `indexBucket`: S3 bucket for metadata index
+
+#### S3 Authentication Methods
+
+**1. AWS Profiles:**
+
+```yaml
+filenode:
+  s3:
+    region: "us-east-1"
+    blockBucket: "my-bucket"
+    indexBucket: "my-index-bucket"
+    profile: "production" # Uses ~/.aws/credentials
+```
+
+**2. Environment Variables:**
+
+```bash
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY ... ghcr.io/grishy/any-sync-bundle
+```
+
+**3. Static Credentials:**
+
+```yaml
+filenode:
+  s3:
+    region: "us-east-1"
+    blockBucket: "my-bucket"
+    indexBucket: "my-index-bucket"
+    credentials:
+      accessKey: "AKIA..."
+      secretKey: "..."
+```
+
+**4. IAM Roles:**
+
+No credentials needed - the bundle will automatically use the instance's IAM role:
+
+```yaml
+filenode:
+  s3:
+    region: "us-east-1"
+    blockBucket: "my-bucket"
+    indexBucket: "my-index-bucket"
+```
+
+#### S3-Compatible Services (MinIO, etc.)
+
+For self-hosted S3-compatible services:
+
+```yaml
+filenode:
+  s3:
+    endpoint: "https://minio.example.com"
+    region: "us-east-1"
+    blockBucket: "anytype-data"
+    indexBucket: "anytype-index"
+    forcePathStyle: true
+    credentials:
+      accessKey: "minioadmin"
+      secretKey: "minioadmin"
+```
+
+**Optional fields:**
+
+- `endpoint`: Custom endpoint URL for S3-compatible services
+- `forcePathStyle`: Use path-style URLs (required for most self-hosted S3 services)
+
 ## Configuration files
 
 There are two configuration files under `./data` by default:
@@ -281,12 +411,36 @@ Flags for `start-bundle` and `start-all-in-one`:
 
 | Flag                       | Description                                                                                                                                                                      |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--bundle-config`          | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
-| `--client-config`          | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
+| `--bundle-config`, `-c`    | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
+| `--client-config`, `-cc`   | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
 | `--initial-storage`        | Initial path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_STORAGE`                       |
 | `--initial-external-addrs` | Initial external addresses for the bundle <br> ‣ Default: `192.168.8.214,example.local` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`                       |
 | `--initial-mongo-uri`      | Initial MongoDB URI for the bundle <br> ‣ Default: `mongodb://127.0.0.1:27017/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_MONGO_URI`                                    |
 | `--initial-redis-uri`      | Initial Redis URI for the bundle <br> ‣ Default: `redis://127.0.0.1:6379/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_REDIS_URI`                                         |
+
+### S3 Storage Flags (Optional)
+
+Optional flags to configure S3 storage at first start. If not provided, BadgerDB (local storage) is used. All three core S3 flags (`region`, `blockBucket`, `indexBucket`) must be provided together.
+
+| Flag                            | Description                                                                                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--initial-s3-region`           | S3 region (e.g., us-east-1). **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_REGION`                                                |
+| `--initial-s3-block-bucket`     | S3 bucket for file blocks. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BLOCK_BUCKET`                                            |
+| `--initial-s3-index-bucket`     | S3 bucket for metadata index. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_INDEX_BUCKET`                                         |
+| `--initial-s3-endpoint`         | Custom S3 endpoint for S3-compatible services (e.g., MinIO, DigitalOcean Spaces) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                            |
+| `--initial-s3-profile`          | AWS profile name from ~/.aws/credentials <br> ‣ Default: `default` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_PROFILE`                                           |
+| `--initial-s3-access-key`       | S3 access key for static credentials (not recommended for production) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ACCESS_KEY`                                     |
+| `--initial-s3-secret-key`       | S3 secret key for static credentials (not recommended for production) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_SECRET_KEY`                                     |
+| `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO and some S3-compatible services) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE` |
+
+**Authentication methods (in order of precedence):**
+
+1. IAM roles (automatic for AWS EC2/ECS - no credentials needed)
+2. Environment variables (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`)
+3. AWS profile from `~/.aws/credentials` (specified by `--initial-s3-profile`)
+4. Static credentials from flags (`--initial-s3-access-key` and `--initial-s3-secret-key`)
+
+See [Storage Options](#storage-options) section for detailed S3 setup examples and configuration.
 
 ## Light version (not in development)
 
