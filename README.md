@@ -385,3 +385,7 @@ git push origin tag $FINAL_VERSION
 
 © 2025 [Sergei G.](https://github.com/grishy)
 Licensed under [MIT](./LICENSE).
+
+<p align="center">
+  <sub>Built with ❤️ for data ownership, local-first, and open-source</sub>
+</p>
