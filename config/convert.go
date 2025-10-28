@@ -5,6 +5,8 @@ import (
 	"time"
 
 	consensusconfig "github.com/anyproto/any-sync-consensusnode/config"
+	consensusdb "github.com/anyproto/any-sync-consensusnode/db"
+	consensusdeletelog "github.com/anyproto/any-sync-consensusnode/deletelog"
 	coordinatorconfig "github.com/anyproto/any-sync-coordinator/config"
 	filenodeconfig "github.com/anyproto/any-sync-filenode/config"
 	syncconfig "github.com/anyproto/any-sync-node/config"
@@ -85,6 +87,7 @@ func (bc *Config) coordinatorConfig(opts *nodeConfigOpts) *coordinatorconfig.Con
 		Account: bc.Account,
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
+			Snappy: true,
 		},
 		Metric:                   opts.metricCfg,
 		Network:                  opts.networkCfg,
@@ -113,12 +116,13 @@ func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config 
 	return &consensusconfig.Config{
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
+			Snappy: true,
 		},
 		Account:                  bc.Account,
 		Network:                  opts.networkCfg,
 		NetworkStorePath:         opts.pathNetworkStoreConsensus,
 		NetworkUpdateIntervalSec: 0,
-		Mongo: consensusconfig.Mongo{
+		Mongo: consensusdb.Config{
 			Connect:       bc.Consensus.MongoConnect,
 			Database:      bc.Consensus.MongoDatabase,
 			LogCollection: "log",
@@ -127,6 +131,9 @@ func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config 
 		Log:    logger.Config{Production: false},
 		Yamux:  bc.yamuxConfig(),
 		Quic:   bc.quicConfig(),
+		Deletion: consensusdeletelog.Config{
+			Enable: true,
+		},
 	}
 }
 
@@ -157,6 +164,7 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 		// APIServer omitted - disabled by default.
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
+			Snappy: true,
 		},
 		Account:                  bc.Account,
 		Network:                  opts.networkCfg,

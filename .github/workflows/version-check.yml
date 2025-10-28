@@ -61,32 +61,53 @@ jobs:
           **Latest:** ${{ env.latest_ts }}
           **Source:** https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
 
-          ## New Versions
           EOF
 
           # Add versions as simple list
           jq -r 'to_entries | .[] | "- \(.key): v\(.value)"' new_versions.json >> issue.md
 
-          # Add update commands
+          # Add update process
           cat >> issue.md << 'EOF'
 
-          ## Update Commands
+          ## Update
+
+          ### 1. Edit `go.mod` directly
+          Update the version numbers for packages that changed (see above):
+          ```
+          require (
+              github.com/anyproto/any-sync-consensusnode vX.Y.Z
+              github.com/anyproto/any-sync-coordinator vX.Y.Z
+              github.com/anyproto/any-sync-filenode vX.Y.Z
+              github.com/anyproto/any-sync-node vX.Y.Z
+          )
+          ```
+
+          Also update the timestamp comment:
+          ```
+          // Current timestamp: "${{ env.current_ts }}" → "${{ env.latest_ts }}"
+          ```
+
+          ### 2. Sync and verify dependencies
           ```bash
-          # Update all packages to specific versions
-          EOF
-
-          # Generate specific version commands from JSON
-          jq -r 'to_entries | .[] | "go get github.com/anyproto/\(.key | sub("pkg::";""))@v\(.value)"' new_versions.json >> issue.md
-
-          cat >> issue.md << 'EOF'
           go mod tidy
+          go mod verify
+          ```
 
-          # Test
-          go test ./...
+          ### 3. Fix any API breaking changes
+          If the build fails, check the changelogs above for breaking changes and update code accordingly.
+
+          ### 4. Run quality checks
+          ```bash
+          golangci-lint run --fix ./...
+          go test -race -shuffle=on -vet=all -failfast ./...
           go build -o any-sync-bundle .
+          ```
 
-          # Update timestamp in go.mod comment
-          # Change: Current timestamp: "${{ env.current_ts }}" → Current timestamp: "${{ env.latest_ts }}"
+          ### 5. Verify the binary
+          ```bash
+          ./any-sync-bundle --version
+          ./any-sync-bundle --help
+          ```
           ```
 
           ---
