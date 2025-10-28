@@ -5,12 +5,12 @@ go 1.25
 tool github.com/matryer/moq
 
 // Source: https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
-// Current timestamp: "1760632373"
+// Current timestamp: "1761316841"
 require (
-	github.com/anyproto/any-sync-consensusnode v0.4.1
+	github.com/anyproto/any-sync-consensusnode v0.4.2
 	github.com/anyproto/any-sync-coordinator v0.7.3
 	github.com/anyproto/any-sync-filenode v0.9.2
-	github.com/anyproto/any-sync-node v0.9.2
+	github.com/anyproto/any-sync-node v0.9.3
 )
 
 require (

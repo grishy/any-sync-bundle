@@ -4,6 +4,7 @@ import (
 	consensusnodeConfig "github.com/anyproto/any-sync-consensusnode/config"
 	"github.com/anyproto/any-sync-consensusnode/consensusrpc"
 	consensusnodeDB "github.com/anyproto/any-sync-consensusnode/db"
+	consensusdeletelog "github.com/anyproto/any-sync-consensusnode/deletelog"
 	"github.com/anyproto/any-sync-consensusnode/stream"
 
 	coordinatorAccount "github.com/anyproto/any-sync-coordinator/account"
@@ -221,5 +222,8 @@ func newConsensusApp(cfg *consensusnodeConfig.Config, net *sharedCmp) *app.App {
 		// Storage & Service Logic
 		Register(consensusnodeDB.New()).
 		Register(stream.New()).
-		Register(consensusrpc.New())
+		Register(consensusrpc.New()).
+
+		// Deletion Log
+		Register(consensusdeletelog.New())
 }
