@@ -5,44 +5,28 @@
 </p>
 
 <p align="center">
-  <table align="center">
-    <tr>
-      <td><strong>Status</strong></td>
-      <td><b>Maintained</b></td>
-    </tr>
-    <tr>
-      <td><strong>Stable Version</strong></td>
-      <td><a href="https://github.com/grishy/any-sync-bundle/tags"><img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="GitHub tag"></a></td>
-    </tr>
-    <tr>
-      <td><strong>CI/CD</strong></td>
-      <td><a href="https://github.com/grishy/any-sync-bundle/actions"><img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build Status"></a></td>
-    </tr>
-  </table>
+  <b>Self-host Anytype in 60 seconds. One command. Zero complexity.</b>
 </p>
 
-## Overview
+<p align="center">
+  <a href="https://github.com/grishy/any-sync-bundle/tags"><img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="Version"></a>
+  &nbsp;
+  <a href="https://github.com/grishy/any-sync-bundle/actions"><img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build"></a>
+</p>
 
-**any-sync-bundle** is a prepackaged, all-in-one self-hosted server solution designed for [Anytype](https://anytype.io/), a local-first, peer-to-peer note-taking and knowledge management application. It is based on the original modules used in the official Anytype server but merges them into a single binary for simplified deployment and zero-configuration setup.
+**any-sync-bundle** is a prepackaged, all-in-one self-hosted server solution designed for Anytype, a local-first, peer-to-peer note-taking and knowledge management application. It is based on the original modules used in the official Anytype server but merges them into a single binary for simplified deployment and zero-configuration setup.
 
----
+> 💡 **New to Anytype?** It's a local-first, privacy-focused alternative to Notion. [Learn more →](https://anytype.io/)
 
-<div style="border: 1px solid #ffa500; background-color: #fff7e6; padding: 16px; border-radius: 6px; margin: 16px 0;">
-  <p>Available variants:</p>
-  <ul>
-    <li><strong>✅ Bundle (all-in-one container)</strong>: Bundled with MongoDB and Redis built in.</li>
-    <li><strong>✅ Bundle (solo bundle / container)</strong>: A variant without MongoDB and Redis. You can use your own instances.</li>
-    <li><strong>🧶 Light version<a href="#light-version-not-in-development">*</a></strong>: Not in development currently.</li>
-  </ul>
-</div>
-
----
-
-## TL;DR – How to start a self-hosted Anytype server
+## TL;DR – 60-Second Setup
 
 This is a zero-config version of the official Anytype server. It uses the same upstream modules Anytype ships, but compacts them into a single binary - think of it as "K3s for Any Sync".
 
-Replace the external address (e.g., `192.168.100.9`) with an address or hostname clients should connect to. This is test start, check below more real configuration.
+**Replace `192.168.100.9` with:**
+
+- Your server's **local IP** for LAN-only access (e.g., `192.168.1.100`)
+- Your **public domain** for remote access (e.g., `sync.example.com`)
+- **Both** (comma-separated) for flexibility: `sync.example.com,192.168.1.100`
 
 ```sh
 docker run \
@@ -53,23 +37,35 @@ docker run \
   ghcr.io/grishy/any-sync-bundle:1.1.2-2025-10-24
 ```
 
-After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`.
+After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`. This is test start, check below more real configuration.
+
+> How to configure Anytype apps to use your self-hosted server? See [Client setup →](https://doc.anytype.io/anytype-docs/advanced/data-and-security/self-hosting/self-hosted#how-to-switch-to-a-self-hosted-network)
+
+## Available variants
+
+- **✅ Bundle (all-in-one container)**: Bundled with MongoDB and Redis built in.
+- **✅ Bundle (solo bundle / container)**: A variant without MongoDB and Redis. You can use your own instances.
+- **🧶 Custom Light version[\*](#light-version-not-in-development)**: Not in development currently.
 
 ## Key features
 
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
+- **Zero-config**: Sensible defaults, configurable when needed
 - **Lightweight**: No MinIO, and no duplicate logical services
 - **Only 2 open ports**: TCP 33010 (DRPC protocol) and UDP 33020 (QUIC protocol), configurable
 
-## Who is this for?
+### Who is this for?
 
-- Self‑hosters and small teams who want a simpler, single‑binary Any Sync deployment.
-- Homelab or small server setups where fewer moving parts and clear defaults matter.
+- ✅ **Self-hosters** who value simplicity over complexity
+- ✅ **Small teams** (5-50 users) who don't need horizontal scaling
+- ✅ **Low resource** Homelab setups and Raspberry Pi deployments
 
-What this is not:
+### Not for you if
 
-- A high‑availability or horizontally scaled deployment. If you need HA, use upstream components directly and follow Anytype’s official guidance.
+- ❌ You need high-availability clustering across multiple nodes
+- ❌ You require horizontal scaling beyond a single server
+- ❌ You want to use the official Anytype architecture as-is
 
 ## Architecture
 
@@ -78,9 +74,11 @@ What this is not:
 ## Version
 
 The project version combines the bundle version and the original Anytype version.
-Example: `v1.1.2-2025-10-24`
+Current version: **`v1.1.2-2025-10-24`**
 
-- `v1.1.2` – The bundle's semver version
+**Version format:** `v[bundle-version]-[anytype-compatibility-date]`
+
+- `v1.1.2` – Bundle's semantic version (SemVer)
 - `2025-10-24` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 > Compatibility: 0.x (e.g., 0.5) is not supported. From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
@@ -354,6 +352,16 @@ rm -rf ./data && tar -xzf backup-YYYYMMDD-HHMMSS.tar.gz
 - Wrong external address after first run:
   - Edit `./data/bundle-config.yml` → `externalAddr:` list, then restart the server. The new `client-config.yml` will be regenerated.
 
+## Acknowledgments
+
+> "Because I stand on the shoulders of giants, I can see further than they can."
+
+This project wouldn't exist without:
+
+- **[Anytype](https://anytype.io/)** – For creating an amazing local-first, privacy-focused tool
+- The **any-sync** team – For open-sourcing the sync infrastructure
+- The **self-hosting community** – For testing, feedback, and support
+
 ## Release
 
 Reminder for releasing a new version.
@@ -364,20 +372,16 @@ goreleaser release --snapshot --clean
 ```
 
 ```sh
-# 1. Set variables (fish-shell)
+# Set variables (fish shell)
 set VERSION v1.1.2
 set ANYTYPE_UNIX_TIMESTAMP 1761316841
-
-# 2. Format date
 set ANYTYPE_FORMATTED (date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d')
 set FINAL_VERSION $VERSION-$ANYTYPE_FORMATTED
 
-# 3. Create tag and push
+# Create tag and push
 git tag -a $FINAL_VERSION -m "Release $FINAL_VERSION"
 git push origin tag $FINAL_VERSION
 ```
-
-> Because I stand on the shoulders of giants, I can see further than they can.
 
 > "Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away" – Antoine de Saint-Exupéry
 
