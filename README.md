@@ -1,5 +1,3 @@
-# Any-Sync-Bundle
-
 <p align="center">
   <img src="./docs/logo.png" width="550">
 </p>
@@ -14,10 +12,12 @@
   <a href="https://github.com/grishy/any-sync-bundle/actions"><img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build"></a>
 </p>
 
+--- 
+
 **any-sync-bundle** is a prepackaged, all-in-one self-hosted server solution designed for Anytype, a local-first, peer-to-peer note-taking and knowledge management application. It is based on the original modules used in the official Anytype server but merges them into a single binary for simplified deployment and zero-configuration setup.
 
 > 💡 **New to Anytype?** It's a local-first, privacy-focused alternative to Notion. [Learn more →](https://anytype.io/)
-
+  
 ## TL;DR – 60-Second Setup
 
 This is a zero-config version of the official Anytype server. It uses the same upstream modules Anytype ships, but compacts them into a single binary - think of it as "K3s for Any Sync".
