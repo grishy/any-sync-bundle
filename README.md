@@ -10,6 +10,8 @@
   <a href="https://github.com/grishy/any-sync-bundle/tags"><img src="https://img.shields.io/github/v/tag/grishy/any-sync-bundle" alt="Version"></a>
   &nbsp;
   <a href="https://github.com/grishy/any-sync-bundle/actions"><img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build"></a>
+  &nbsp;
+  <img src="https://goreportcard.com/badge/github.com/grishy/gopkgview" alt="Go Report Card">
 </p>
 
 --- 
