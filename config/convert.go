@@ -15,6 +15,7 @@ import (
 	"github.com/anyproto/any-sync-coordinator/db"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
 	"github.com/anyproto/any-sync-filenode/redisprovider"
+	"github.com/anyproto/any-sync-filenode/store/s3store"
 	"github.com/anyproto/any-sync-node/nodestorage"
 	"github.com/anyproto/any-sync-node/nodesync"
 	"github.com/anyproto/any-sync-node/nodesync/hotsync"
@@ -140,7 +141,7 @@ func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config 
 func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TiB in bytes
 
-	return &filenodeconfig.Config{
+	cfg := &filenodeconfig.Config{
 		Account: bc.Account,
 		Drpc: rpc.Config{
 			Stream: rpc.StreamConfig{MaxMsgSizeMb: 256},
@@ -157,6 +158,43 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 		NetworkUpdateIntervalSec: 0,
 		DefaultLimit:             oneTerabyte,
 	}
+
+	// Configure S3 storage if S3 config is present
+	if bc.FileNode.S3 != nil {
+		cfg.S3Store = bc.convertS3Config()
+	}
+
+	return cfg
+}
+
+// convertS3Config converts bundle S3Config to upstream s3store.Config format.
+func (bc *Config) convertS3Config() s3store.Config {
+	s3 := bc.FileNode.S3
+
+	cfg := s3store.Config{
+		Region:         s3.Region,
+		Bucket:         s3.BlockBucket,
+		IndexBucket:    s3.IndexBucket,
+		Endpoint:       s3.Endpoint,
+		Profile:        s3.Profile,
+		MaxThreads:     16,
+		ForcePathStyle: s3.ForcePathStyle,
+	}
+
+	// Set default profile if not specified
+	if cfg.Profile == "" {
+		cfg.Profile = "default"
+	}
+
+	// Copy credentials if present
+	if s3.Credentials != nil {
+		cfg.Credentials = s3store.Credentials{
+			AccessKey: s3.Credentials.AccessKey,
+			SecretKey: s3.Credentials.SecretKey,
+		}
+	}
+
+	return cfg
 }
 
 func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
