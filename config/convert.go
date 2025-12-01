@@ -13,8 +13,11 @@ import (
 
 	"github.com/anyproto/any-sync-coordinator/accountlimit"
 	"github.com/anyproto/any-sync-coordinator/db"
+	"github.com/anyproto/any-sync-coordinator/inbox"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
 	"github.com/anyproto/any-sync-filenode/redisprovider"
+	"github.com/anyproto/any-sync-node/archive"
+	"github.com/anyproto/any-sync-node/archive/archivestore"
 	"github.com/anyproto/any-sync-node/nodestorage"
 	"github.com/anyproto/any-sync-node/nodesync"
 	"github.com/anyproto/any-sync-node/nodesync/hotsync"
@@ -109,6 +112,7 @@ func (bc *Config) coordinatorConfig(opts *nodeConfigOpts) *coordinatorconfig.Con
 			SpaceMembersWrite: 1000,
 			SharedSpacesLimit: 1000,
 		},
+		Inbox: inbox.Config{},
 	}
 }
 
@@ -187,6 +191,8 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 		Yamux:   bc.yamuxConfig(),
 		Quic:    bc.quicConfig(),
 		Limiter: limiter.Config{},
+		S3Store: archivestore.Config{Enabled: false}, // Disabled by default
+		Archive: archive.Config{Enabled: false},      // Disabled by default
 	}
 }
 
