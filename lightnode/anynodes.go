@@ -16,8 +16,10 @@ import (
 	"github.com/anyproto/any-sync-coordinator/db"
 	"github.com/anyproto/any-sync-coordinator/deletionlog"
 	"github.com/anyproto/any-sync-coordinator/identityrepo"
+	"github.com/anyproto/any-sync-coordinator/inbox"
 	coordinatorNodeconfsource "github.com/anyproto/any-sync-coordinator/nodeconfsource"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
+	"github.com/anyproto/any-sync-coordinator/subscribe"
 
 	filenodeConfig "github.com/anyproto/any-sync-filenode/config"
 	"github.com/anyproto/any-sync-filenode/deletelog"
@@ -100,6 +102,8 @@ func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 		// Service Logic
 		Register(consensusclient.New()).
 		Register(acl.New()).
+		Register(subscribe.New()).
+		Register(inbox.New()).
 		Register(accountlimit.New()).
 		Register(identityrepo.New()).
 		Register(coordinator.New())
