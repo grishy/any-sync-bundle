@@ -36,7 +36,7 @@ docker run \
     -p 33010:33010 \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
-  ghcr.io/grishy/any-sync-bundle:1.1.2-2025-10-24
+  ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01
 ```
 
 After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`. This is test start, check below more real configuration.
@@ -76,7 +76,7 @@ After the first run, point Anytype desktop/mobile apps at the generated client c
 ## Version
 
 The project version combines the bundle version and the original Anytype version.
-Current version: **`v1.1.2-2025-10-24`**
+Current version: **`v1.1.3-2025-12-01`**
 
 **Version format:** `v[bundle-version]-[anytype-compatibility-date]`
 
@@ -89,7 +89,7 @@ Current version: **`v1.1.2-2025-10-24`**
 
 ### Container
 
-Pick one of the published tags, for example `v1.1.2-2025-10-24` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
+Pick one of the published tags, for example `v1.1.3-2025-12-01` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
 
 Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recommendation).
 
@@ -106,7 +106,7 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
        -v $(pwd)/data:/data \
        --restart unless-stopped \
        --name any-sync-bundle-aio \
-     ghcr.io/grishy/any-sync-bundle:1.0.0-2025-09-08
+     ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01
    ```
 
 2. Container (solo bundle, external MongoDB/Redis)
@@ -120,7 +120,7 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
        -v $(pwd)/data:/data \
        --restart unless-stopped \
        --name any-sync-bundle \
-     ghcr.io/grishy/any-sync-bundle:1.0.0-2025-09-08-minimal
+     ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-minimal
    ```
 
 ### Docker Compose
