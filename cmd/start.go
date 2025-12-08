@@ -280,7 +280,27 @@ func newInfraProcess(ctx context.Context, name, bin string, args ...string) (*in
 
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.Wait()
+		err := cmd.Wait()
+		// Log process exit for debugging (especially for MongoDB AVX errors)
+		if err != nil {
+			fields := []zap.Field{
+				zap.String("process", name),
+				zap.String("error_msg", err.Error()),
+				zap.Error(err),
+			}
+			
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				fields = append(fields, zap.Int("exit_code", exitErr.ExitCode()))
+			}
+			
+			log.Debug("process exited with error", fields...)
+			
+			// Check if this is an AVX-related error for MongoDB
+			if name == "mongo" && isAVXRelatedError(err) {
+				printAVXErrorMessage(err, "process exited")
+			}
+		}
+		done <- err
 	}()
 
 	go streamPipe(name, stdout)
@@ -353,6 +373,62 @@ func streamPipe(name string, reader io.Reader) {
 			zap.String("process", name),
 			zap.Error(err))
 	}
+}
+
+// isAVXRelatedError checks if an error is related to AVX (illegal instruction)
+func isAVXRelatedError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for exit code 132 (SIGILL - Illegal Instruction)
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() == 132 {
+			return true
+		}
+	}
+
+	// Check error message for AVX-related keywords
+	errMsg := strings.ToLower(err.Error())
+	avxKeywords := []string{
+		"avx",
+		"illegal instruction",
+		"sigill",
+		"code 132",
+		"exit code 132",
+		"avx-related",
+	}
+	for _, keyword := range avxKeywords {
+		if strings.Contains(errMsg, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// printAVXErrorMessage displays a formatted AVX error message to the user
+func printAVXErrorMessage(err error, context string) {
+	exitCode := ""
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		exitCode = fmt.Sprintf(" (exit code %d)", exitErr.ExitCode())
+	}
+
+	_, _ = fmt.Fprint(os.Stderr, "\n")
+	_, _ = fmt.Fprint(os.Stderr, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	_, _ = fmt.Fprint(os.Stderr, "⚠️  MONGODB AVX ERROR DETECTED ⚠️\n")
+	_, _ = fmt.Fprint(os.Stderr, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	_, _ = fmt.Fprintf(os.Stderr, "MongoDB failed to start%s (%s)\n", exitCode, context)
+	_, _ = fmt.Fprint(os.Stderr, "\n")
+	_, _ = fmt.Fprint(os.Stderr, "This is an AVX-related error. Your CPU does not support AVX\n")
+	_, _ = fmt.Fprint(os.Stderr, "instructions required by MongoDB. The process was killed by the\n")
+	_, _ = fmt.Fprint(os.Stderr, "kernel with SIGILL (Illegal Instruction) before it could write\n")
+	_, _ = fmt.Fprint(os.Stderr, "any logs.\n")
+	_, _ = fmt.Fprint(os.Stderr, "\n")
+	_, _ = fmt.Fprint(os.Stderr, "SOLUTION: Use the 'non-avx' image tag:\n")
+	_, _ = fmt.Fprint(os.Stderr, "  ghcr.io/grishy/any-sync-bundle:non-avx\n")
+	_, _ = fmt.Fprint(os.Stderr, "\n")
+	_, _ = fmt.Fprint(os.Stderr, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	_, _ = fmt.Fprint(os.Stderr, "\n")
 }
 
 // waitForTCPReady polls the address until a TCP connection succeeds or timeout is reached.

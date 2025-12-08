@@ -78,7 +78,7 @@ jobs:
           provenance: true
           sbom: true
 
-      - name: Build and push Docker image (stage-release-all-in-one)
+      - name: Build and push Docker image (stage-release-all-in-one - AVX)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -91,6 +91,29 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
+            COMMIT=${{ fromJSON(steps.goreleaser.outputs.metadata).commit }}
+            COMMIT_DATE=${{ fromJSON(steps.goreleaser.outputs.metadata).date }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Build and push Docker image (stage-release-all-in-one-noavx - non-AVX)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: |
+            linux/arm64
+            linux/amd64
+          target: stage-release-all-in-one-noavx
+          tags: |
+            ghcr.io/${{ github.repository }}:non-avx
+            ${{ steps.meta.outputs.tags }}-non-avx
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}

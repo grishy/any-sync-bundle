@@ -31,12 +31,21 @@ This is a zero-config version of the official Anytype server. It uses the same u
 - **Both** (comma-separated) for flexibility: `sync.example.com,192.168.1.100`
 
 ```sh
+# For AVX-capable CPUs (most modern CPUs - 2011+)
 docker run \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
     -p 33010:33010 \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
   ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01
+
+# For non-AVX CPUs (older hardware)
+docker run \
+    -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+    -p 33010:33010 \
+    -p 33020:33020/udp \
+    -v $(pwd)/data:/data \
+  ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-non-avx
 ```
 
 After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`. This is test start, check below more real configuration.
@@ -46,8 +55,12 @@ After the first run, point Anytype desktop/mobile apps at the generated client c
 ## Available variants
 
 - **✅ Bundle (all-in-one container)**: Bundled with MongoDB and Redis built in.
-- **✅ Bundle (solo bundle / container)**: A variant without MongoDB and Redis. You can use your own instances.
+  - **AVX version** (default): Uses MongoDB 8.0+ for modern CPUs with AVX support. Tag: `latest` or version tag (e.g., `v1.1.3-2025-12-01`).
+  - **Non-AVX version**: Uses MongoDB 4.4 for older CPUs without AVX support. Tag: `non-avx` or version tag with `-non-avx` suffix (e.g., `v1.1.3-2025-12-01-non-avx`).
+- **✅ Bundle (solo bundle / container)**: A variant without MongoDB and Redis. You can use your own instances. Tag: `minimal` or version tag with `-minimal` suffix.
 - **🧶 Custom Light version[\*](#light-version-not-in-development)**: Not in development currently.
+
+> **💡 Which image to use?** Most modern CPUs (2011+) support AVX. Use the default `latest` tag. For older hardware or if you encounter AVX-related errors, use the `non-avx` tag.
 
 ## Key features
 
@@ -91,13 +104,19 @@ Current version: **`v1.1.3-2025-12-01`**
 
 Pick one of the published tags, for example `v1.1.3-2025-12-01` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
 
-Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recommendation).
+**Available tags:**
+- `latest` / `v1.1.3-2025-12-01` - AVX version (MongoDB 8.0+) for modern CPUs
+- `non-avx` / `v1.1.3-2025-12-01-non-avx` - Non-AVX version (MongoDB 4.4) for older CPUs
+- `minimal` / `v1.1.3-2025-12-01-minimal` - Bundle only, external MongoDB/Redis required
+
+Using an explicit release tag keeps upgrades deliberate (my recommendation).
 
 - `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` multiple addresses can be added, separated by commas.
 - `ANY_SYNC_BUNDLE_INIT_*` variables seed the initial configuration on first start; their values are persisted to `bundle-config.yml` afterward.
 
 1. Container (all-in-one with embedded MongoDB/Redis)
 
+   **AVX version (recommended for most users):**
    ```sh
    docker run -d \
        -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
@@ -107,6 +126,18 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
        --restart unless-stopped \
        --name any-sync-bundle-aio \
      ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01
+   ```
+
+   **Non-AVX version (for older CPUs):**
+   ```sh
+   docker run -d \
+       -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+       -p 33010:33010 \
+       -p 33020:33020/udp \
+       -v $(pwd)/data:/data \
+       --restart unless-stopped \
+       --name any-sync-bundle-aio \
+     ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-non-avx
    ```
 
 2. Container (solo bundle, external MongoDB/Redis)
@@ -343,6 +374,10 @@ rm -rf ./data && tar -xzf backup-YYYYMMDD-HHMMSS.tar.gz
 
 ## Troubleshooting
 
+- **MongoDB requires AVX (CPU instruction set) error:**
+  - Your CPU doesn't support AVX (Advanced Vector Extensions). MongoDB 5.0+ requires AVX.
+  - **Solution**: Use the `non-avx` image tag which includes MongoDB 4.4 that doesn't require AVX.
+  - Example: `ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-non-avx`
 - MongoDB replica set is not initiated (external DB):
   - Initialize manually once: `mongosh --host <mongo:27017> --eval "rs.initiate({_id:'rs0', members:[{_id:0, host:'localhost:27017'}]})"`
   - Replace `localhost` with the actual hostname or IP of your MongoDB server that will be used by the bundle later, if needed.
