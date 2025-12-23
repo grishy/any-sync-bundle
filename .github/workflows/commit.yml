@@ -6,6 +6,7 @@ on:
   pull_request:
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
@@ -163,10 +164,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@v14
+        with:
+          determinate: false
       - uses: DeterminateSystems/magic-nix-cache-action@v8
+        with:
+          use-flakehub: false
 
       - name: Check flake
-        run: nix flake check --all-systems
+        run: nix flake check --print-build-logs
 
       - name: Build package
         run: nix build -L .#default
@@ -179,7 +184,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@v14
+        with:
+          determinate: false
       - uses: DeterminateSystems/magic-nix-cache-action@v8
+        with:
+          use-flakehub: false
 
       - name: Check dev shell
         run: |
