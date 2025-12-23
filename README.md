@@ -275,8 +275,7 @@ Configure S3 at first start using CLI flags or environment variables:
   --initial-mongo-uri "mongodb://localhost:27017/" \
   --initial-redis-uri "redis://localhost:6379/" \
   --initial-s3-region "us-east-1" \
-  --initial-s3-block-bucket "anytype-data" \
-  --initial-s3-index-bucket "anytype-index"
+  --initial-s3-bucket "anytype-data"
 ```
 
 See [Parameters](#s3-storage-flags-optional) section for all S3 flags.
@@ -290,15 +289,13 @@ filenode:
   redisConnect: "redis://..."
   s3:
     region: "us-east-1"
-    blockBucket: "anytype-filenode-data"
-    indexBucket: "anytype-filenode-index"
+    bucket: "anytype-data"
 ```
 
 **Required fields:**
 
 - `region`: AWS region (e.g., "us-east-1")
-- `blockBucket`: S3 bucket for file blocks/data
-- `indexBucket`: S3 bucket for metadata index
+- `bucket`: S3 bucket for file storage
 
 #### S3 Authentication Methods
 
@@ -308,8 +305,7 @@ filenode:
 filenode:
   s3:
     region: "us-east-1"
-    blockBucket: "my-bucket"
-    indexBucket: "my-index-bucket"
+    bucket: "my-bucket"
     profile: "production" # Uses ~/.aws/credentials
 ```
 
@@ -327,8 +323,7 @@ docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY ... ghcr.io/grishy/any-
 filenode:
   s3:
     region: "us-east-1"
-    blockBucket: "my-bucket"
-    indexBucket: "my-index-bucket"
+    bucket: "my-bucket"
     credentials:
       accessKey: "AKIA..."
       secretKey: "..."
@@ -342,8 +337,7 @@ No credentials needed - the bundle will automatically use the instance's IAM rol
 filenode:
   s3:
     region: "us-east-1"
-    blockBucket: "my-bucket"
-    indexBucket: "my-index-bucket"
+    bucket: "my-bucket"
 ```
 
 #### S3-Compatible Services (MinIO, etc.)
@@ -355,8 +349,7 @@ filenode:
   s3:
     endpoint: "https://minio.example.com"
     region: "us-east-1"
-    blockBucket: "anytype-data"
-    indexBucket: "anytype-index"
+    bucket: "anytype-data"
     forcePathStyle: true
     credentials:
       accessKey: "minioadmin"
@@ -367,6 +360,20 @@ filenode:
 
 - `endpoint`: Custom endpoint URL for S3-compatible services
 - `forcePathStyle`: Use path-style URLs (required for most self-hosted S3 services)
+
+#### Testing S3 with Docker Compose
+
+For local S3 testing, use the included MinIO compose file:
+
+```bash
+docker compose -f compose.s3.yml up -d
+```
+
+This starts MinIO and the AIO bundle (embedded MongoDB/Redis) with S3 pre-configured:
+
+- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
+- **S3 API**: http://localhost:9000
+- **Bucket**: `anytype-data` (auto-created)
 
 ## Configuration files
 
@@ -420,13 +427,12 @@ Flags for `start-bundle` and `start-all-in-one`:
 
 ### S3 Storage Flags (Optional)
 
-Optional flags to configure S3 storage at first start. If not provided, BadgerDB (local storage) is used. All three core S3 flags (`region`, `blockBucket`, `indexBucket`) must be provided together.
+Optional flags to configure S3 storage at first start. If not provided, BadgerDB (local storage) is used. Both `region` and `bucket` must be provided together.
 
 | Flag                            | Description                                                                                                                                                                 |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--initial-s3-region`           | S3 region (e.g., us-east-1). **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_REGION`                                                |
-| `--initial-s3-block-bucket`     | S3 bucket for file blocks. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BLOCK_BUCKET`                                            |
-| `--initial-s3-index-bucket`     | S3 bucket for metadata index. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_INDEX_BUCKET`                                         |
+| `--initial-s3-bucket`           | S3 bucket for file storage. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                                                 |
 | `--initial-s3-endpoint`         | Custom S3 endpoint for S3-compatible services (e.g., MinIO, DigitalOcean Spaces) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                            |
 | `--initial-s3-profile`          | AWS profile name from ~/.aws/credentials <br> ‣ Default: `default` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_PROFILE`                                           |
 | `--initial-s3-access-key`       | S3 access key for static credentials (not recommended for production) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ACCESS_KEY`                                     |

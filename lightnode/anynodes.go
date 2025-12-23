@@ -178,8 +178,7 @@ func selectFileStore(cfg *filenodeConfig.Config, fileDir string) app.Component {
 	if cfg.S3Store.Bucket != "" {
 		log.Info("using S3 storage backend",
 			zap.String("region", cfg.S3Store.Region),
-			zap.String("blockBucket", cfg.S3Store.Bucket),
-			zap.String("indexBucket", cfg.S3Store.IndexBucket))
+			zap.String("bucket", cfg.S3Store.Bucket))
 		return s3store.New()
 	}
 	log.Info("using BadgerDB storage backend", zap.String("path", fileDir))

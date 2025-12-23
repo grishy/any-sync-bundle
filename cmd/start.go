@@ -156,8 +156,7 @@ func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.C
 
 		// S3 configuration (optional)
 		S3Region:         cCtx.String(flagStartS3Region),
-		S3BlockBucket:    cCtx.String(flagStartS3BlockBucket),
-		S3IndexBucket:    cCtx.String(flagStartS3IndexBucket),
+		S3Bucket:         cCtx.String(flagStartS3Bucket),
 		S3Endpoint:       cCtx.String(flagStartS3Endpoint),
 		S3Profile:        cCtx.String(flagStartS3Profile),
 		S3AccessKey:      cCtx.String(flagStartS3AccessKey),

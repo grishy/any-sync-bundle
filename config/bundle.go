@@ -63,8 +63,7 @@ type FileNodeConfig struct {
 // When this config is present in FileNodeConfig, S3 storage is automatically enabled.
 type S3Config struct {
 	Region         string         `yaml:"region"`                   // AWS region (e.g., "us-east-1")
-	BlockBucket    string         `yaml:"blockBucket"`              // S3 bucket for file blocks/data
-	IndexBucket    string         `yaml:"indexBucket"`              // S3 bucket for metadata index
+	Bucket         string         `yaml:"bucket"`                   // S3 bucket for file storage (blocks and index)
 	Endpoint       string         `yaml:"endpoint,omitempty"`       // Optional: Custom endpoint for S3-compatible services (MinIO, etc.)
 	Profile        string         `yaml:"profile,omitempty"`        // Optional: AWS profile name from ~/.aws/credentials
 	ForcePathStyle bool           `yaml:"forcePathStyle,omitempty"` // Optional: Use path-style URLs for S3-compatible services
@@ -114,8 +113,7 @@ type CreateOptions struct {
 
 	// S3 storage (optional - if not set, BadgerDB is used)
 	S3Region         string
-	S3BlockBucket    string
-	S3IndexBucket    string
+	S3Bucket         string
 	S3Endpoint       string
 	S3Profile        string
 	S3AccessKey      string
@@ -194,18 +192,17 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 	}
 
 	// Configure S3 storage if S3 flags are provided
-	if cfg.S3BlockBucket != "" || cfg.S3Region != "" || cfg.S3IndexBucket != "" {
-		// Validate: all three required S3 fields must be present
-		if cfg.S3Region == "" || cfg.S3BlockBucket == "" || cfg.S3IndexBucket == "" {
+	if cfg.S3Bucket != "" || cfg.S3Region != "" {
+		// Validate: both required S3 fields must be present
+		if cfg.S3Region == "" || cfg.S3Bucket == "" {
 			log.Panic(
-				"S3 storage requires all three fields: --initial-s3-region, --initial-s3-block-bucket, and --initial-s3-index-bucket",
+				"S3 storage requires both fields: --initial-s3-region and --initial-s3-bucket",
 			)
 		}
 
 		defaultCfg.FileNode.S3 = &S3Config{
 			Region:         cfg.S3Region,
-			BlockBucket:    cfg.S3BlockBucket,
-			IndexBucket:    cfg.S3IndexBucket,
+			Bucket:         cfg.S3Bucket,
 			Endpoint:       cfg.S3Endpoint,
 			Profile:        cfg.S3Profile,
 			ForcePathStyle: cfg.S3ForcePathStyle,
@@ -221,8 +218,7 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 
 		log.Info("S3 storage configured",
 			zap.String("region", cfg.S3Region),
-			zap.String("blockBucket", cfg.S3BlockBucket),
-			zap.String("indexBucket", cfg.S3IndexBucket))
+			zap.String("bucket", cfg.S3Bucket))
 	}
 
 	return defaultCfg

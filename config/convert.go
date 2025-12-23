@@ -172,13 +172,14 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 }
 
 // convertS3Config converts bundle S3Config to upstream s3store.Config format.
+// Uses the same bucket for both data blocks and index (they use different key prefixes).
 func (bc *Config) convertS3Config() s3store.Config {
 	s3 := bc.FileNode.S3
 
 	cfg := s3store.Config{
 		Region:         s3.Region,
-		Bucket:         s3.BlockBucket,
-		IndexBucket:    s3.IndexBucket,
+		Bucket:         s3.Bucket,
+		IndexBucket:    s3.Bucket, // Same bucket - keys don't collide (blocks use CID, index uses prefixed keys)
 		Endpoint:       s3.Endpoint,
 		Profile:        s3.Profile,
 		MaxThreads:     16,

@@ -38,8 +38,7 @@ const (
 
 	// S3 storage flags (optional - if not set, BadgerDB is used).
 	flagStartS3Region         = "initial-s3-region"
-	flagStartS3BlockBucket    = "initial-s3-block-bucket"
-	flagStartS3IndexBucket    = "initial-s3-index-bucket"
+	flagStartS3Bucket         = "initial-s3-bucket"
 	flagStartS3Endpoint       = "initial-s3-endpoint"
 	flagStartS3Profile        = "initial-s3-profile"
 	flagStartS3AccessKey      = "initial-s3-access-key"
@@ -152,14 +151,9 @@ func buildStartFlags() []cli.Flag {
 			Usage:   "S3 region (e.g., us-east-1). Required if using S3 storage.",
 		},
 		&cli.StringFlag{
-			Name:    flagStartS3BlockBucket,
-			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_BLOCK_BUCKET"},
-			Usage:   "S3 bucket for file blocks. Required if using S3 storage.",
-		},
-		&cli.StringFlag{
-			Name:    flagStartS3IndexBucket,
-			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_INDEX_BUCKET"},
-			Usage:   "S3 bucket for metadata index. Required if using S3 storage.",
+			Name:    flagStartS3Bucket,
+			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_BUCKET"},
+			Usage:   "S3 bucket for file storage. Required if using S3 storage.",
 		},
 		&cli.StringFlag{
 			Name:    flagStartS3Endpoint,
