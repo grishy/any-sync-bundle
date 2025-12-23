@@ -5,17 +5,17 @@ go 1.25
 tool github.com/matryer/moq
 
 // Source: https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
-// Current timestamp: "1764611921"
+// Current timestamp: "1765360602"
 require (
-	github.com/anyproto/any-sync-consensusnode v0.5.0
+	github.com/anyproto/any-sync-consensusnode v0.6.2
 	github.com/anyproto/any-sync-coordinator v0.8.1
-	github.com/anyproto/any-sync-filenode v0.10.0
+	github.com/anyproto/any-sync-filenode v0.10.1
 	github.com/anyproto/any-sync-node v0.10.1
 )
 
 require (
 	github.com/anyproto/any-sync v0.11.4
-	github.com/dgraph-io/badger/v4 v4.8.0
+	github.com/dgraph-io/badger/v4 v4.9.0
 	github.com/ipfs/go-block-format v0.2.3
 	github.com/ipfs/go-cid v0.6.0
 	github.com/multiformats/go-multihash v0.2.3
@@ -97,7 +97,7 @@ require (
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/quic-go/quic-go v0.56.0 // indirect
-	github.com/redis/go-redis/v9 v9.16.0 // indirect
+	github.com/redis/go-redis/v9 v9.17.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
