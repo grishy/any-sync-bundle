@@ -37,12 +37,9 @@ const (
 	flagStartRedisURI         = "initial-redis-uri"
 
 	// S3 storage flags (optional - if not set, BadgerDB is used).
-	flagStartS3Region         = "initial-s3-region"
+	// Credentials via env vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
 	flagStartS3Bucket         = "initial-s3-bucket"
 	flagStartS3Endpoint       = "initial-s3-endpoint"
-	flagStartS3Profile        = "initial-s3-profile"
-	flagStartS3AccessKey      = "initial-s3-access-key"
-	flagStartS3SecretKey      = "initial-s3-secret-key" //nolint:gosec // This is a flag name, not actual credentials
 	flagStartS3ForcePathStyle = "initial-s3-force-path-style"
 )
 
@@ -145,41 +142,21 @@ func buildStartFlags() []cli.Flag {
 		},
 
 		// S3 Storage Flags (optional - if not provided, BadgerDB is used)
-		&cli.StringFlag{
-			Name:    flagStartS3Region,
-			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_REGION"},
-			Usage:   "S3 region (e.g., us-east-1). Required if using S3 storage.",
-		},
+		// Credentials via env vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 		&cli.StringFlag{
 			Name:    flagStartS3Bucket,
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_BUCKET"},
-			Usage:   "S3 bucket for file storage. Required if using S3 storage.",
+			Usage:   "S3 bucket name. Required if using S3 storage.",
 		},
 		&cli.StringFlag{
 			Name:    flagStartS3Endpoint,
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT"},
-			Usage:   "Custom S3 endpoint for S3-compatible services (e.g., MinIO)",
-		},
-		&cli.StringFlag{
-			Name:    flagStartS3Profile,
-			Value:   "default",
-			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_PROFILE"},
-			Usage:   "AWS profile name from ~/.aws/credentials",
-		},
-		&cli.StringFlag{
-			Name:    flagStartS3AccessKey,
-			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_ACCESS_KEY"},
-			Usage:   "S3 access key (for static credentials)",
-		},
-		&cli.StringFlag{
-			Name:    flagStartS3SecretKey,
-			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_SECRET_KEY"},
-			Usage:   "S3 secret key (for static credentials)",
+			Usage:   "S3 endpoint URL (e.g., https://s3.us-east-1.amazonaws.com). Required if using S3 storage.",
 		},
 		&cli.BoolFlag{
 			Name:    flagStartS3ForcePathStyle,
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE"},
-			Usage:   "Use path-style S3 URLs (required for MinIO and some S3-compatible services)",
+			Usage:   "Use path-style S3 URLs (required for MinIO)",
 		},
 	}
 }

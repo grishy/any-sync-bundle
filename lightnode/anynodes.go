@@ -177,8 +177,8 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 func selectFileStore(cfg *filenodeConfig.Config, fileDir string) app.Component {
 	if cfg.S3Store.Bucket != "" {
 		log.Info("using S3 storage backend",
-			zap.String("region", cfg.S3Store.Region),
-			zap.String("bucket", cfg.S3Store.Bucket))
+			zap.String("bucket", cfg.S3Store.Bucket),
+			zap.String("endpoint", cfg.S3Store.Endpoint))
 		return s3store.New()
 	}
 	log.Info("using BadgerDB storage backend", zap.String("path", fileDir))

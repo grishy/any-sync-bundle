@@ -265,101 +265,55 @@ This feature uses the **original Anytype upstream S3 storage implementation** (f
 
 #### Enabling S3 Storage
 
-**Method 1: Via CLI Flags (Recommended for first start)**
+S3 storage requires two things:
+1. **Flags**: `--initial-s3-bucket` and `--initial-s3-endpoint`
+2. **Credentials**: via `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables
 
-Configure S3 at first start using CLI flags or environment variables:
+**Example with AWS S3:**
 
 ```bash
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+
 ./any-sync-bundle start-bundle \
-  --initial-external-addrs "192.168.1.100" \
-  --initial-mongo-uri "mongodb://localhost:27017/" \
-  --initial-redis-uri "redis://localhost:6379/" \
-  --initial-s3-region "us-east-1" \
-  --initial-s3-bucket "anytype-data"
+  --initial-s3-bucket "my-anytype-bucket" \
+  --initial-s3-endpoint "https://s3.us-east-1.amazonaws.com"
 ```
 
-See [Parameters](#s3-storage-flags-optional) section for all S3 flags.
+**Example with MinIO:**
 
-**Method 2: Edit Configuration File**
+```bash
+export AWS_ACCESS_KEY_ID="minioadmin"
+export AWS_SECRET_ACCESS_KEY="minioadmin"
 
-Alternatively, add an `s3` section to your `bundle-config.yml` under `filenode`:
+./any-sync-bundle start-bundle \
+  --initial-s3-bucket "anytype-data" \
+  --initial-s3-endpoint "http://localhost:9000" \
+  --initial-s3-force-path-style
+```
+
+#### Configuration File Format
+
+After first start, the S3 config is stored in `bundle-config.yml`:
 
 ```yaml
 filenode:
   redisConnect: "redis://..."
   s3:
-    region: "us-east-1"
     bucket: "anytype-data"
+    endpoint: "https://s3.us-east-1.amazonaws.com"
 ```
 
-**Required fields:**
+#### Provider Endpoints
 
-- `region`: AWS region (e.g., "us-east-1")
-- `bucket`: S3 bucket for file storage
+| Provider | Endpoint Example |
+|----------|------------------|
+| AWS S3 | `https://s3.us-east-1.amazonaws.com` |
+| MinIO | `http://minio:9000` (+ `forcePathStyle`) |
+| Cloudflare R2 | `https://<account>.r2.cloudflarestorage.com` |
+| Backblaze B2 | `https://s3.us-west-004.backblazeb2.com` |
 
-#### S3 Authentication Methods
-
-**1. AWS Profiles:**
-
-```yaml
-filenode:
-  s3:
-    region: "us-east-1"
-    bucket: "my-bucket"
-    profile: "production" # Uses ~/.aws/credentials
-```
-
-**2. Environment Variables:**
-
-```bash
-export AWS_ACCESS_KEY_ID="AKIA..."
-export AWS_SECRET_ACCESS_KEY="..."
-docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY ... ghcr.io/grishy/any-sync-bundle
-```
-
-**3. Static Credentials:**
-
-```yaml
-filenode:
-  s3:
-    region: "us-east-1"
-    bucket: "my-bucket"
-    credentials:
-      accessKey: "AKIA..."
-      secretKey: "..."
-```
-
-**4. IAM Roles:**
-
-No credentials needed - the bundle will automatically use the instance's IAM role:
-
-```yaml
-filenode:
-  s3:
-    region: "us-east-1"
-    bucket: "my-bucket"
-```
-
-#### S3-Compatible Services (MinIO, etc.)
-
-For self-hosted S3-compatible services:
-
-```yaml
-filenode:
-  s3:
-    endpoint: "https://minio.example.com"
-    region: "us-east-1"
-    bucket: "anytype-data"
-    forcePathStyle: true
-    credentials:
-      accessKey: "minioadmin"
-      secretKey: "minioadmin"
-```
-
-**Optional fields:**
-
-- `endpoint`: Custom endpoint URL for S3-compatible services
-- `forcePathStyle`: Use path-style URLs (required for most self-hosted S3 services)
+**Note:** MinIO requires `--initial-s3-force-path-style` flag
 
 #### Testing S3 with Docker Compose
 
@@ -427,26 +381,21 @@ Flags for `start-bundle` and `start-all-in-one`:
 
 ### S3 Storage Flags (Optional)
 
-Optional flags to configure S3 storage at first start. If not provided, BadgerDB (local storage) is used. Both `region` and `bucket` must be provided together.
+Optional flags to configure S3 storage at first start. If not provided, BadgerDB (local storage) is used.
 
 | Flag                            | Description                                                                                                                                                                 |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--initial-s3-region`           | S3 region (e.g., us-east-1). **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_REGION`                                                |
-| `--initial-s3-bucket`           | S3 bucket for file storage. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                                                 |
-| `--initial-s3-endpoint`         | Custom S3 endpoint for S3-compatible services (e.g., MinIO, DigitalOcean Spaces) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                            |
-| `--initial-s3-profile`          | AWS profile name from ~/.aws/credentials <br> ‣ Default: `default` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_PROFILE`                                           |
-| `--initial-s3-access-key`       | S3 access key for static credentials (not recommended for production) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ACCESS_KEY`                                     |
-| `--initial-s3-secret-key`       | S3 secret key for static credentials (not recommended for production) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_SECRET_KEY`                                     |
-| `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO and some S3-compatible services) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE` |
+| `--initial-s3-bucket`           | S3 bucket name. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                                                             |
+| `--initial-s3-endpoint`         | S3 endpoint URL. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                                                          |
+| `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE`                                 |
 
-**Authentication methods (in order of precedence):**
+**Credentials** are provided via environment variables:
+- `AWS_ACCESS_KEY_ID` - Access key ID
+- `AWS_SECRET_ACCESS_KEY` - Secret access key
 
-1. IAM roles (automatic for AWS EC2/ECS - no credentials needed)
-2. Environment variables (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`)
-3. AWS profile from `~/.aws/credentials` (specified by `--initial-s3-profile`)
-4. Static credentials from flags (`--initial-s3-access-key` and `--initial-s3-secret-key`)
+These work for all S3-compatible services (AWS, MinIO, Cloudflare R2, Backblaze B2).
 
-See [Storage Options](#storage-options) section for detailed S3 setup examples and configuration.
+See [Storage Options](#storage-options) section for detailed S3 setup examples.
 
 ## Light version (not in development)
 
