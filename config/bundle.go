@@ -2,6 +2,7 @@
 package config
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -66,6 +67,38 @@ type S3Config struct {
 	Bucket         string `yaml:"bucket"`                   // S3 bucket name (required)
 	Endpoint       string `yaml:"endpoint"`                 // S3 endpoint URL (required, e.g., "https://s3.us-east-1.amazonaws.com")
 	ForcePathStyle bool   `yaml:"forcePathStyle,omitempty"` // Use path-style URLs (required for MinIO)
+}
+
+// S3 configuration errors.
+var (
+	ErrS3BucketRequired   = errors.New("S3 bucket name is required (--initial-s3-bucket)")
+	ErrS3EndpointRequired = errors.New("S3 endpoint URL is required (--initial-s3-endpoint)")
+)
+
+// validateS3Config validates S3 configuration and returns the S3Config if valid.
+// It checks that both bucket and endpoint are provided, and warns if credentials are missing.
+func validateS3Config(bucket, endpoint string, forcePathStyle bool) (*S3Config, error) {
+	if bucket == "" {
+		return nil, ErrS3BucketRequired
+	}
+	if endpoint == "" {
+		return nil, ErrS3EndpointRequired
+	}
+
+	// Check for credentials and warn if missing
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	if accessKey == "" || secretKey == "" {
+		log.Warn("S3 credentials not set - authentication may fail at runtime",
+			zap.Bool("AWS_ACCESS_KEY_ID_set", accessKey != ""),
+			zap.Bool("AWS_SECRET_ACCESS_KEY_set", secretKey != ""))
+	}
+
+	return &S3Config{
+		Bucket:         bucket,
+		Endpoint:       endpoint,
+		ForcePathStyle: forcePathStyle,
+	}, nil
 }
 
 func Load(cfgPath string) *Config {
@@ -182,18 +215,11 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 
 	// Configure S3 storage if S3 flags are provided
 	if cfg.S3Bucket != "" || cfg.S3Endpoint != "" {
-		// Validate: both required S3 fields must be present
-		if cfg.S3Bucket == "" || cfg.S3Endpoint == "" {
-			log.Panic(
-				"S3 storage requires both: --initial-s3-bucket and --initial-s3-endpoint",
-			)
+		s3Cfg, s3Err := validateS3Config(cfg.S3Bucket, cfg.S3Endpoint, cfg.S3ForcePathStyle)
+		if s3Err != nil {
+			log.Panic("invalid S3 configuration", zap.Error(s3Err))
 		}
-
-		defaultCfg.FileNode.S3 = &S3Config{
-			Bucket:         cfg.S3Bucket,
-			Endpoint:       cfg.S3Endpoint,
-			ForcePathStyle: cfg.S3ForcePathStyle,
-		}
+		defaultCfg.FileNode.S3 = s3Cfg
 
 		log.Info("S3 storage configured",
 			zap.String("bucket", cfg.S3Bucket),
