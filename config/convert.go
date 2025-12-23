@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"time"
 
@@ -173,19 +174,29 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 
 // convertS3Config converts bundle S3Config to upstream s3store.Config format.
 // Uses the same bucket for both data blocks and index (they use different key prefixes).
-// Credentials are provided via environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).
+// Credentials are read from environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+// and passed as static credentials to bypass AWS profile lookup (which fails in containers).
 func (bc *Config) convertS3Config() s3store.Config {
-	s3 := bc.FileNode.S3
+	s3Cfg := bc.FileNode.S3
+
+	// Read credentials from environment variables.
+	// Must use static credentials because the upstream s3store always sets Profile="default",
+	// which causes the AWS SDK to look for ~/.aws/credentials (missing in containers).
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
 	return s3store.Config{
 		Region:         "us-east-1", // Placeholder - endpoint URL determines actual region
-		Bucket:         s3.Bucket,
-		IndexBucket:    s3.Bucket, // Same bucket - keys don't collide (blocks use CID, index uses prefixed keys)
-		Endpoint:       s3.Endpoint,
+		Bucket:         s3Cfg.Bucket,
+		IndexBucket:    s3Cfg.Bucket, // Same bucket - keys don't collide (blocks use CID, index uses prefixed keys)
+		Endpoint:       s3Cfg.Endpoint,
 		Profile:        "default",
 		MaxThreads:     16,
-		ForcePathStyle: s3.ForcePathStyle,
-		// Credentials: empty - AWS SDK uses default credential chain (env vars, IAM roles, etc.)
+		ForcePathStyle: s3Cfg.ForcePathStyle,
+		Credentials: s3store.Credentials{
+			AccessKey: accessKey,
+			SecretKey: secretKey,
+		},
 	}
 }
 

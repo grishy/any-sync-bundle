@@ -14,12 +14,12 @@
   <img src="https://goreportcard.com/badge/github.com/grishy/gopkgview" alt="Go Report Card">
 </p>
 
---- 
+---
 
 **any-sync-bundle** is a prepackaged, all-in-one self-hosted server solution designed for Anytype, a local-first, peer-to-peer note-taking and knowledge management application. It is based on the original modules used in the official Anytype server but merges them into a single binary for simplified deployment and zero-configuration setup.
 
 > 💡 **New to Anytype?** It's a local-first, privacy-focused alternative to Notion. [Learn more →](https://anytype.io/)
-  
+
 ## TL;DR – 60-Second Setup
 
 This is a zero-config version of the official Anytype server. It uses the same upstream modules Anytype ships, but compacts them into a single binary - think of it as "K3s for Any Sync".
@@ -133,11 +133,17 @@ Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minim
   ```sh
   docker compose -f compose.external.yml up -d
   ```
+- With S3 storage (MinIO):
+  ```sh
+  docker compose -f compose.s3.yml up -d
+  ```
+  Includes MinIO for S3-compatible storage. Console available at `http://localhost:9001`.
 - With Traefik reverse proxy (TCP 33010 + UDP 33020):
   ```sh
   docker compose -f compose.traefik.yml up -d
   ```
-  Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
+
+Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 
 ### Without container (binary)
 
@@ -266,6 +272,7 @@ This feature uses the **original Anytype upstream S3 storage implementation** (f
 #### Enabling S3 Storage
 
 S3 storage requires two things:
+
 1. **Flags**: `--initial-s3-bucket` and `--initial-s3-endpoint`
 2. **Credentials**: via `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables
 
@@ -303,31 +310,6 @@ filenode:
     bucket: "anytype-data"
     endpoint: "https://s3.us-east-1.amazonaws.com"
 ```
-
-#### Provider Endpoints
-
-| Provider | Endpoint Example |
-|----------|------------------|
-| AWS S3 | `https://s3.us-east-1.amazonaws.com` |
-| MinIO | `http://minio:9000` (+ `forcePathStyle`) |
-| Cloudflare R2 | `https://<account>.r2.cloudflarestorage.com` |
-| Backblaze B2 | `https://s3.us-west-004.backblazeb2.com` |
-
-**Note:** MinIO requires `--initial-s3-force-path-style` flag
-
-#### Testing S3 with Docker Compose
-
-For local S3 testing, use the included MinIO compose file:
-
-```bash
-docker compose -f compose.s3.yml up -d
-```
-
-This starts MinIO and the AIO bundle (embedded MongoDB/Redis) with S3 pre-configured:
-
-- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
-- **S3 API**: http://localhost:9000
-- **Bucket**: `anytype-data` (auto-created)
 
 ## Configuration files
 
@@ -383,13 +365,14 @@ Flags for `start-bundle` and `start-all-in-one`:
 
 Optional flags to configure S3 storage at first start. If not provided, BadgerDB (local storage) is used.
 
-| Flag                            | Description                                                                                                                                                                 |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--initial-s3-bucket`           | S3 bucket name. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                                                             |
-| `--initial-s3-endpoint`         | S3 endpoint URL. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                                                          |
-| `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE`                                 |
+| Flag                            | Description                                                                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--initial-s3-bucket`           | S3 bucket name. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                             |
+| `--initial-s3-endpoint`         | S3 endpoint URL. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                          |
+| `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE` |
 
 **Credentials** are provided via environment variables:
+
 - `AWS_ACCESS_KEY_ID` - Access key ID
 - `AWS_SECRET_ACCESS_KEY` - Secret access key
 
