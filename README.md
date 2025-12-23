@@ -16,13 +16,11 @@
 
 ---
 
-**any-sync-bundle** is a prepackaged, all-in-one self-hosted server solution designed for Anytype, a local-first, peer-to-peer note-taking and knowledge management application. It is based on the original modules used in the official Anytype server but merges them into a single binary for simplified deployment and zero-configuration setup.
+**any-sync-bundle** is a prepackaged, all-in-one self-hosted server for [Anytype](https://anytype.io/) – a local-first, privacy-focused alternative to Notion. It merges all official Anytype sync modules into a single binary for simplified deployment. Think of it as "K3s for Any Sync".
 
 > 💡 **New to Anytype?** It's a local-first, privacy-focused alternative to Notion. [Learn more →](https://anytype.io/)
 
-## TL;DR – 60-Second Setup
-
-This is a zero-config version of the official Anytype server. It uses the same upstream modules Anytype ships, but compacts them into a single binary - think of it as "K3s for Any Sync".
+## TL;DR
 
 **Replace `192.168.100.9` with:**
 
@@ -31,31 +29,28 @@ This is a zero-config version of the official Anytype server. It uses the same u
 - **Both** (comma-separated) for flexibility: `sync.example.com,192.168.1.100`
 
 ```sh
-docker run \
+docker run -d \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
     -p 33010:33010 \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
+    --restart unless-stopped \
   ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01
 ```
 
-After the first run, point Anytype desktop/mobile apps at the generated client config in `./data/client-config.yml`. This is test start, check below more real configuration.
+After the first run, import `./data/client-config.yml` into Anytype apps.
 
-> How to configure Anytype apps to use your self-hosted server? See [Client setup →](https://doc.anytype.io/anytype-docs/advanced/data-and-security/self-hosting/self-hosted#how-to-switch-to-a-self-hosted-network)
+> How to configure Anytype apps to use your self-hosted server? [Client setup →](https://doc.anytype.io/anytype-docs/advanced/data-and-security/self-hosting/self-hosted#how-to-switch-to-a-self-hosted-network)
 
-## Available variants
+## Overview
 
-- **✅ Bundle (all-in-one container)**: Bundled with MongoDB and Redis built in.
-- **✅ Bundle (solo bundle / container)**: A variant without MongoDB and Redis. You can use your own instances.
-- **🧶 Custom Light version[\*](#light-version-not-in-development)**: Not in development currently.
-
-## Key features
+### Key Features
 
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
 - **Zero-config**: Sensible defaults, configurable when needed
 - **Lightweight**: No MinIO, and no duplicate logical services
-- **Only 2 open ports**: TCP 33010 (DRPC protocol) and UDP 33020 (QUIC protocol), configurable
+- **Only 2 open ports**: TCP 33010 (DRPC protocol) and UDP 33020 (QUIC protocol)
 
 ### Who is this for?
 
@@ -69,271 +64,134 @@ After the first run, point Anytype desktop/mobile apps at the generated client c
 - ❌ You require horizontal scaling beyond a single server
 - ❌ You want to use the official Anytype architecture as-is
 
-## Architecture
+### Architecture
 
 ![Comparison with original deployment](./docs/arch.svg)
 
-## Version
+### Version
 
-The project version combines the bundle version and the original Anytype version.
 Current version: **`v1.1.3-2025-12-01`**
 
-**Version format:** `v[bundle-version]-[anytype-compatibility-date]`
+Format: `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.1.2` – Bundle's semantic version (SemVer)
-- `2025-10-24` – The Anytype any-sync compatibility version from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+- `v1.1.3` – Bundle's semantic version (SemVer)
+- `2025-12-01` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
-> Compatibility: 0.x (e.g., 0.5) is not supported. From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
+> Compatibility: From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
 
-## How to start
+## Installation
 
-### Container
+### Available Images
 
-Pick one of the published tags, for example `v1.1.3-2025-12-01` (see [Packages](https://github.com/grishy/any-sync-bundle/pkgs/container/any-sync-bundle)).
+| Image Tag                                                 | Description                         |
+| --------------------------------------------------------- | ----------------------------------- |
+| `ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01`         | All-in-one (embedded MongoDB/Redis) |
+| `ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-minimal` | Minimal (external MongoDB/Redis)    |
 
-Latest tags are also available (`ghcr.io/grishy/any-sync-bundle:latest`, `:minimal`), but using an explicit release tag keeps upgrades deliberate (my recommendation).
+Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are recommended.
 
-- `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` multiple addresses can be added, separated by commas.
-- `ANY_SYNC_BUNDLE_INIT_*` variables seed the initial configuration on first start; their values are persisted to `bundle-config.yml` afterward.
+### Docker Compose (Recommended)
 
-1. Container (all-in-one with embedded MongoDB/Redis)
+| File                   | Description                                  |
+| ---------------------- | -------------------------------------------- |
+| `compose.aio.yml`      | All-in-one with embedded MongoDB/Redis       |
+| `compose.external.yml` | Bundle + external MongoDB + Redis containers |
+| `compose.s3.yml`       | Bundle + MinIO for S3 storage                |
+| `compose.traefik.yml`  | With Traefik reverse proxy                   |
 
-   ```sh
-   docker run -d \
-       -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
-       -p 33010:33010 \
-       -p 33020:33020/udp \
-       -v $(pwd)/data:/data \
-       --restart unless-stopped \
-       --name any-sync-bundle-aio \
-     ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01
-   ```
-
-2. Container (solo bundle, external MongoDB/Redis)
-   ```sh
-   docker run -d \
-       -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
-       -e ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://user:pass@mongo:27017/" \
-       -e ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://redis:6379/" \
-       -p 33010:33010 \
-       -p 33020:33020/udp \
-       -v $(pwd)/data:/data \
-       --restart unless-stopped \
-       --name any-sync-bundle \
-     ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-minimal
-   ```
-
-### Docker Compose
-
-- All-in-one image only:
-  ```sh
-  docker compose -f compose.aio.yml up -d
-  ```
-- Bundle + external MongoDB + Redis:
-  ```sh
-  docker compose -f compose.external.yml up -d
-  ```
-- With S3 storage (MinIO):
-  ```sh
-  docker compose -f compose.s3.yml up -d
-  ```
-  Includes MinIO for S3-compatible storage. Console available at `http://localhost:9001`.
-- With Traefik reverse proxy (TCP 33010 + UDP 33020):
-  ```sh
-  docker compose -f compose.traefik.yml up -d
-  ```
+```sh
+# Pick one as example:
+docker compose -f compose.aio.yml up -d
+docker compose -f compose.external.yml up -d
+docker compose -f compose.s3.yml up -d
+```
 
 Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 
-### Without container (binary)
+### Binary
 
-1. Download the binary from the [Release page](https://github.com/grishy/any-sync-bundle/releases)
-2. Start as below (replace IP and URIs as needed):
-
-   ```sh
-   ./any-sync-bundle start-bundle \
-     --initial-external-addrs "192.168.100.9" \
-     --initial-mongo-uri "mongodb://127.0.0.1:27017/" \
-     --initial-redis-uri "redis://127.0.0.1:6379/" \
-     --initial-storage ./data/storage
-   ```
-
-   systemd example:
-
-   ```ini
-   [Unit]
-   Description=Any Sync Bundle
-   After=network-online.target
-   Wants=network-online.target
-
-   [Service]
-   WorkingDirectory=/opt/any-sync-bundle
-   ExecStart=/opt/any-sync-bundle/any-sync-bundle start-bundle \
-     --initial-external-addrs "example.local,192.168.100.9" \
-     --initial-mongo-uri "mongodb://127.0.0.1:27017/?replicaSet=rs0" \
-     --initial-redis-uri "redis://127.0.0.1:6379/" \
-     --initial-storage /opt/any-sync-bundle/data/storage
-   Restart=on-failure
-   RestartSec=5
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-## Building from Source
-
-### Traditional Go Build
-
-**Prerequisites:**
-
-- Go 1.25.2 or later
-- Docker (optional, for testing with containers)
-
-**Build:**
+1. Download from the [Release page](https://github.com/grishy/any-sync-bundle/releases)
+2. Run:
 
 ```sh
-go build -o any-sync-bundle .
-./any-sync-bundle --version
+./any-sync-bundle start-bundle \
+  --initial-external-addrs "192.168.100.9" \
+  --initial-mongo-uri "mongodb://127.0.0.1:27017/" \
+  --initial-redis-uri "redis://127.0.0.1:6379/" \
+  --initial-storage ./data/storage
 ```
 
-**Run tests:**
+## Configuration
 
-```sh
-go test -race -shuffle=on -vet=all ./...
-```
+### Quick Reference
 
-**Run linter:**
+| Variable                              | Purpose              | Required |
+| ------------------------------------- | -------------------- | -------- |
+| `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` | Advertised addresses | Yes      |
+| `ANY_SYNC_BUNDLE_INIT_MONGO_URI`      | MongoDB connection   | No       |
+| `ANY_SYNC_BUNDLE_INIT_REDIS_URI`      | Redis connection     | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`      | S3 bucket name       | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`    | S3 endpoint URL      | No       |
+| `AWS_ACCESS_KEY_ID`                   | S3 credentials       | No       |
+| `AWS_SECRET_ACCESS_KEY`               | S3 credentials       | No       |
 
-```sh
-golangci-lint run
-```
+### Configuration Files
 
-### With Nix
+| File                       | Purpose                                   | Backup? |
+| -------------------------- | ----------------------------------------- | ------- |
+| `./data/bundle-config.yml` | Service config + private keys             | 🔴 Yes  |
+| `./data/client-config.yml` | Client config (regenerated on each start) | 🟢 No   |
 
-[Nix](https://nixos.org/) provides reproducible builds and a complete development environment with one command.
+### Storage Options
 
-**Prerequisites:** Nix; direnv and [hook it into your shell](https://direnv.net/docs/hook.html)
+#### Local Storage (Default)
 
-**Build the binary:**
-
-```sh
-nix build
-./result/bin/any-sync-bundle --version
-```
-
-**Run directly:**
-
-```sh
-nix run . -- --help
-```
-
-**Development environment:**
-
-```sh
-# Enter development shell with all tools (Go, golangci-lint, goreleaser, etc.)
-nix develop
-
-# Or use direnv for automatic environment activation
-echo "use flake" > .envrc
-direnv allow
-```
-
-**Check flake:**
-
-```sh
-nix flake check
-```
-
-## Storage Options
-
-### Local Storage (Default - BadgerDB)
-
-By default, the bundle uses embedded BadgerDB for file storage. No additional configuration needed.
+By default, the bundle uses embedded BadgerDB. No configuration needed.
 
 ```
-+ Zero configuration setup
++ Zero configuration
 + No external dependencies
-+ Lower latency for local access
-+ Good for personal/small team use
++ Lower latency
 - Limited by local disk space
 ```
 
-### S3 Storage (Optional - Original)
+#### S3 Storage (Optional)
 
-This feature uses the **original Anytype upstream S3 storage implementation** (from any-sync-filenode), not a custom bundle-specific solution.
+Uses the **original Anytype upstream S3 implementation** from any-sync-filenode.
 
 ```
-+ Original Anytype S3 storage implementation
-+ Supports AWS S3, MinIO, DigitalOcean Spaces, and other S3-compatible services
-- Network latency compared to local storage
++ Supports AWS S3, MinIO, DigitalOcean Spaces, Cloudflare R2, Backblaze B2
+- Network latency
 - Requires configuration
 ```
 
-#### Enabling S3 Storage
+**Enable S3 with:**
 
-S3 storage requires two things:
-
-1. **Flags**: `--initial-s3-bucket` and `--initial-s3-endpoint`
-2. **Credentials**: via `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables
-
-**Example with AWS S3:**
-
-```bash
-export AWS_ACCESS_KEY_ID="AKIA..."
+```sh
+export AWS_ACCESS_KEY_ID="..."
 export AWS_SECRET_ACCESS_KEY="..."
 
 ./any-sync-bundle start-bundle \
-  --initial-s3-bucket "my-anytype-bucket" \
+  --initial-s3-bucket "my-bucket" \
   --initial-s3-endpoint "https://s3.us-east-1.amazonaws.com"
 ```
 
-**Example with MinIO:**
+For MinIO, add `--initial-s3-force-path-style`.
 
-```bash
-export AWS_ACCESS_KEY_ID="minioadmin"
-export AWS_SECRET_ACCESS_KEY="minioadmin"
+**Docker Compose with MinIO:**
 
-./any-sync-bundle start-bundle \
-  --initial-s3-bucket "anytype-data" \
-  --initial-s3-endpoint "http://localhost:9000" \
-  --initial-s3-force-path-style
+```sh
+docker compose -f compose.s3.yml up -d
+# MinIO console: http://localhost:9001 (minioadmin/minioadmin)
 ```
-
-#### Configuration File Format
-
-After first start, the S3 config is stored in `bundle-config.yml`:
-
-```yaml
-filenode:
-  redisConnect: "redis://..."
-  s3:
-    bucket: "anytype-data"
-    endpoint: "https://s3.us-east-1.amazonaws.com"
-```
-
-## Configuration files
-
-There are two configuration files under `./data` by default:
-
-- `bundle-config.yml` — Private/important. Created on the first run. Contains service configuration and private keys. Back this up.
-- `client-config.yml` — Regenerated on each start. Import this into Anytype apps to connect to your server.
-
-### Client setup
-
-After the first start, point Anytype desktop/mobile apps to `./data/client-config.yml`.
-
-Read more about it in the official docs:
-
-- [Anytype Docs -> Self-hosted](https://doc.anytype.io/anytype-docs/advanced/data-and-security/self-hosting/self-hosted#how-to-switch-to-a-self-hosted-network)
-- [Anytype Tech -> Self-hosting](https://tech.anytype.io/how-to/self-hosting)
 
 ## Parameters
 
-All parameters are available in two ways: binary flags or container environment variables. See `./any-sync-bundle --help` for details.
+All parameters available as binary flags or environment variables. See `./any-sync-bundle --help`.
 
-Important: "initial-\_" options (for example `--initial-external-addrs` or `ANY_SYNC_BUNDLE_INIT*`) are used only on the first run to create `bundle-config.yml`. Subsequent starts read from the persisted `bundle-config.yml`.
+> **Note:** `--initial-*` options are used only on first run to create `bundle-config.yml`. Subsequent starts read from the persisted config.
 
-### Global parameters
+### Global Flags
 
 | Flag              | Description                                                                                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -341,144 +199,86 @@ Important: "initial-\_" options (for example `--initial-external-addrs` or `ANY_
 | `--log-level`     | Log level (debug, info, warn, error, fatal) <br> ‣ Default: `info` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_LOG_LEVEL`                                  |
 | `--pprof`         | Enable pprof HTTP server for profiling <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_PPROF`                                          |
 | `--pprof-addr`    | Address for pprof HTTP server (only used when --pprof is enabled) <br> ‣ Default: `localhost:6060` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_PPROF_ADDR` |
-| `--help`, `-h`    | show help                                                                                                                                                    |
-| `--version`, `-v` | print the version, use it if you wanna create an issue.                                                                                                      |
+| `--help`, `-h`    | Show help                                                                                                                                                    |
+| `--version`, `-v` | Print the version                                                                                                                                            |
 
 ### Commands
 
-- `help` — Show help for the binary.
-- `start-bundle` — Start all services, using external MongoDB and Redis. Ensure MongoDB has a replica set initialized before starting.
-- `start-all-in-one` — Used inside the official all‑in‑one container. Starts Redis and MongoDB inside the container and initializes the MongoDB replica set automatically.
+| Command            | Description                                                      |
+| ------------------ | ---------------------------------------------------------------- |
+| `start-bundle`     | Start with external MongoDB/Redis                                |
+| `start-all-in-one` | Start with embedded MongoDB/Redis (used in all-in-one container) |
 
-Flags for `start-bundle` and `start-all-in-one`:
+### Start Command Flags
 
-| Flag                       | Description                                                                                                                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--bundle-config`, `-c`    | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
-| `--client-config`, `-cc`   | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
-| `--initial-storage`        | Initial path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_STORAGE`                       |
-| `--initial-external-addrs` | Initial external addresses for the bundle <br> ‣ Default: `192.168.8.214,example.local` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`                       |
-| `--initial-mongo-uri`      | Initial MongoDB URI for the bundle <br> ‣ Default: `mongodb://127.0.0.1:27017/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_MONGO_URI`                                    |
-| `--initial-redis-uri`      | Initial Redis URI for the bundle <br> ‣ Default: `redis://127.0.0.1:6379/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_REDIS_URI`                                         |
+| Flag                            | Description                                                                                                                                                                      |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bundle-config`, `-c`         | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
+| `--client-config`, `-cc`        | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
+| `--initial-storage`             | Initial path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_STORAGE`                       |
+| `--initial-external-addrs`      | Initial external addresses for the bundle <br> ‣ Default: `192.168.8.214,example.local` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`                       |
+| `--initial-mongo-uri`           | Initial MongoDB URI for the bundle <br> ‣ Default: `mongodb://127.0.0.1:27017/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_MONGO_URI`                                    |
+| `--initial-redis-uri`           | Initial Redis URI for the bundle <br> ‣ Default: `redis://127.0.0.1:6379/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_REDIS_URI`                                         |
+| `--initial-s3-bucket`           | S3 bucket name <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                                                                                                     |
+| `--initial-s3-endpoint`         | S3 endpoint URL <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                                                                                                  |
+| `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE`                                      |
 
-### S3 Storage Flags (Optional)
+## Operations
 
-Optional flags to configure S3 storage at first start. If not provided, BadgerDB (local storage) is used.
+### Backup & Recovery
 
-| Flag                            | Description                                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--initial-s3-bucket`           | S3 bucket name. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                             |
-| `--initial-s3-endpoint`         | S3 endpoint URL. **Required** if using S3 storage. <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                          |
-| `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE` |
+**Backup:**
 
-**Credentials** are provided via environment variables:
-
-- `AWS_ACCESS_KEY_ID` - Access key ID
-- `AWS_SECRET_ACCESS_KEY` - Secret access key
-
-These work for all S3-compatible services (AWS, MinIO, Cloudflare R2, Backblaze B2).
-
-See [Storage Options](#storage-options) section for detailed S3 setup examples.
-
-## Light version (not in development)
-
-I explored a "light" Any Sync variant without MongoDB and Redis, using a single BadgerDB instance for all logical services (touching filenode, consensus, and coordinator). I decided not to continue due to long‑term maintenance cost.
-Currently, only the filenode is slightly modified to remove the MinIO dependency.
-
-The light version exists as [a draft PR](https://github.com/grishy/any-sync-bundle/pull/19) and is not planned for active development.
-
-## Data & Backups
-
-⚠️ **Always backup before upgrades**
-
-### What Gets Backed Up
-
-| Path                       | Critical | Contents                 |
-| -------------------------- | -------- | ------------------------ |
-| `./data/bundle-config.yml` | 🔴 Yes   | Config + private keys    |
-| `./data/storage/`          | 🔴 Yes   | User sync data           |
-| `./data/mongo/` (AIO only) | 🔴 Yes   | Coordinator/consensus DB |
-| `./data/redis/` (AIO only) | 🔴 Yes   | Filenode cache           |
-| `./data/client-config.yml` | 🟢 No    | Regenerated on start     |
-
-### Backup Process
-
-1. Stop your service
-2. Backup the `./data/` directory
-3. Restart service
-
-**Core backup command:**
-
-```bash
+```sh
+# Stop service first
 tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz ./data/
 ```
 
-### Restore Process
+**Restore:**
 
-1. Stop your service
-2. Remove current data directory
-3. Extract backup
-4. Restart service
-
-**Core restore command:**
-
-```bash
+```sh
 rm -rf ./data && tar -xzf backup-YYYYMMDD-HHMMSS.tar.gz
 ```
 
-**If update fails to start:**
+### Upgrading
 
-1. Stop failed service
-2. Remove data: `rm -rf ./data`
-3. Restore backup: `tar -xzf backup-YYYYMMDD-HHMMSS.tar.gz`
-4. Restart with previous version/image
+1. **Backup** your `./data/` directory
+2. Stop the current service
+3. Pull new image: `docker pull ghcr.io/grishy/any-sync-bundle:NEW_VERSION`
+4. Start the service
+5. Verify: check logs and `--version`
 
-## Troubleshooting
+If upgrade fails, restore from backup and use the previous version.
 
-- MongoDB replica set is not initiated (external DB):
-  - Initialize manually once: `mongosh --host <mongo:27017> --eval "rs.initiate({_id:'rs0', members:[{_id:0, host:'localhost:27017'}]})"`
-  - Replace `localhost` with the actual hostname or IP of your MongoDB server that will be used by the bundle later, if needed.
-- Embedded MongoDB/Redis in AIO does not start:
-  - Check logs for "starting embedded MongoDB/Redis". If the data directories are corrupted, stop the container and **if you no need data**, remove `/data/mongo` or `/data/redis` before restarting.
-- QUIC/UDP blocked:
-  - Open UDP 33020 on firewalls/NAT. Some environments block UDP by default.
-  - Advertise both hostname and IP in `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` for clients behind NAT. Anytype will select one of the addresses to connect to that works.
-- Wrong external address after first run:
-  - Edit `./data/bundle-config.yml` → `externalAddr:` list, then restart the server. The new `client-config.yml` will be regenerated.
+### Troubleshooting
+
+**Client can't connect:**
+
+- Verify `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` matches your server's reachable IP/hostname
+- Check firewall: TCP 33010 and UDP 33020 must be open
+
+**Wrong external address after first run:**
+
+- Edit `./data/bundle-config.yml` → `externalAddr:` list
+- Restart server (new `client-config.yml` will be generated)
+
+**MongoDB crashes with "illegal instruction" (AIO):**
+
+- Your CPU doesn't support AVX instructions required by MongoDB 5.0+
+- Common on older Intel Celeron, Atom, and similar low-power CPUs
+- Use `:minimal` image with external MongoDB 4.4 or earlier
+
+## Development
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for build instructions, development setup, and release process.
 
 ## Acknowledgments
-
-> "Because I stand on the shoulders of giants, I can see further than they can."
 
 This project wouldn't exist without:
 
 - **[Anytype](https://anytype.io/)** – For creating an amazing local-first, privacy-focused tool
 - The **any-sync** team – For open-sourcing the sync infrastructure
 - The **self-hosting community** – For testing, feedback, and support
-- Parcel.js for their awesome box logo!
-
-## Release
-
-Reminder for releasing a new version.
-
-```sh
-# 1. Check locally
-goreleaser release --snapshot --clean
-```
-
-```sh
-# Set variables (fish shell)
-set VERSION v1.1.2
-set ANYTYPE_UNIX_TIMESTAMP 1761316841
-set ANYTYPE_FORMATTED (date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d')
-set FINAL_VERSION $VERSION-$ANYTYPE_FORMATTED
-
-# Create tag and push
-git tag -a $FINAL_VERSION -m "Release $FINAL_VERSION"
-git push origin tag $FINAL_VERSION
-```
-
-> "Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away" – Antoine de Saint-Exupéry
 
 ## License
 
