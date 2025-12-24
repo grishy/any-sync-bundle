@@ -8,14 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"time"
 
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/mongodb"
+	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -23,158 +21,59 @@ const (
 	redisImage = "redis/redis-stack-server:7.4.0-v7"
 	minioImage = "minio/minio:RELEASE.2025-09-07T16-13-09Z"
 	mcImage    = "minio/mc:RELEASE.2025-08-13T08-35-41Z"
-
-	defaultReplica = "rs0"
 )
 
 // MongoContainer wraps a MongoDB container with replica set support.
 type MongoContainer struct {
-	testcontainers.Container
+	*mongodb.MongoDBContainer
 
 	URI string
 }
 
-// StartMongo starts MongoDB with replica set, same as compose.dev.yml.
+// StartMongo starts MongoDB with replica set using the official module.
+// Uses API-based health checks instead of log parsing.
 func StartMongo(ctx context.Context) (*MongoContainer, error) {
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        mongoImage,
-			ExposedPorts: []string{"27017/tcp"},
-			Cmd:          []string{"--replSet", defaultReplica, "--bind_ip", "0.0.0.0"},
-			WaitingFor:   wait.ForLog("Waiting for connections").WithStartupTimeout(60 * time.Second),
-		},
-		Started: true,
-	})
+	container, err := mongodb.Run(ctx, mongoImage, mongodb.WithReplicaSet("rs0"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to start mongo container: %w", err)
+		return nil, fmt.Errorf("failed to start mongo: %w", err)
 	}
 
-	host, err := container.Host(ctx)
+	uri, err := container.ConnectionString(ctx)
 	if err != nil {
 		_ = container.Terminate(ctx)
-		return nil, fmt.Errorf("failed to get mongo host: %w", err)
+		return nil, fmt.Errorf("failed to get mongo uri: %w", err)
 	}
 
-	port, err := container.MappedPort(ctx, "27017")
-	if err != nil {
-		_ = container.Terminate(ctx)
-		return nil, fmt.Errorf("failed to get mongo port: %w", err)
-	}
-
-	externalAddr := net.JoinHostPort(host, port.Port())
-	baseURI := "mongodb://" + externalAddr + "/"
-
-	// Initialize replica set with internal address (MongoDB must recognize itself)
-	if initErr := initReplicaSet(ctx, baseURI); initErr != nil {
-		_ = container.Terminate(ctx)
-		return nil, fmt.Errorf("failed to init replica set: %w", initErr)
-	}
-
-	// Use directConnection=true to bypass replica set discovery
-	// This works because we're connecting to the primary directly
 	return &MongoContainer{
-		Container: container,
-		URI:       baseURI + "?directConnection=true",
+		MongoDBContainer: container,
+		URI:              uri + "&directConnection=true",
 	}, nil
-}
-
-// initReplicaSet initializes MongoDB replica set.
-// Adapted from cmd/mongo.go:initReplicaSetAction.
-func initReplicaSet(ctx context.Context, uri string) error {
-	clientOpts := options.Client().ApplyURI(uri).SetDirect(true)
-
-	var client *mongo.Client
-	var err error
-
-	// Retry connection (MongoDB may not be ready immediately)
-	for range 30 {
-		client, err = mongo.Connect(ctx, clientOpts)
-		if err == nil {
-			if pingErr := client.Ping(ctx, nil); pingErr == nil {
-				break
-			}
-			_ = client.Disconnect(ctx)
-		}
-		time.Sleep(time.Second)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to connect to mongo: %w", err)
-	}
-	defer func() { _ = client.Disconnect(ctx) }()
-
-	// Use localhost:27017 for replica set config since that's what MongoDB sees internally.
-	// Clients will use directConnection=true to bypass replica set discovery.
-	internalHost := "localhost:27017"
-
-	// Initialize replica set
-	cmd := bson.D{
-		{Key: "replSetInitiate", Value: bson.D{
-			{Key: "_id", Value: defaultReplica},
-			{Key: "members", Value: bson.A{
-				bson.D{
-					{Key: "_id", Value: 0},
-					{Key: "host", Value: internalHost},
-				},
-			}},
-		}},
-	}
-
-	err = client.Database("admin").RunCommand(ctx, cmd).Err()
-	if err != nil {
-		// Check if already initialized
-		var status bson.M
-		statusErr := client.Database("admin").
-			RunCommand(ctx, bson.D{{Key: "replSetGetStatus", Value: 1}}).
-			Decode(&status)
-		if statusErr != nil {
-			return fmt.Errorf("init failed and status check failed: %w", err)
-		}
-		if ok, _ := status["ok"].(float64); ok != 1 {
-			return fmt.Errorf("replica set not OK: %w", err)
-		}
-	}
-
-	// Wait for replica set to stabilize
-	time.Sleep(5 * time.Second)
-	return nil
 }
 
 // RedisContainer wraps a Redis Stack container.
 type RedisContainer struct {
-	testcontainers.Container
+	*tcredis.RedisContainer
 
 	URI string
 }
 
-// StartRedis starts Redis Stack with bloom module, same as compose.dev.yml.
+// StartRedis starts Redis Stack using the official module.
+// Uses API-based health checks instead of log parsing.
 func StartRedis(ctx context.Context) (*RedisContainer, error) {
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        redisImage,
-			ExposedPorts: []string{"6379/tcp"},
-			WaitingFor:   wait.ForLog("Ready to accept connections").WithStartupTimeout(30 * time.Second),
-		},
-		Started: true,
-	})
+	container, err := tcredis.Run(ctx, redisImage)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start redis container: %w", err)
+		return nil, fmt.Errorf("failed to start redis: %w", err)
 	}
 
-	host, err := container.Host(ctx)
+	uri, err := container.ConnectionString(ctx)
 	if err != nil {
 		_ = container.Terminate(ctx)
-		return nil, fmt.Errorf("failed to get redis host: %w", err)
-	}
-
-	port, err := container.MappedPort(ctx, "6379")
-	if err != nil {
-		_ = container.Terminate(ctx)
-		return nil, fmt.Errorf("failed to get redis port: %w", err)
+		return nil, fmt.Errorf("failed to get redis uri: %w", err)
 	}
 
 	return &RedisContainer{
-		Container: container,
-		URI:       "redis://" + net.JoinHostPort(host, port.Port()) + "/",
+		RedisContainer: container,
+		URI:            uri,
 	}, nil
 }
 
@@ -189,6 +88,7 @@ type MinIOContainer struct {
 }
 
 // StartMinIO starts MinIO for S3 testing.
+// Uses HTTP health endpoint for readiness check.
 func StartMinIO(ctx context.Context) (*MinIOContainer, error) {
 	accessKey := "minioadmin"
 	secretKey := "minioadmin"
@@ -209,7 +109,7 @@ func StartMinIO(ctx context.Context) (*MinIOContainer, error) {
 				"MINIO_ROOT_PASSWORD": secretKey,
 			},
 			Cmd:        []string{"server", "/data"},
-			WaitingFor: wait.ForHTTP("/minio/health/live").WithPort("9000/tcp").WithStartupTimeout(30 * time.Second),
+			WaitingFor: wait.ForHTTP("/minio/health/live").WithPort("9000/tcp"),
 			Networks:   []string{networkName},
 			NetworkAliases: map[string][]string{
 				networkName: {"minio"},
@@ -274,7 +174,7 @@ func createMinioBucket(ctx context.Context, networkName, endpoint, accessKey, se
 				endpoint, accessKey, secretKey, bucket,
 			)},
 			Networks:   []string{networkName},
-			WaitingFor: wait.ForExit().WithExitTimeout(30 * time.Second),
+			WaitingFor: wait.ForExit(),
 		},
 		Started: true,
 	})

@@ -21,6 +21,8 @@ require (
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
+	github.com/testcontainers/testcontainers-go/modules/mongodb v0.40.0
+	github.com/testcontainers/testcontainers-go/modules/redis v0.40.0
 	github.com/urfave/cli/v2 v2.27.7
 	go.mongodb.org/mongo-driver v1.17.6
 	go.uber.org/zap v1.27.1
@@ -97,6 +99,7 @@ require (
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/matryer/moq v0.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mdelapenya/tlscert v0.2.0 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.1.0 // indirect
