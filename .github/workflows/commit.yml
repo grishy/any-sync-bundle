@@ -195,3 +195,18 @@ jobs:
           nix develop --command go version
           nix develop --command golangci-lint version
           nix develop --command goreleaser --version
+
+  integration-test:
+    name: integration-test
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.2"
+
+      - run: go mod download
+
+      - name: Run integration tests
+        run: go test -v -tags=integration -timeout=10m ./integration/...

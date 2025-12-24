@@ -19,6 +19,12 @@ Config bootstrap (cmd/start.go):
 - `extractSharedNetwork` copies network components from the coordinator into other apps.
 - DRPC routes by method prefix (`/CoordinatorService`, `/ConsensusService`, `/FileService`, `/SpaceSyncService`).
 - Data layout (default `./data`):
+  - `bundle-config.yml` – persisted configuration (credentials, keys)
+  - `client-config.yml` – generated client config (regenerated on start)
+  - `storage/` – local storage directory:
+    - `network-store/` – network configuration
+    - `storage-sync/` – sync node persistence (AnyStore)
+    - `storage-file/` – filenode data (BadgerDB, when not using S3)
 
 ## Development
 
@@ -27,9 +33,21 @@ Config bootstrap (cmd/start.go):
 - `compose.dev.yml` – development dependencies (MongoDB replica set + Redis Stack).
 - `compose.aio.yml` – bundle image with embedded MongoDB/Redis.
 - `compose.external.yml` – bundle image plus external MongoDB and Redis containers.
+- `compose.s3.yml` – bundle with MinIO for S3 storage testing.
+- `compose.traefik.yml` – Traefik reverse proxy example.
 
 ```bash
 go build -o any-sync-bundle .
 golangci-lint run --fix
 go test -race -shuffle=on -vet=all -failfast ./...
+go test -tags=integration ./integration/...  # requires Docker
 ```
+
+### Integration Tests
+
+Uses `testcontainers-go` to spin up MongoDB, Redis, and MinIO containers.
+
+Test files:
+- `integration/containers.go` – container lifecycle helpers
+- `integration/bundle.go` – bundle process manager
+- `integration/integration_test.go` – test cases
