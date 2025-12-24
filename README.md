@@ -49,13 +49,12 @@ After the first run, import `./data/client-config.yml` into Anytype apps.
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
 - **Zero-config**: Sensible defaults, configurable when needed
-- **Lightweight**: No MinIO, and no duplicate logical services
+- **Lightweight**: No MinIO option, and no duplicate logical services
 - **Only 2 open ports**: TCP 33010 (DRPC protocol) and UDP 33020 (QUIC protocol)
 
 ### Who is this for?
 
 - ✅ **Self-hosters** who value simplicity over complexity
-- ✅ **Small teams** (5-50 users) who don't need horizontal scaling
 - ✅ **Low resource** Homelab setups and Raspberry Pi deployments
 
 ### Not for you if
