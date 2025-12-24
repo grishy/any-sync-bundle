@@ -73,8 +73,8 @@ Current version: **`v1.2.1-2025-12-10`**
 
 Format: `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.1.3` – Bundle's semantic version (SemVer)
-- `2025-12-01` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+- `v1.2.1` – Bundle's semantic version (SemVer)
+- `2025-12-10` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 > Compatibility: From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
 
