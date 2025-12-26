@@ -6,6 +6,7 @@ on:
   pull_request:
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
@@ -42,7 +43,6 @@ jobs:
           - ubuntu-24.04-arm
           - windows-2022
           - windows-2025
-          - macos-13
           - macos-14
           - macos-15
           - macos-26
@@ -164,10 +164,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@v14
+        with:
+          determinate: false
       - uses: DeterminateSystems/magic-nix-cache-action@v8
+        with:
+          use-flakehub: false
 
       - name: Check flake
-        run: nix flake check --all-systems
+        run: nix flake check --print-build-logs
 
       - name: Build package
         run: nix build -L .#default
@@ -180,10 +184,29 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@v14
+        with:
+          determinate: false
       - uses: DeterminateSystems/magic-nix-cache-action@v8
+        with:
+          use-flakehub: false
 
       - name: Check dev shell
         run: |
           nix develop --command go version
           nix develop --command golangci-lint version
           nix develop --command goreleaser --version
+
+  integration-test:
+    name: integration-test
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.2"
+
+      - run: go mod download
+
+      - name: Run integration tests
+        run: go test -v -tags=integration -timeout=10m ./integration/...

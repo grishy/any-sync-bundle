@@ -2,6 +2,7 @@
 package config
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -55,7 +56,49 @@ type ConsensusConfig struct {
 }
 
 type FileNodeConfig struct {
-	RedisConnect string `yaml:"redisConnect"`
+	RedisConnect string    `yaml:"redisConnect"`
+	S3           *S3Config `yaml:"s3,omitempty"` // Optional: if present, use S3 storage instead of BadgerDB
+}
+
+// S3Config configures S3-compatible storage backend for the filenode.
+// Supports AWS S3, MinIO, Cloudflare R2, Backblaze B2, etc.
+// Credentials are provided via environment variables: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+type S3Config struct {
+	Bucket         string `yaml:"bucket"`                   // S3 bucket name (required)
+	Endpoint       string `yaml:"endpoint"`                 // S3 endpoint URL (required, e.g., "https://s3.us-east-1.amazonaws.com")
+	ForcePathStyle bool   `yaml:"forcePathStyle,omitempty"` // Use path-style URLs (required for MinIO)
+}
+
+// S3 configuration errors.
+var (
+	ErrS3BucketRequired   = errors.New("S3 bucket name is required (--initial-s3-bucket)")
+	ErrS3EndpointRequired = errors.New("S3 endpoint URL is required (--initial-s3-endpoint)")
+)
+
+// validateS3Config validates S3 configuration and returns the S3Config if valid.
+// It checks that both bucket and endpoint are provided, and warns if credentials are missing.
+func validateS3Config(bucket, endpoint string, forcePathStyle bool) (*S3Config, error) {
+	if bucket == "" {
+		return nil, ErrS3BucketRequired
+	}
+	if endpoint == "" {
+		return nil, ErrS3EndpointRequired
+	}
+
+	// Check for credentials and warn if missing
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	if accessKey == "" || secretKey == "" {
+		log.Warn("S3 credentials not set - authentication may fail at runtime",
+			zap.Bool("AWS_ACCESS_KEY_ID_set", accessKey != ""),
+			zap.Bool("AWS_SECRET_ACCESS_KEY_set", secretKey != ""))
+	}
+
+	return &S3Config{
+		Bucket:         bucket,
+		Endpoint:       endpoint,
+		ForcePathStyle: forcePathStyle,
+	}, nil
 }
 
 func Load(cfgPath string) *Config {
@@ -92,6 +135,12 @@ type CreateOptions struct {
 	MongoURI      string
 	RedisURI      string
 	ExternalAddrs []string
+
+	// S3 storage (optional - if not set, BadgerDB is used)
+	// Credentials via env vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+	S3Bucket         string
+	S3Endpoint       string
+	S3ForcePathStyle bool
 }
 
 func CreateWrite(cfg *CreateOptions) *Config {
@@ -162,6 +211,19 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		FileNode: FileNodeConfig{
 			RedisConnect: cfg.RedisURI,
 		},
+	}
+
+	// Configure S3 storage if S3 flags are provided
+	if cfg.S3Bucket != "" || cfg.S3Endpoint != "" {
+		s3Cfg, s3Err := validateS3Config(cfg.S3Bucket, cfg.S3Endpoint, cfg.S3ForcePathStyle)
+		if s3Err != nil {
+			log.Panic("invalid S3 configuration", zap.Error(s3Err))
+		}
+		defaultCfg.FileNode.S3 = s3Cfg
+
+		log.Info("S3 storage configured",
+			zap.String("bucket", cfg.S3Bucket),
+			zap.String("endpoint", cfg.S3Endpoint))
 	}
 
 	return defaultCfg

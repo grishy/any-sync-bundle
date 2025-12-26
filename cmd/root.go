@@ -35,6 +35,12 @@ const (
 	flagStartExternalAddrs    = "initial-external-addrs"
 	flagStartMongoURI         = "initial-mongo-uri"
 	flagStartRedisURI         = "initial-redis-uri"
+
+	// S3 storage flags (optional - if not set, BadgerDB is used).
+	// Credentials via env vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
+	flagStartS3Bucket         = "initial-s3-bucket"
+	flagStartS3Endpoint       = "initial-s3-endpoint"
+	flagStartS3ForcePathStyle = "initial-s3-force-path-style"
 )
 
 var log = logger.NewNamed("cli")
@@ -133,6 +139,24 @@ func buildStartFlags() []cli.Flag {
 			Value:   "redis://127.0.0.1:6379/",
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_REDIS_URI"},
 			Usage:   "Initial Redis URI for the bundle",
+		},
+
+		// S3 Storage Flags (optional - if not provided, BadgerDB is used)
+		// Credentials via env vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+		&cli.StringFlag{
+			Name:    flagStartS3Bucket,
+			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_BUCKET"},
+			Usage:   "S3 bucket name. Required if using S3 storage.",
+		},
+		&cli.StringFlag{
+			Name:    flagStartS3Endpoint,
+			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT"},
+			Usage:   "S3 endpoint URL (e.g., https://s3.us-east-1.amazonaws.com). Required if using S3 storage.",
+		},
+		&cli.BoolFlag{
+			Name:    flagStartS3ForcePathStyle,
+			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE"},
+			Usage:   "Use path-style S3 URLs (required for MinIO)",
 		},
 	}
 }

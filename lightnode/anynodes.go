@@ -64,8 +64,14 @@ import (
 	"github.com/anyproto/any-sync-node/nodesync/coldsync"
 	"github.com/anyproto/any-sync-node/nodesync/hotsync"
 
+	"github.com/anyproto/any-sync-filenode/store/s3store"
+	"github.com/anyproto/any-sync/app/logger"
+	"go.uber.org/zap"
+
 	"github.com/grishy/any-sync-bundle/lightcmp/lightfilenodestore"
 )
+
+var log = logger.NewNamed("lightnode")
 
 // newCoordinatorApp creates a coordinator application instance.
 // This is the primary app that creates the full network stack.
@@ -167,6 +173,18 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 		Register(archive.New())
 }
 
+// selectFileStore returns S3 or BadgerDB storage based on configuration.
+func selectFileStore(cfg *filenodeConfig.Config, fileDir string) app.Component {
+	if cfg.S3Store.Bucket != "" {
+		log.Info("using S3 storage backend",
+			zap.String("bucket", cfg.S3Store.Bucket),
+			zap.String("endpoint", cfg.S3Store.Endpoint))
+		return s3store.New()
+	}
+	log.Info("using BadgerDB storage backend", zap.String("path", fileDir))
+	return lightfilenodestore.New(fileDir)
+}
+
 // newFileNodeApp creates a filenode application instance with shared components.
 func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedCmp) *app.App {
 	return new(app.App).
@@ -191,9 +209,8 @@ func newFileNodeApp(cfg *filenodeConfig.Config, fileDir string, net *sharedCmp) 
 		Register(coordinatorclient.New()).
 		Register(consensusclient.New()).
 
-		// File Storage
-		// store() - REPLACED: lightfilenodestore.New() uses BadgerDB instead of original S3/MinIO store
-		Register(lightfilenodestore.New(fileDir)).
+		// File Storage - S3 (if configured) or BadgerDB (default)
+		Register(selectFileStore(cfg, fileDir)).
 		Register(redisprovider.New()).
 		Register(index.New()).
 

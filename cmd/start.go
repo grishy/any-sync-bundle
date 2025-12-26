@@ -153,6 +153,11 @@ func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.C
 		MongoURI:      cCtx.String(flagStartMongoURI),
 		RedisURI:      cCtx.String(flagStartRedisURI),
 		ExternalAddrs: cCtx.StringSlice(flagStartExternalAddrs),
+
+		// S3 configuration (optional) - credentials via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY env vars
+		S3Bucket:         cCtx.String(flagStartS3Bucket),
+		S3Endpoint:       cCtx.String(flagStartS3Endpoint),
+		S3ForcePathStyle: cCtx.Bool(flagStartS3ForcePathStyle),
 	})
 }
 
