@@ -32,6 +32,7 @@ type BundleConfig struct {
 	RedisURI    string
 	S3Bucket    string
 	S3Endpoint  string
+	S3Region    string
 	S3AccessKey string
 	S3SecretKey string
 }
@@ -81,6 +82,9 @@ func StartBundle(ctx context.Context, cfg BundleConfig) (*BundleProcess, error) 
 			"--initial-s3-endpoint", cfg.S3Endpoint,
 			"--initial-s3-force-path-style",
 		)
+		if cfg.S3Region != "" {
+			args = append(args, "--initial-s3-region", cfg.S3Region)
+		}
 	}
 
 	cmd := exec.CommandContext(ctx, binaryPath, args...)
