@@ -56,6 +56,45 @@ func TestConvertS3Config_ForcePathStyle(t *testing.T) {
 	assert.Equal(t, "http://minio:9000", s3Cfg.Endpoint)
 }
 
+func TestConvertS3Config_CustomRegion(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "minio-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "minio-secret")
+
+	cfg := &Config{
+		FileNode: FileNodeConfig{
+			S3: &S3Config{
+				Bucket:         "local-bucket",
+				Endpoint:       "http://minio:9000",
+				Region:         "sz-hq",
+				ForcePathStyle: true,
+			},
+		},
+	}
+
+	s3Cfg := cfg.convertS3Config()
+
+	assert.Equal(t, "sz-hq", s3Cfg.Region)
+}
+
+func TestConvertS3Config_EmptyRegionDefaultsToUSEast1(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
+
+	cfg := &Config{
+		FileNode: FileNodeConfig{
+			S3: &S3Config{
+				Bucket:   "my-bucket",
+				Endpoint: "https://s3.amazonaws.com",
+				Region:   "", // Explicitly empty
+			},
+		},
+	}
+
+	s3Cfg := cfg.convertS3Config()
+
+	assert.Equal(t, "us-east-1", s3Cfg.Region, "Empty region should default to us-east-1")
+}
+
 func TestConvertS3Config_MissingCredentials(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")

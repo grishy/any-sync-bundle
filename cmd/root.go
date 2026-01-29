@@ -40,6 +40,7 @@ const (
 	// Credentials via env vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
 	flagStartS3Bucket         = "initial-s3-bucket"
 	flagStartS3Endpoint       = "initial-s3-endpoint"
+	flagStartS3Region         = "initial-s3-region"
 	flagStartS3ForcePathStyle = "initial-s3-force-path-style"
 )
 
@@ -152,6 +153,11 @@ func buildStartFlags() []cli.Flag {
 			Name:    flagStartS3Endpoint,
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT"},
 			Usage:   "S3 endpoint URL (e.g., https://s3.us-east-1.amazonaws.com). Required if using S3 storage.",
+		},
+		&cli.StringFlag{
+			Name:    flagStartS3Region,
+			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_REGION"},
+			Usage:   "S3 region for request signing (default: us-east-1). Required for MinIO with custom regions.",
 		},
 		&cli.BoolFlag{
 			Name:    flagStartS3ForcePathStyle,

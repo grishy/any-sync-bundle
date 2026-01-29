@@ -157,6 +157,7 @@ func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.C
 		// S3 configuration (optional) - credentials via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY env vars
 		S3Bucket:         cCtx.String(flagStartS3Bucket),
 		S3Endpoint:       cCtx.String(flagStartS3Endpoint),
+		S3Region:         cCtx.String(flagStartS3Region),
 		S3ForcePathStyle: cCtx.Bool(flagStartS3ForcePathStyle),
 	})
 }

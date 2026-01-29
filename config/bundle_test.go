@@ -227,10 +227,11 @@ func TestValidateS3Config_Valid(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
 
-	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", false)
+	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", "", false)
 	require.NoError(t, err)
 	assert.Equal(t, "my-bucket", cfg.Bucket)
 	assert.Equal(t, "https://s3.amazonaws.com", cfg.Endpoint)
+	assert.Empty(t, cfg.Region, "Region should be empty when not provided")
 	assert.False(t, cfg.ForcePathStyle)
 }
 
@@ -238,26 +239,35 @@ func TestValidateS3Config_WithForcePathStyle(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
 
-	cfg, err := validateS3Config("my-bucket", "http://minio:9000", true)
+	cfg, err := validateS3Config("my-bucket", "http://minio:9000", "", true)
 	require.NoError(t, err)
 	assert.True(t, cfg.ForcePathStyle)
 }
 
+func TestValidateS3Config_WithRegion(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
+
+	cfg, err := validateS3Config("my-bucket", "http://minio:9000", "sz-hq", true)
+	require.NoError(t, err)
+	assert.Equal(t, "sz-hq", cfg.Region)
+}
+
 func TestValidateS3Config_MissingBucket(t *testing.T) {
-	cfg, err := validateS3Config("", "https://s3.amazonaws.com", false)
+	cfg, err := validateS3Config("", "https://s3.amazonaws.com", "", false)
 	assert.Nil(t, cfg)
 	assert.ErrorIs(t, err, ErrS3BucketRequired)
 }
 
 func TestValidateS3Config_MissingEndpoint(t *testing.T) {
-	cfg, err := validateS3Config("my-bucket", "", false)
+	cfg, err := validateS3Config("my-bucket", "", "", false)
 	assert.Nil(t, cfg)
 	assert.ErrorIs(t, err, ErrS3EndpointRequired)
 }
 
 func TestValidateS3Config_MissingBoth(t *testing.T) {
 	// When both are missing, bucket error should come first
-	cfg, err := validateS3Config("", "", false)
+	cfg, err := validateS3Config("", "", "", false)
 	assert.Nil(t, cfg)
 	assert.ErrorIs(t, err, ErrS3BucketRequired)
 }
@@ -268,7 +278,7 @@ func TestValidateS3Config_MissingCredentials(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
 	// Should still succeed but with a warning (tested via logs)
-	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", false)
+	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", "", false)
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 }
@@ -279,7 +289,7 @@ func TestValidateS3Config_PartialCredentials(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
 	// Should still succeed but with a warning
-	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", false)
+	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", "", false)
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 }
