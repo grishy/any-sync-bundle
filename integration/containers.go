@@ -140,7 +140,14 @@ func StartMinIO(ctx context.Context) (*MinIOContainer, error) {
 	externalEndpoint := "http://" + net.JoinHostPort(host, port.Port())
 
 	// Create bucket using mc (use internal network address)
-	if bucketErr := createMinioBucket(ctx, networkName, "http://minio:9000", accessKey, secretKey, "anytype-data"); bucketErr != nil {
+	if bucketErr := createMinioBucket(
+		ctx,
+		networkName,
+		"http://minio:9000",
+		accessKey,
+		secretKey,
+		"anytype-data",
+	); bucketErr != nil {
 		_ = container.Terminate(ctx)
 		_ = dockerNet.Remove(ctx)
 		return nil, fmt.Errorf("failed to create bucket: %w", bucketErr)
