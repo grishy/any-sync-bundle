@@ -84,12 +84,19 @@ type MinIOContainer struct {
 	Endpoint  string
 	AccessKey string
 	SecretKey string
+	Region    string
 	network   *testcontainers.DockerNetwork
 }
 
-// StartMinIO starts MinIO for S3 testing.
+// StartMinIO starts MinIO for S3 testing with default region (us-east-1).
 // Uses HTTP health endpoint for readiness check.
 func StartMinIO(ctx context.Context) (*MinIOContainer, error) {
+	return StartMinIOWithRegion(ctx, "")
+}
+
+// StartMinIOWithRegion starts MinIO with a custom region for S3 testing.
+// If region is empty, MinIO uses its default (us-east-1).
+func StartMinIOWithRegion(ctx context.Context, region string) (*MinIOContainer, error) {
 	accessKey := "minioadmin"
 	secretKey := "minioadmin"
 
@@ -100,17 +107,22 @@ func StartMinIO(ctx context.Context) (*MinIOContainer, error) {
 	}
 	networkName := dockerNet.Name
 
+	env := map[string]string{
+		"MINIO_ROOT_USER":     accessKey,
+		"MINIO_ROOT_PASSWORD": secretKey,
+	}
+	if region != "" {
+		env["MINIO_REGION"] = region
+	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        minioImage,
 			ExposedPorts: []string{"9000/tcp"},
-			Env: map[string]string{
-				"MINIO_ROOT_USER":     accessKey,
-				"MINIO_ROOT_PASSWORD": secretKey,
-			},
-			Cmd:        []string{"server", "/data"},
-			WaitingFor: wait.ForHTTP("/minio/health/live").WithPort("9000/tcp"),
-			Networks:   []string{networkName},
+			Env:          env,
+			Cmd:          []string{"server", "/data"},
+			WaitingFor:   wait.ForHTTP("/minio/health/live").WithPort("9000/tcp"),
+			Networks:     []string{networkName},
 			NetworkAliases: map[string][]string{
 				networkName: {"minio"},
 			},
@@ -140,7 +152,14 @@ func StartMinIO(ctx context.Context) (*MinIOContainer, error) {
 	externalEndpoint := "http://" + net.JoinHostPort(host, port.Port())
 
 	// Create bucket using mc (use internal network address)
-	if bucketErr := createMinioBucket(ctx, networkName, "http://minio:9000", accessKey, secretKey, "anytype-data"); bucketErr != nil {
+	if bucketErr := createMinioBucket(
+		ctx,
+		networkName,
+		"http://minio:9000",
+		accessKey,
+		secretKey,
+		"anytype-data",
+	); bucketErr != nil {
 		_ = container.Terminate(ctx)
 		_ = dockerNet.Remove(ctx)
 		return nil, fmt.Errorf("failed to create bucket: %w", bucketErr)
@@ -151,6 +170,7 @@ func StartMinIO(ctx context.Context) (*MinIOContainer, error) {
 		Endpoint:  externalEndpoint,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
+		Region:    region,
 		network:   dockerNet,
 	}, nil
 }

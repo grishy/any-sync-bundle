@@ -63,9 +63,13 @@ type FileNodeConfig struct {
 // S3Config configures S3-compatible storage backend for the filenode.
 // Supports AWS S3, MinIO, Cloudflare R2, Backblaze B2, etc.
 // Credentials are provided via environment variables: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+//
+// TODO(bundleFormat:v2): Make Region a required field instead of defaulting to "us-east-1".
+// This will force explicit configuration and avoid silent auth failures with non-default regions.
 type S3Config struct {
 	Bucket         string `yaml:"bucket"`                   // S3 bucket name (required)
 	Endpoint       string `yaml:"endpoint"`                 // S3 endpoint URL (required, e.g., "https://s3.us-east-1.amazonaws.com")
+	Region         string `yaml:"region,omitempty"`         // S3 region for SigV4 signing (default: "us-east-1")
 	ForcePathStyle bool   `yaml:"forcePathStyle,omitempty"` // Use path-style URLs (required for MinIO)
 }
 
@@ -77,7 +81,8 @@ var (
 
 // validateS3Config validates S3 configuration and returns the S3Config if valid.
 // It checks that both bucket and endpoint are provided, and warns if credentials are missing.
-func validateS3Config(bucket, endpoint string, forcePathStyle bool) (*S3Config, error) {
+// Region is optional and defaults to "us-east-1" at conversion time if not provided.
+func validateS3Config(bucket, endpoint, region string, forcePathStyle bool) (*S3Config, error) {
 	if bucket == "" {
 		return nil, ErrS3BucketRequired
 	}
@@ -97,6 +102,7 @@ func validateS3Config(bucket, endpoint string, forcePathStyle bool) (*S3Config, 
 	return &S3Config{
 		Bucket:         bucket,
 		Endpoint:       endpoint,
+		Region:         region,
 		ForcePathStyle: forcePathStyle,
 	}, nil
 }
@@ -140,6 +146,7 @@ type CreateOptions struct {
 	// Credentials via env vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 	S3Bucket         string
 	S3Endpoint       string
+	S3Region         string // Optional, defaults to "us-east-1" if empty
 	S3ForcePathStyle bool
 }
 
@@ -215,7 +222,7 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 
 	// Configure S3 storage if S3 flags are provided
 	if cfg.S3Bucket != "" || cfg.S3Endpoint != "" {
-		s3Cfg, s3Err := validateS3Config(cfg.S3Bucket, cfg.S3Endpoint, cfg.S3ForcePathStyle)
+		s3Cfg, s3Err := validateS3Config(cfg.S3Bucket, cfg.S3Endpoint, cfg.S3Region, cfg.S3ForcePathStyle)
 		if s3Err != nil {
 			log.Panic("invalid S3 configuration", zap.Error(s3Err))
 		}
@@ -223,7 +230,8 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 
 		log.Info("S3 storage configured",
 			zap.String("bucket", cfg.S3Bucket),
-			zap.String("endpoint", cfg.S3Endpoint))
+			zap.String("endpoint", cfg.S3Endpoint),
+			zap.String("region", cfg.S3Region))
 	}
 
 	return defaultCfg

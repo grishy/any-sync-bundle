@@ -124,15 +124,16 @@ Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 
 ### Quick Reference
 
-| Variable                              | Purpose              | Required |
-| ------------------------------------- | -------------------- | -------- |
-| `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` | Advertised addresses | Yes      |
-| `ANY_SYNC_BUNDLE_INIT_MONGO_URI`      | MongoDB connection   | No       |
-| `ANY_SYNC_BUNDLE_INIT_REDIS_URI`      | Redis connection     | No       |
-| `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`      | S3 bucket name       | No       |
-| `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`    | S3 endpoint URL      | No       |
-| `AWS_ACCESS_KEY_ID`                   | S3 credentials       | No       |
-| `AWS_SECRET_ACCESS_KEY`               | S3 credentials       | No       |
+| Variable                              | Purpose                        | Required |
+| ------------------------------------- | ------------------------------ | -------- |
+| `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` | Advertised addresses           | Yes      |
+| `ANY_SYNC_BUNDLE_INIT_MONGO_URI`      | MongoDB connection             | No       |
+| `ANY_SYNC_BUNDLE_INIT_REDIS_URI`      | Redis connection               | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`      | S3 bucket name                 | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`    | S3 endpoint URL                | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_REGION`      | S3 region (default: us-east-1) | No       |
+| `AWS_ACCESS_KEY_ID`                   | S3 credentials                 | No       |
+| `AWS_SECRET_ACCESS_KEY`               | S3 credentials                 | No       |
 
 ### Configuration Files
 
@@ -175,7 +176,16 @@ export AWS_SECRET_ACCESS_KEY="..."
   --initial-s3-endpoint "https://s3.us-east-1.amazonaws.com"
 ```
 
-For MinIO, add `--initial-s3-force-path-style`.
+**For MinIO**, add `--initial-s3-force-path-style`. If your MinIO uses a custom
+region, also add `--initial-s3-region`:
+
+```sh
+./any-sync-bundle start-bundle \
+  --initial-s3-bucket "my-bucket" \
+  --initial-s3-endpoint "http://minio:9000" \
+  --initial-s3-region "custom-region" \
+  --initial-s3-force-path-style
+```
 
 **Docker Compose with MinIO:**
 
@@ -220,6 +230,7 @@ All parameters available as binary flags or environment variables. See `./any-sy
 | `--initial-redis-uri`           | Initial Redis URI for the bundle <br> ‣ Default: `redis://127.0.0.1:6379/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_REDIS_URI`                                         |
 | `--initial-s3-bucket`           | S3 bucket name <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                                                                                                     |
 | `--initial-s3-endpoint`         | S3 endpoint URL <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                                                                                                  |
+| `--initial-s3-region`           | S3 region for request signing <br> ‣ Default: `us-east-1` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_REGION`                                                          |
 | `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE`                                      |
 
 ## Operations

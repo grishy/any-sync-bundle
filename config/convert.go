@@ -185,8 +185,16 @@ func (bc *Config) convertS3Config() s3store.Config {
 	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
+	// Use configured region or default to us-east-1 for backwards compatibility.
+	// Region is part of the SigV4 credential scope used for request signing.
+	// TODO(bundleFormat:v2): Remove default, require explicit region.
+	region := s3Cfg.Region
+	if region == "" {
+		region = "us-east-1"
+	}
+
 	return s3store.Config{
-		Region:         "us-east-1", // Placeholder - endpoint URL determines actual region
+		Region:         region,
 		Bucket:         s3Cfg.Bucket,
 		IndexBucket:    s3Cfg.Bucket, // Same bucket - keys don't collide (blocks use CID, index uses prefixed keys)
 		Endpoint:       s3Cfg.Endpoint,

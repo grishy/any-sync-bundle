@@ -64,6 +64,7 @@ services:
       ANY_SYNC_BUNDLE_INIT_S3_BUCKET: "anytype-data"
       ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT: "http://minio:9000"
       ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE: "true"
+      # ANY_SYNC_BUNDLE_INIT_S3_REGION: "us-east-1"  # Only if MinIO uses custom region
       # S3 Credentials (via standard AWS env vars)
       AWS_ACCESS_KEY_ID: "minioadmin"
       AWS_SECRET_ACCESS_KEY: "minioadmin"
