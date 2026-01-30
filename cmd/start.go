@@ -35,6 +35,10 @@ const (
 	serviceShutdownTimeout = 10 * time.Second
 	clientConfigMode       = 0o644
 
+	// infraWarmupTimeout is the time to wait for a process to survive initial startup.
+	// If a process dies within this period (e.g., SIGILL from missing AVX), we fail fast.
+	infraWarmupTimeout = 1 * time.Second
+
 	dockerMongoPort        = "27017"
 	dockerRedisPort        = "6379"
 	dockerMongoURI         = "mongodb://127.0.0.1:27017/"
@@ -209,7 +213,16 @@ func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
 
 	mongoProc, mongoErr := newInfraProcess(ctx, "mongo", "mongod", mongoArgs...)
 	if mongoErr != nil {
-		return nil, fmt.Errorf("failed to start mongod: %w", mongoErr)
+		return nil, fmt.Errorf("start mongod: %w", mongoErr)
+	}
+
+	// Check for early crash (e.g., SIGILL from missing AVX support).
+	if err := mongoProc.waitWarmup(infraWarmupTimeout); err != nil {
+		if isIllegalInstruction(err) {
+			printMongoAVXError()
+			return nil, &MongoAVXError{Cause: err}
+		}
+		return nil, fmt.Errorf("mongodb startup: %w", err)
 	}
 
 	redisArgs := []string{
@@ -231,7 +244,14 @@ func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
 	if redisErr != nil {
 		mongoProc.stop()
 		_ = mongoProc.wait()
-		return nil, fmt.Errorf("failed to start redis-server: %w", redisErr)
+		return nil, fmt.Errorf("start redis-server: %w", redisErr)
+	}
+
+	// Check for early crash.
+	if err := redisProc.waitWarmup(infraWarmupTimeout); err != nil {
+		mongoProc.stop()
+		_ = mongoProc.wait()
+		return nil, fmt.Errorf("redis startup: %w", err)
 	}
 
 	suite := &infraSuite{
@@ -265,9 +285,10 @@ func applyAllInOneDefaults(cfg *bundleConfig.Config) {
 }
 
 type infraProcess struct {
-	name string
-	cmd  *exec.Cmd
-	done chan error
+	name    string
+	cmd     *exec.Cmd
+	done    chan struct{} // Closed when process exits
+	exitErr error         // Set when process exits
 }
 
 func newInfraProcess(ctx context.Context, name, bin string, args ...string) (*infraProcess, error) {
@@ -287,19 +308,21 @@ func newInfraProcess(ctx context.Context, name, bin string, args ...string) (*in
 		return nil, fmt.Errorf("failed to start %s: %w", name, startErr)
 	}
 
-	done := make(chan error, 1)
+	p := &infraProcess{
+		name: name,
+		cmd:  cmd,
+		done: make(chan struct{}),
+	}
+
 	go func() {
-		done <- cmd.Wait()
+		p.exitErr = cmd.Wait()
+		close(p.done)
 	}()
 
 	go streamPipe(name, stdout)
 	go streamPipe(name, stderr)
 
-	return &infraProcess{
-		name: name,
-		cmd:  cmd,
-		done: done,
-	}, nil
+	return p, nil
 }
 
 func (p *infraProcess) stop() {
@@ -323,7 +346,20 @@ func (p *infraProcess) wait() error {
 		return nil
 	}
 
-	return <-p.done
+	<-p.done
+	return p.exitErr
+}
+
+// waitWarmup waits for the process to survive the warmup period.
+// Returns nil if process is still running after timeout.
+// Returns the exit error if process died during warmup.
+func (p *infraProcess) waitWarmup(timeout time.Duration) error {
+	select {
+	case <-p.done:
+		return p.exitErr
+	case <-time.After(timeout):
+		return nil
+	}
 }
 
 type infraSuite struct {
@@ -362,6 +398,50 @@ func streamPipe(name string, reader io.Reader) {
 			zap.String("process", name),
 			zap.Error(err))
 	}
+}
+
+// isIllegalInstruction checks if an error indicates SIGILL.
+// This typically means the CPU lacks required instructions (e.g., AVX for MongoDB 5.0+).
+func isIllegalInstruction(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "illegal instruction")
+}
+
+// MongoAVXError indicates MongoDB failed due to missing AVX CPU support.
+type MongoAVXError struct {
+	Cause error
+}
+
+func (e *MongoAVXError) Error() string {
+	return fmt.Sprintf("mongodb requires AVX CPU support: %v", e.Cause)
+}
+
+func (e *MongoAVXError) Unwrap() error {
+	return e.Cause
+}
+
+// printMongoAVXError displays a user-friendly error message for AVX failures.
+func printMongoAVXError() {
+	const msg = `
+┌─────────────────────────────────────────────────────────────────────┐
+│  MongoDB failed to start: CPU does not support AVX instructions     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  MongoDB 5.0+ requires AVX CPU instructions, but your processor     │
+│  does not support them. The process was terminated by the kernel    │
+│  with SIGILL (Illegal Instruction).                                 │
+│                                                                     │
+│  Solutions:                                                         │
+│    • Use external MongoDB 4.4 with the start-bundle command         │
+│    • See compose.external.yml for example setup                     │
+│                                                                     │
+│  More info: https://github.com/grishy/any-sync-bundle/pull/39       │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+`
+	fmt.Fprint(os.Stderr, msg)
 }
 
 // waitForTCPReady polls the address until a TCP connection succeeds or timeout is reached.
