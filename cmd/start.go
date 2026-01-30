@@ -35,10 +35,6 @@ const (
 	serviceShutdownTimeout = 10 * time.Second
 	clientConfigMode       = 0o644
 
-	// infraWarmupTimeout is the time to wait for a process to survive initial startup.
-	// If a process dies within this period (e.g., SIGILL from missing AVX), we fail fast.
-	infraWarmupTimeout = 1 * time.Second
-
 	dockerMongoPort        = "27017"
 	dockerRedisPort        = "6379"
 	dockerMongoURI         = "mongodb://127.0.0.1:27017/"
@@ -216,15 +212,6 @@ func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
 		return nil, fmt.Errorf("start mongod: %w", mongoErr)
 	}
 
-	// Check for early crash (e.g., SIGILL from missing AVX support).
-	if err := mongoProc.waitWarmup(infraWarmupTimeout); err != nil {
-		if isIllegalInstruction(err) {
-			printMongoAVXError()
-			return nil, &MongoAVXError{Cause: err}
-		}
-		return nil, fmt.Errorf("mongodb startup: %w", err)
-	}
-
 	redisArgs := []string{
 		"--port", dockerRedisPort,
 		"--dir", dockerRedisDataDir,
@@ -247,32 +234,31 @@ func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
 		return nil, fmt.Errorf("start redis-server: %w", redisErr)
 	}
 
-	// Check for early crash.
-	if err := redisProc.waitWarmup(infraWarmupTimeout); err != nil {
-		mongoProc.stop()
-		_ = mongoProc.wait()
-		return nil, fmt.Errorf("redis startup: %w", err)
-	}
-
 	suite := &infraSuite{
 		processes: []*infraProcess{mongoProc, redisProc},
 	}
 
+	// Wait for MongoDB TCP ready (or process death)
 	mongoAddr := net.JoinHostPort("127.0.0.1", dockerMongoPort)
-	if readyErr := waitForTCPReady(mongoAddr, 180*time.Second); readyErr != nil {
+	if err := waitForTCPOrExit(mongoAddr, 180*time.Second, mongoProc); err != nil {
 		suite.stop()
-		return nil, fmt.Errorf("mongo listener not ready: %w", readyErr)
+		if isIllegalInstruction(err) {
+			printMongoAVXError()
+			return nil, &MongoAVXError{Cause: err}
+		}
+		return nil, fmt.Errorf("mongodb not ready: %w", err)
 	}
 
 	if initErr := initReplicaSetAction(ctx, defaultMongoReplica, dockerMongoURI); initErr != nil {
 		suite.stop()
-		return nil, fmt.Errorf("failed to initialize MongoDB replica set: %w", initErr)
+		return nil, fmt.Errorf("init replica set: %w", initErr)
 	}
 
+	// Wait for Redis TCP ready (or process death)
 	redisAddr := net.JoinHostPort("127.0.0.1", dockerRedisPort)
-	if readyErr := waitForTCPReady(redisAddr, 30*time.Second); readyErr != nil {
+	if err := waitForTCPOrExit(redisAddr, 30*time.Second, redisProc); err != nil {
 		suite.stop()
-		return nil, fmt.Errorf("redis listener not ready: %w", readyErr)
+		return nil, fmt.Errorf("redis not ready: %w", err)
 	}
 
 	return suite, nil
@@ -348,18 +334,6 @@ func (p *infraProcess) wait() error {
 
 	<-p.done
 	return p.exitErr
-}
-
-// waitWarmup waits for the process to survive the warmup period.
-// Returns nil if process is still running after timeout.
-// Returns the exit error if process died during warmup.
-func (p *infraProcess) waitWarmup(timeout time.Duration) error {
-	select {
-	case <-p.done:
-		return p.exitErr
-	case <-time.After(timeout):
-		return nil
-	}
 }
 
 type infraSuite struct {
@@ -483,6 +457,67 @@ func waitForTCPReady(addr string, timeout time.Duration) error {
 		}
 
 		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// waitForTCPOrExit polls the address until TCP connects, process exits, or timeout.
+// Returns nil if TCP is ready.
+// Returns process exit error if process dies.
+// Returns timeout error if deadline reached.
+func waitForTCPOrExit(addr string, timeout time.Duration, proc *infraProcess) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	dialer := &net.Dialer{
+		Timeout: 100 * time.Millisecond,
+	}
+
+	attempt := 0
+	startTime := time.Now()
+
+	for {
+		attempt++
+
+		// Check if process died
+		select {
+		case <-proc.done:
+			return proc.exitErr
+		default:
+		}
+
+		// Try TCP connect
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err == nil {
+			_ = conn.Close()
+			log.Info("TCP listener ready",
+				zap.String("addr", addr),
+				zap.Int("attempts", attempt),
+				zap.Duration("elapsed", time.Since(startTime)))
+			return nil
+		}
+
+		// Check for timeout
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout after %v (attempts: %d)", timeout, attempt)
+		default:
+		}
+
+		if attempt%5 == 0 {
+			log.Debug("waiting for TCP listener",
+				zap.String("addr", addr),
+				zap.Int("attempts", attempt),
+				zap.Duration("elapsed", time.Since(startTime)))
+		}
+
+		// Wait before retry, watching for process exit
+		select {
+		case <-proc.done:
+			return proc.exitErr
+		case <-ctx.Done():
+			return fmt.Errorf("timeout after %v (attempts: %d)", timeout, attempt)
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 }
 

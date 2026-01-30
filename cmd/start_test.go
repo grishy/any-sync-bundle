@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"net"
 	"testing"
 	"time"
 )
@@ -55,58 +56,63 @@ func TestIsIllegalInstruction(t *testing.T) {
 	}
 }
 
-func TestInfraProcessWaitWarmup(t *testing.T) {
-	tests := []struct {
-		name      string
-		exitAfter time.Duration // 0 means don't exit during test
-		exitErr   error
-		timeout   time.Duration
-		wantErr   bool
-	}{
-		{
-			name:    "process survives warmup",
-			timeout: 50 * time.Millisecond,
-			wantErr: false,
-		},
-		{
-			name:      "process dies during warmup",
-			exitAfter: 10 * time.Millisecond,
-			exitErr:   errors.New("signal: illegal instruction"),
-			timeout:   100 * time.Millisecond,
-			wantErr:   true,
-		},
-		{
-			name:      "process dies after warmup timeout",
-			exitAfter: 100 * time.Millisecond,
-			exitErr:   errors.New("some error"),
-			timeout:   20 * time.Millisecond,
-			wantErr:   false,
-		},
+func TestWaitForTCPOrExit_ProcessDies(t *testing.T) {
+	// Create a mock process that dies immediately
+	proc := &infraProcess{
+		done: make(chan struct{}),
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := &infraProcess{
-				done: make(chan struct{}),
-			}
+	expectedErr := errors.New("signal: illegal instruction")
 
-			if tt.exitAfter > 0 {
-				go func() {
-					time.Sleep(tt.exitAfter)
-					p.exitErr = tt.exitErr
-					close(p.done)
-				}()
-			}
+	// Simulate process dying
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		proc.exitErr = expectedErr
+		close(proc.done)
+	}()
 
-			err := p.waitWarmup(tt.timeout)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("waitWarmup() error = %v, wantErr %v", err, tt.wantErr)
-			}
+	// Use a non-existent address so TCP never connects
+	err := waitForTCPOrExit("127.0.0.1:59999", 5*time.Second, proc)
 
-			if tt.wantErr && !errors.Is(err, tt.exitErr) {
-				t.Errorf("waitWarmup() error = %v, want %v", err, tt.exitErr)
-			}
-		})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, expectedErr) {
+		t.Errorf("expected %v, got %v", expectedErr, err)
+	}
+}
+
+func TestWaitForTCPOrExit_TCPReady(t *testing.T) {
+	// Start a TCP listener
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer listener.Close()
+
+	// Create a mock process that stays alive
+	proc := &infraProcess{
+		done: make(chan struct{}),
+	}
+
+	// Wait for TCP (should succeed quickly)
+	err = waitForTCPOrExit(listener.Addr().String(), 5*time.Second, proc)
+	if err != nil {
+		t.Errorf("expected nil, got %v", err)
+	}
+}
+
+func TestWaitForTCPOrExit_Timeout(t *testing.T) {
+	// Create a mock process that stays alive
+	proc := &infraProcess{
+		done: make(chan struct{}),
+	}
+
+	// Use a non-existent address and short timeout
+	err := waitForTCPOrExit("127.0.0.1:59999", 200*time.Millisecond, proc)
+
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
 	}
 }
 
