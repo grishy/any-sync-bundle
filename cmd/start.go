@@ -159,6 +159,9 @@ func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.C
 		S3Endpoint:       cCtx.String(flagStartS3Endpoint),
 		S3Region:         cCtx.String(flagStartS3Region),
 		S3ForcePathStyle: cCtx.Bool(flagStartS3ForcePathStyle),
+
+		// Filenode configuration
+		FilenodeDefaultLimit: cCtx.Uint64(flagStartFilenodeDefaultLimit),
 	})
 }
 

@@ -146,6 +146,13 @@ func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config 
 func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TiB in bytes
 
+	// Use configured limit or default to 1 TiB for backwards compatibility.
+	// TODO(bundleFormat:v2): Remove default, require explicit limit.
+	defaultLimit := bc.FileNode.DefaultLimit
+	if defaultLimit == 0 {
+		defaultLimit = oneTerabyte
+	}
+
 	cfg := &filenodeconfig.Config{
 		Account: bc.Account,
 		Drpc: rpc.Config{
@@ -161,7 +168,7 @@ func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
 		Network:                  opts.networkCfg,
 		NetworkStorePath:         opts.pathNetworkStoreFilenode,
 		NetworkUpdateIntervalSec: 0,
-		DefaultLimit:             oneTerabyte,
+		DefaultLimit:             defaultLimit,
 	}
 
 	// Configure S3 storage if S3 config is present

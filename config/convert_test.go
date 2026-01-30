@@ -174,3 +174,30 @@ func TestFilenodeConfig_WithoutS3(t *testing.T) {
 	// S3Store should be empty (zero value)
 	assert.Empty(t, nodeCfgs.Filenode.S3Store.Bucket)
 }
+
+// Filenode Default Limit Tests
+
+func TestFilenodeConfig_DefaultLimit_CustomValue(t *testing.T) {
+	const tenGiB = 10 * 1024 * 1024 * 1024 // 10 GiB
+
+	cfg := newTestConfig()
+	cfg.FileNode.DefaultLimit = tenGiB
+
+	nodeCfgs := cfg.NodeConfigs()
+
+	require.NotNil(t, nodeCfgs.Filenode)
+	assert.Equal(t, uint64(tenGiB), nodeCfgs.Filenode.DefaultLimit)
+}
+
+func TestFilenodeConfig_DefaultLimit_ZeroDefaultsTo1TiB(t *testing.T) {
+	const oneTiB = 1024 * 1024 * 1024 * 1024 // 1 TiB
+
+	cfg := newTestConfig()
+	cfg.FileNode.DefaultLimit = 0 // Not set
+
+	nodeCfgs := cfg.NodeConfigs()
+
+	require.NotNil(t, nodeCfgs.Filenode)
+	assert.Equal(t, uint64(oneTiB), nodeCfgs.Filenode.DefaultLimit,
+		"Zero DefaultLimit should fallback to 1 TiB")
+}
