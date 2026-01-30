@@ -58,6 +58,12 @@ type ConsensusConfig struct {
 type FileNodeConfig struct {
 	RedisConnect string    `yaml:"redisConnect"`
 	S3           *S3Config `yaml:"s3,omitempty"` // Optional: if present, use S3 storage instead of BadgerDB
+	// DefaultLimit is the storage limit per space in bytes.
+	// If not set (0), defaults to 1 TiB for backwards compatibility with old configs.
+	//
+	// TODO(bundleFormat:v2): Remove omitempty and runtime default. New configs already
+	// write 1 TiB explicitly; v2 can require the field to be present in config file.
+	DefaultLimit uint64 `yaml:"defaultLimit,omitempty"`
 }
 
 // S3Config configures S3-compatible storage backend for the filenode.
@@ -148,6 +154,10 @@ type CreateOptions struct {
 	S3Endpoint       string
 	S3Region         string // Optional, defaults to "us-east-1" if empty
 	S3ForcePathStyle bool
+
+	// Filenode storage limit per space in bytes.
+	// If 0, defaults to 1 TiB at runtime.
+	FilenodeDefaultLimit uint64
 }
 
 func CreateWrite(cfg *CreateOptions) *Config {
@@ -217,6 +227,7 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		},
 		FileNode: FileNodeConfig{
 			RedisConnect: cfg.RedisURI,
+			DefaultLimit: filenodeDefaultLimit(cfg.FilenodeDefaultLimit),
 		},
 	}
 
@@ -235,6 +246,16 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 	}
 
 	return defaultCfg
+}
+
+// filenodeDefaultLimit returns the provided limit or 1 TiB if not set.
+// This ensures new configs always have an explicit limit written to the file.
+func filenodeDefaultLimit(limit uint64) uint64 {
+	const oneTiB = 1024 * 1024 * 1024 * 1024
+	if limit == 0 {
+		return oneTiB
+	}
+	return limit
 }
 
 func newAcc(netKey crypto.PrivKey) accountservice.Config {

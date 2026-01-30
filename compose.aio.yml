@@ -18,3 +18,10 @@ services:
     environment:
       # Advertise addresses clients should use. Replace with your server hostname/IP.
       ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS: "192.168.100.9"
+      # Storage limit per space in bytes (default: 1 TiB)
+      # Examples:   1 GiB = 1073741824
+      #            10 GiB = 10737418240
+      #           150 GiB = 161061273600
+      #             1 TiB = 1099511627776 (default)
+      #             2 TiB = 2199023255552
+      # ANY_SYNC_BUNDLE_INIT_FILENODE_DEFAULT_LIMIT: "1099511627776"

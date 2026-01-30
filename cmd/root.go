@@ -42,6 +42,9 @@ const (
 	flagStartS3Endpoint       = "initial-s3-endpoint"
 	flagStartS3Region         = "initial-s3-region"
 	flagStartS3ForcePathStyle = "initial-s3-force-path-style"
+
+	// Filenode configuration.
+	flagStartFilenodeDefaultLimit = "initial-filenode-default-limit"
 )
 
 var log = logger.NewNamed("cli")
@@ -163,6 +166,16 @@ func buildStartFlags() []cli.Flag {
 			Name:    flagStartS3ForcePathStyle,
 			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE"},
 			Usage:   "Use path-style S3 URLs (required for MinIO)",
+		},
+
+		// Filenode Configuration
+		&cli.Uint64Flag{
+			Name:    flagStartFilenodeDefaultLimit,
+			EnvVars: []string{"ANY_SYNC_BUNDLE_INIT_FILENODE_DEFAULT_LIMIT"},
+			Usage: "Storage limit per space in bytes. " +
+				"Examples: 1 GiB = 1073741824, 10 GiB = 10737418240, " +
+				"150 GiB = 161061273600, 1 TiB = 1099511627776 (default), " +
+				"2 TiB = 2199023255552",
 		},
 	}
 }

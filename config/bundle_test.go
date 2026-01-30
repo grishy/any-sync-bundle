@@ -420,3 +420,84 @@ filenode:
 	assert.Equal(t, "https://s3.amazonaws.com", cfg.FileNode.S3.Endpoint)
 	assert.True(t, cfg.FileNode.S3.ForcePathStyle)
 }
+
+// Filenode Default Limit Tests
+
+func TestCreateWrite_WithFilenodeDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "limit-config.yml")
+
+	const tenGiB = 10 * 1024 * 1024 * 1024 // 10 GiB
+
+	opts := &CreateOptions{
+		CfgPath:              cfgPath,
+		StorePath:            filepath.Join(tmpDir, "storage"),
+		MongoURI:             "mongodb://localhost:27017/",
+		RedisURI:             "redis://localhost:6379/",
+		ExternalAddrs:        []string{"192.168.1.100"},
+		FilenodeDefaultLimit: tenGiB,
+	}
+
+	cfg := CreateWrite(opts)
+	assert.Equal(t, uint64(tenGiB), cfg.FileNode.DefaultLimit)
+
+	// Verify it persists and loads back correctly
+	loadedCfg := Load(cfgPath)
+	assert.Equal(t, uint64(tenGiB), loadedCfg.FileNode.DefaultLimit)
+}
+
+func TestCreateWrite_WithoutFilenodeDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "no-limit-config.yml")
+
+	const oneTiB = 1024 * 1024 * 1024 * 1024 // 1 TiB
+
+	opts := &CreateOptions{
+		CfgPath:       cfgPath,
+		StorePath:     filepath.Join(tmpDir, "storage"),
+		MongoURI:      "mongodb://localhost:27017/",
+		RedisURI:      "redis://localhost:6379/",
+		ExternalAddrs: []string{"192.168.1.100"},
+		// FilenodeDefaultLimit not set (zero value)
+	}
+
+	cfg := CreateWrite(opts)
+	assert.Equal(t, uint64(oneTiB), cfg.FileNode.DefaultLimit,
+		"DefaultLimit should be 1 TiB when not configured (written to config file)")
+}
+
+func TestLoad_WithFilenodeDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "limit-config.yml")
+
+	configWithLimit := `bundleVersion: "1.0.0"
+bundleFormat: 1
+externalAddr:
+  - "192.168.1.100"
+configId: "test-config-id"
+networkId: "test-network-id"
+storagePath: "./data/storage"
+account:
+  peerId: "test-peer-id"
+  peerKey: "test-peer-key"
+  signingKey: "test-signing-key"
+network:
+  listenTCPAddr: "0.0.0.0:33010"
+  listenUDPAddr: "0.0.0.0:33020"
+coordinator:
+  mongoConnect: "mongodb://localhost:27017/"
+  mongoDatabase: "coordinator"
+consensus:
+  mongoConnect: "mongodb://localhost:27017/?w=majority"
+  mongoDatabase: "consensus"
+filenode:
+  redisConnect: "redis://localhost:6379/"
+  defaultLimit: 10737418240
+`
+
+	err := os.WriteFile(cfgPath, []byte(configWithLimit), 0o600)
+	require.NoError(t, err)
+
+	cfg := Load(cfgPath)
+	assert.Equal(t, uint64(10737418240), cfg.FileNode.DefaultLimit)
+}
