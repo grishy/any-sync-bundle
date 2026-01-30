@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -57,29 +58,32 @@ func TestIsIllegalInstruction(t *testing.T) {
 }
 
 func TestWaitForTCPOrExit_ProcessDies(t *testing.T) {
-	// Create a mock process that dies immediately
-	proc := &infraProcess{
-		done: make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		// Create a mock process that dies
+		proc := &infraProcess{
+			done: make(chan struct{}),
+		}
 
-	expectedErr := errors.New("signal: illegal instruction")
+		expectedErr := errors.New("signal: illegal instruction")
 
-	// Simulate process dying
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		proc.exitErr = expectedErr
-		close(proc.done)
-	}()
+		// Simulate process dying after a short time
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			proc.exitErr = expectedErr
+			close(proc.done)
+		}()
 
-	// Use a non-existent address so TCP never connects
-	err := waitForTCPOrExit("127.0.0.1:59999", 5*time.Second, proc)
+		// Use a non-existent address so TCP never connects
+		// With synctest, time advances automatically when blocked
+		err := waitForTCPOrExit("127.0.0.1:59999", 5*time.Second, proc)
 
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !errors.Is(err, expectedErr) {
-		t.Errorf("expected %v, got %v", expectedErr, err)
-	}
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, expectedErr) {
+			t.Errorf("expected %v, got %v", expectedErr, err)
+		}
+	})
 }
 
 func TestWaitForTCPOrExit_TCPReady(t *testing.T) {
