@@ -29,13 +29,21 @@
 - **Both** (comma-separated) for flexibility: `sync.example.com,192.168.1.100`
 
 ```sh
+# For AVX-capable CPUs (most modern CPUs - 2011+)
 docker run -d \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
     -p 33010:33010 \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
-    --restart unless-stopped \
-  ghcr.io/grishy/any-sync-bundle:1.2.1-2025-12-10
+  ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01
+
+# For non-AVX CPUs (older hardware)
+docker run \
+    -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+    -p 33010:33010 \
+    -p 33020:33020/udp \
+    -v $(pwd)/data:/data \
+  ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-non-avx
 ```
 
 After the first run, import `./data/client-config.yml` into Anytype apps.
@@ -44,7 +52,15 @@ After the first run, import `./data/client-config.yml` into Anytype apps.
 
 ## Overview
 
-### Key Features
+- **✅ Bundle (all-in-one container)**: Bundled with MongoDB and Redis built in.
+  - **AVX version** (default): Uses MongoDB 8.0+ for modern CPUs with AVX support. Tag: `latest` or version tag (e.g., `v1.1.3-2025-12-01`).
+  - **Non-AVX version**: Uses MongoDB 4.4 for older CPUs without AVX support. Tag: `non-avx` or version tag with `-non-avx` suffix (e.g., `v1.1.3-2025-12-01-non-avx`).
+- **✅ Bundle (solo bundle / container)**: A variant without MongoDB and Redis. You can use your own instances. Tag: `minimal` or version tag with `-minimal` suffix.
+- **🧶 Custom Light version[\*](#light-version-not-in-development)**: Not in development currently.
+
+> **💡 Which image to use?** Most modern CPUs (2011+) support AVX. Use the default `latest` tag. For older hardware or if you encounter AVX-related errors, use the `non-avx` tag.
+
+## Key features
 
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
@@ -87,16 +103,116 @@ Format: `v[bundle-version]-[anytype-compatibility-date]`
 | `ghcr.io/grishy/any-sync-bundle:1.2.1-2025-12-10`         | All-in-one (embedded MongoDB/Redis) |
 | `ghcr.io/grishy/any-sync-bundle:1.2.1-2025-12-10-minimal` | Minimal (external MongoDB/Redis)    |
 
-Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are recommended.
+**Available tags:**
+- `latest` / `v1.1.3-2025-12-01` - AVX version (MongoDB 8.0+) for modern CPUs
+- `non-avx` / `v1.1.3-2025-12-01-non-avx` - Non-AVX version (MongoDB 4.4) for older CPUs
+- `minimal` / `v1.1.3-2025-12-01-minimal` - Bundle only, external MongoDB/Redis required
+
+Using an explicit release tag keeps upgrades deliberate (my recommendation).
 
 ### Docker Compose (Recommended)
 
-| File                   | Description                                  |
-| ---------------------- | -------------------------------------------- |
-| `compose.aio.yml`      | All-in-one with embedded MongoDB/Redis       |
-| `compose.external.yml` | Bundle + external MongoDB + Redis containers |
-| `compose.s3.yml`       | Bundle + MinIO for S3 storage                |
-| `compose.traefik.yml`  | With Traefik reverse proxy                   |
+1. Container (all-in-one with embedded MongoDB/Redis)
+
+   **AVX version (recommended for most users):**
+   ```sh
+   docker run -d \
+       -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+       -p 33010:33010 \
+       -p 33020:33020/udp \
+       -v $(pwd)/data:/data \
+       --restart unless-stopped \
+       --name any-sync-bundle-aio \
+     ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01
+   ```
+
+   **Non-AVX version (for older CPUs):**
+   ```sh
+   docker run -d \
+       -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+       -p 33010:33010 \
+       -p 33020:33020/udp \
+       -v $(pwd)/data:/data \
+       --restart unless-stopped \
+       --name any-sync-bundle-aio \
+     ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-non-avx
+   ```
+
+2. Container (solo bundle, external MongoDB/Redis)
+   ```sh
+   docker run -d \
+       -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
+       -e ANY_SYNC_BUNDLE_INIT_MONGO_URI="mongodb://user:pass@mongo:27017/" \
+       -e ANY_SYNC_BUNDLE_INIT_REDIS_URI="redis://redis:6379/" \
+       -p 33010:33010 \
+       -p 33020:33020/udp \
+       -v $(pwd)/data:/data \
+       --restart unless-stopped \
+       --name any-sync-bundle \
+     ghcr.io/grishy/any-sync-bundle:1.1.3-2025-12-01-minimal
+   ```
+
+### Docker Compose
+
+- All-in-one image only:
+  ```sh
+  docker compose -f compose.aio.yml up -d
+  ```
+- Bundle + external MongoDB + Redis:
+  ```sh
+  docker compose -f compose.external.yml up -d
+  ```
+- With Traefik reverse proxy (TCP 33010 + UDP 33020):
+  ```sh
+  docker compose -f compose.traefik.yml up -d
+  ```
+  Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
+
+### Without container (binary)
+
+1. Download the binary from the [Release page](https://github.com/grishy/any-sync-bundle/releases)
+2. Start as below (replace IP and URIs as needed):
+
+   ```sh
+   ./any-sync-bundle start-bundle \
+     --initial-external-addrs "192.168.100.9" \
+     --initial-mongo-uri "mongodb://127.0.0.1:27017/" \
+     --initial-redis-uri "redis://127.0.0.1:6379/" \
+     --initial-storage ./data/storage
+   ```
+
+   systemd example:
+
+   ```ini
+   [Unit]
+   Description=Any Sync Bundle
+   After=network-online.target
+   Wants=network-online.target
+
+   [Service]
+   WorkingDirectory=/opt/any-sync-bundle
+   ExecStart=/opt/any-sync-bundle/any-sync-bundle start-bundle \
+     --initial-external-addrs "example.local,192.168.100.9" \
+     --initial-mongo-uri "mongodb://127.0.0.1:27017/?replicaSet=rs0" \
+     --initial-redis-uri "redis://127.0.0.1:6379/" \
+     --initial-storage /opt/any-sync-bundle/data/storage
+   Restart=on-failure
+   RestartSec=5
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+## Building from Source
+
+### Traditional Go Build
+
+**Prerequisites:**
+
+- Go 1.25.2 or later
+- Docker (optional, for testing with containers)
+
+**Build:**
 
 ```sh
 # Pick one as example:
