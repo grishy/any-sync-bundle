@@ -156,7 +156,7 @@ type CreateOptions struct {
 	S3ForcePathStyle bool
 
 	// Filenode storage limit per space in bytes.
-	// If 0, defaults to 1 TiB at runtime.
+	// If 0, defaults to 1 TiB when writing config file.
 	FilenodeDefaultLimit uint64
 }
 
