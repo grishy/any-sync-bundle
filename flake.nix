@@ -44,11 +44,11 @@
         {
           packages.default = (pkgs.buildGoModule.override { go = pkgs.go_1_25; }) rec {
             pname = "any-sync-bundle";
-            version = "v1.2.1-2025-12-10";
+            version = "v1.3.0-2026-01-31";
 
             src = ./.;
 
-            vendorHash = "sha256-vQqiObn/r3lY4VPTXI4cLCtTbYzGpXNaZrkkqhUglpo=";
+            vendorHash = "sha256-IUAticFP900vVNRlnU/fzScg1/AIXjux0XuXMYFq0gQ=";
 
             env.CGO_ENABLED = 0;
 

@@ -35,7 +35,7 @@ docker run -d \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
     --restart unless-stopped \
-  ghcr.io/grishy/any-sync-bundle:1.2.1-2025-12-10
+  ghcr.io/grishy/any-sync-bundle:1.3.0-2026-01-31
 ```
 
 After the first run, import `./data/client-config.yml` into Anytype apps.
@@ -69,12 +69,12 @@ After the first run, import `./data/client-config.yml` into Anytype apps.
 
 ### Version
 
-Current version: **`v1.2.1-2025-12-10`**
+Current version: **`v1.3.0-2026-01-31`**
 
 Format: `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.2.1` – Bundle's semantic version (SemVer)
-- `2025-12-10` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+- `v1.3.0` – Bundle's semantic version (SemVer)
+- `2026-01-31` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 > Compatibility: From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
 
@@ -84,8 +84,8 @@ Format: `v[bundle-version]-[anytype-compatibility-date]`
 
 | Image Tag                                                 | Description                         |
 | --------------------------------------------------------- | ----------------------------------- |
-| `ghcr.io/grishy/any-sync-bundle:1.2.1-2025-12-10`         | All-in-one (embedded MongoDB/Redis) |
-| `ghcr.io/grishy/any-sync-bundle:1.2.1-2025-12-10-minimal` | Minimal (external MongoDB/Redis)    |
+| `ghcr.io/grishy/any-sync-bundle:1.3.0-2026-01-31`         | All-in-one (embedded MongoDB/Redis) |
+| `ghcr.io/grishy/any-sync-bundle:1.3.0-2026-01-31-minimal` | Minimal (external MongoDB/Redis)    |
 
 Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are recommended.
 
