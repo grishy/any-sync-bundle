@@ -15,8 +15,6 @@ services:
       - "--port"
       - "27017"
     restart: unless-stopped
-    ports:
-      - "27017:27017"
     volumes:
       - ./data/mongo:/data
     healthcheck:
@@ -49,8 +47,6 @@ services:
       - "--loadmodule"
       - "/opt/redis-stack/lib/redisbloom.so"
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - ./data/redis:/data
     healthcheck:
