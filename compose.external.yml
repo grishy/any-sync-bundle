@@ -83,9 +83,10 @@ services:
       #             2 TiB = 2199023255552
       # ANY_SYNC_BUNDLE_INIT_FILENODE_DEFAULT_LIMIT: "1099511627776"
 
-
-
-  # You could use this mongo version on cpus without AVX-Instruction support
+  # MongoDB 4.4 for CPUs without AVX instruction support (required by MongoDB 5.0+).
+  # More info: https://github.com/grishy/any-sync-bundle/pull/39
+  # Official recommendation: https://github.com/anyproto/any-sync-dockercompose/wiki/Troubleshooting-&-FAQ
+  # Uncomment the following block and comment out the MongoDB 8.0 block above.
   # mongo:
   #   image: docker.io/mongo:4.4
   #   container_name: any-sync-bundle-mongo
@@ -106,7 +107,5 @@ services:
   #         catch (e) { rs.status().ok }") -eq 1
   #     interval: 5s
   #     timeout: 5s
-  #    retries: 12
-  #    start_period: 10s
-
-      
+  #     retries: 12
+  #     start_period: 10s
