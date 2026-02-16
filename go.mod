@@ -5,16 +5,16 @@ go 1.25
 tool github.com/matryer/moq
 
 // Source: https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
-// Current timestamp: "1769866558"
+// Current timestamp: "1771190708"
 require (
 	github.com/anyproto/any-sync-consensusnode v0.6.2
-	github.com/anyproto/any-sync-coordinator v0.8.3
-	github.com/anyproto/any-sync-filenode v0.10.3
-	github.com/anyproto/any-sync-node v0.10.2
+	github.com/anyproto/any-sync-coordinator v0.8.4
+	github.com/anyproto/any-sync-filenode v0.10.6
+	github.com/anyproto/any-sync-node v0.10.5
 )
 
 require (
-	github.com/anyproto/any-sync v0.11.11
+	github.com/anyproto/any-sync v0.11.14
 	github.com/dgraph-io/badger/v4 v4.9.0
 	github.com/ipfs/go-block-format v0.2.3
 	github.com/ipfs/go-cid v0.6.0
@@ -24,7 +24,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/mongodb v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.40.0
 	github.com/urfave/cli/v2 v2.27.7
-	go.mongodb.org/mongo-driver v1.17.7
+	go.mongodb.org/mongo-driver v1.17.9
 	go.uber.org/zap v1.27.1
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v3 v3.0.1
