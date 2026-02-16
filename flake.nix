@@ -48,7 +48,7 @@
 
             src = ./.;
 
-            vendorHash = "sha256-IUAticFP900vVNRlnU/fzScg1/AIXjux0XuXMYFq0gQ=";
+            vendorHash = "sha256-0AnVTgSu9/wGmww+la92yC4wDdPq1LTs21ej1Nz2+UI=";
 
             env.CGO_ENABLED = 0;
 
