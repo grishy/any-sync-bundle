@@ -54,6 +54,7 @@ import (
 	"github.com/anyproto/any-sync-node/archive/archivestore"
 	"github.com/anyproto/any-sync-node/config"
 	"github.com/anyproto/any-sync-node/debug/nodedebugrpc"
+	"github.com/anyproto/any-sync-node/debug/spacechecker"
 	"github.com/anyproto/any-sync-node/nodehead"
 	"github.com/anyproto/any-sync-node/nodespace"
 	"github.com/anyproto/any-sync-node/nodespace/nodecache"
@@ -166,6 +167,7 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 
 		// Debug
 		Register(debugserver.New()).
+		Register(spacechecker.New()).
 		Register(nodedebugrpc.New()).
 
 		// Archive
