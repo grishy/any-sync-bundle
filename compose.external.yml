@@ -103,8 +103,7 @@ services:
   #       - CMD-SHELL
   #       - >
   #         test $$(mongo --quiet --host 127.0.0.1:27017 --eval
-  #         "try { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]}).ok }
-  #         catch (e) { rs.status().ok }") -eq 1
+  #         "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]}).ok }") -eq 1
   #     interval: 5s
   #     timeout: 5s
   #     retries: 12
