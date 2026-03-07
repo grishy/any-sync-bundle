@@ -144,13 +144,11 @@ func (bc *Config) consensusConfig(opts *nodeConfigOpts) *consensusconfig.Config 
 }
 
 func (bc *Config) filenodeConfig(opts *nodeConfigOpts) *filenodeconfig.Config {
-	const oneTerabyte = 1024 * 1024 * 1024 * 1024 // 1 TiB in bytes
-
 	// Use configured limit or default to 1 TiB for backwards compatibility.
 	// TODO(bundleFormat:v2): Remove default, require explicit limit.
 	defaultLimit := bc.FileNode.DefaultLimit
 	if defaultLimit == 0 {
-		defaultLimit = oneTerabyte
+		defaultLimit = oneTiB
 	}
 
 	cfg := &filenodeconfig.Config{

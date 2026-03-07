@@ -24,6 +24,9 @@ const (
 	MinSupportedBundleFormat = 1
 	// CurrentBundleFormat is the config format version this binary creates.
 	CurrentBundleFormat = 1
+
+	// oneTiB is one tebibyte (2^40 bytes), used as the default filenode storage limit.
+	oneTiB = 1024 * 1024 * 1024 * 1024
 )
 
 type Config struct {
@@ -251,7 +254,6 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 // filenodeDefaultLimit returns the provided limit or 1 TiB if not set.
 // This ensures new configs always have an explicit limit written to the file.
 func filenodeDefaultLimit(limit uint64) uint64 {
-	const oneTiB = 1024 * 1024 * 1024 * 1024
 	if limit == 0 {
 		return oneTiB
 	}
