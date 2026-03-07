@@ -124,16 +124,18 @@ Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 
 ### Quick Reference
 
-| Variable                              | Purpose                        | Required |
-| ------------------------------------- | ------------------------------ | -------- |
-| `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` | Advertised addresses           | Yes      |
-| `ANY_SYNC_BUNDLE_INIT_MONGO_URI`      | MongoDB connection             | No       |
-| `ANY_SYNC_BUNDLE_INIT_REDIS_URI`      | Redis connection               | No       |
-| `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`      | S3 bucket name                 | No       |
-| `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`    | S3 endpoint URL                | No       |
-| `ANY_SYNC_BUNDLE_INIT_S3_REGION`      | S3 region (default: us-east-1) | No       |
-| `AWS_ACCESS_KEY_ID`                   | S3 credentials                 | No       |
-| `AWS_SECRET_ACCESS_KEY`               | S3 credentials                 | No       |
+| Variable                                      | Purpose                          | Required |
+| --------------------------------------------- | -------------------------------- | -------- |
+| `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`         | Advertised addresses             | Yes      |
+| `ANY_SYNC_BUNDLE_INIT_MONGO_URI`              | MongoDB connection               | No       |
+| `ANY_SYNC_BUNDLE_INIT_REDIS_URI`              | Redis connection                 | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`              | S3 bucket name                   | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`            | S3 endpoint URL                  | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_REGION`              | S3 region (default: us-east-1)   | No       |
+| `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE`    | Path-style S3 URLs (for MinIO)   | No       |
+| `ANY_SYNC_BUNDLE_INIT_FILENODE_DEFAULT_LIMIT` | Storage limit per space in bytes | No       |
+| `AWS_ACCESS_KEY_ID`                           | S3 credentials                   | No       |
+| `AWS_SECRET_ACCESS_KEY`                       | S3 credentials                   | No       |
 
 ### Configuration Files
 
@@ -220,18 +222,19 @@ All parameters available as binary flags or environment variables. See `./any-sy
 
 ### Start Command Flags
 
-| Flag                            | Description                                                                                                                                                                      |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--bundle-config`, `-c`         | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
-| `--client-config`, `--cc`       | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
-| `--initial-storage`             | Initial path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_STORAGE`                       |
-| `--initial-external-addrs`      | Initial external addresses for the bundle <br> ‣ Default: `192.168.8.214,example.local` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`                       |
-| `--initial-mongo-uri`           | Initial MongoDB URI for the bundle <br> ‣ Default: `mongodb://127.0.0.1:27017/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_MONGO_URI`                                    |
-| `--initial-redis-uri`           | Initial Redis URI for the bundle <br> ‣ Default: `redis://127.0.0.1:6379/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_REDIS_URI`                                         |
-| `--initial-s3-bucket`           | S3 bucket name <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                                                                                                     |
-| `--initial-s3-endpoint`         | S3 endpoint URL <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                                                                                                  |
-| `--initial-s3-region`           | S3 region for request signing <br> ‣ Default: `us-east-1` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_REGION`                                                          |
-| `--initial-s3-force-path-style` | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE`                                      |
+| Flag                               | Description                                                                                                                                                                      |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bundle-config`, `-c`            | Path to the bundle configuration YAML file <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG`                                      |
+| `--client-config`, `--cc`          | Path where write to the Anytype client configuration YAML file if needed <br> ‣ Default: `./data/client-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CLIENT_CONFIG` |
+| `--initial-storage`                | Initial path to the bundle data directory (must be writable) <br> ‣ Default: `./data/storage/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_STORAGE`                       |
+| `--initial-external-addrs`         | Initial external addresses for the bundle <br> ‣ Default: `192.168.8.214,example.local` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS`                       |
+| `--initial-mongo-uri`              | Initial MongoDB URI for the bundle <br> ‣ Default: `mongodb://127.0.0.1:27017/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_MONGO_URI`                                    |
+| `--initial-redis-uri`              | Initial Redis URI for the bundle <br> ‣ Default: `redis://127.0.0.1:6379/` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_REDIS_URI`                                         |
+| `--initial-s3-bucket`              | S3 bucket name <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_BUCKET`                                                                                                     |
+| `--initial-s3-endpoint`            | S3 endpoint URL <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_ENDPOINT`                                                                                                  |
+| `--initial-s3-region`              | S3 region for request signing <br> ‣ Default: `us-east-1` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_REGION`                                                          |
+| `--initial-s3-force-path-style`    | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE`                                      |
+| `--initial-filenode-default-limit` | Storage limit per space in bytes <br> ‣ Default: `1099511627776` (1 TiB) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_FILENODE_DEFAULT_LIMIT`                              |
 
 ## Operations
 
