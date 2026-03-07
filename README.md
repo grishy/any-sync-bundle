@@ -11,7 +11,7 @@
   &nbsp;
   <a href="https://github.com/grishy/any-sync-bundle/actions"><img src="https://github.com/grishy/any-sync-bundle/actions/workflows/release.yml/badge.svg" alt="Build"></a>
   &nbsp;
-  <img src="https://goreportcard.com/badge/github.com/grishy/gopkgview" alt="Go Report Card">
+  <a href="https://goreportcard.com/report/github.com/grishy/any-sync-bundle"><img src="https://goreportcard.com/badge/github.com/grishy/any-sync-bundle" alt="Go Report Card"></a>
 </p>
 
 ---
@@ -74,7 +74,7 @@ Current version: **`v1.3.1-2026-02-16`**
 Format: `v[bundle-version]-[anytype-compatibility-date]`
 
 - `v1.3.1` – Bundle's semantic version (SemVer)
-- `2026-01-31` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+- `2026-02-16` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 > Compatibility: From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
 

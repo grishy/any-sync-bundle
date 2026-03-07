@@ -294,7 +294,7 @@ func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) e
 		zap.Int("count", len(toDelete)),
 	)
 
-	// Original implementation newer return an error
+	// Original implementation never return an error
 	return nil
 }
 
