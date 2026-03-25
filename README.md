@@ -69,12 +69,12 @@ After the first run, import `./data/client-config.yml` into Anytype apps.
 
 ### Version
 
-Current version: **`v1.3.1-2026-02-16`**
+Current version: **`v1.4.0-2026-03-25`**
 
 Format: `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.3.1` – Bundle's semantic version (SemVer)
-- `2026-02-16` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
+- `v1.4.0` – Bundle's semantic version (SemVer)
+- `2026-03-25` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
 
 > Compatibility: From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
 

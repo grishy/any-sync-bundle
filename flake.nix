@@ -46,7 +46,7 @@
         {
           packages.default = (pkgs.buildGoModule.override { go = goPackage; }) rec {
             pname = "any-sync-bundle";
-            version = "v1.3.1-2026-02-16";
+            version = "v1.4.0-2026-03-25";
 
             src = ./.;
 
