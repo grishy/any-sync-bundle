@@ -18,8 +18,8 @@ github.com/anyproto/any-store v0.4.6 h1:opnTUGfuHa/VA9Incu6iLEy3WsQ4mb2o1oAXGDys
 github.com/anyproto/any-store v0.4.6/go.mod h1:Npi35qMUVZ8ouiV4o9AqpZDs6LbDOF+5ZLlVijXofFM=
 github.com/anyproto/any-sync v0.11.20 h1:/yv38s5KJh1A9SmYj1zD5k8Fqp1v0UZae3n8KNBd5Z0=
 github.com/anyproto/any-sync v0.11.20/go.mod h1:qR5leKtd4j6cnmFiaI4ULe+Az3qjhKpdFtScV7aFCHY=
-github.com/anyproto/any-sync-consensusnode v0.6.6 h1:V/uhMBKU7zTmNIh8F/deWfgWYIV8tMsDCDdRbvwAmHQ=
-github.com/anyproto/any-sync-consensusnode v0.6.6/go.mod h1:oKLA5JpWnQPxxB6lqOO9BM0yId+wB3jsLjz3oOX9H5c=
+github.com/anyproto/any-sync-consensusnode v0.6.8 h1:IkGWN9nM454/T5ScsyIisHJJ3T16zHBoaRwjPJlSLys=
+github.com/anyproto/any-sync-consensusnode v0.6.8/go.mod h1:oKLA5JpWnQPxxB6lqOO9BM0yId+wB3jsLjz3oOX9H5c=
 github.com/anyproto/any-sync-coordinator v0.8.4 h1:LCYP4q8JDqyiTlkdSuDD5XsGiBfyYCqEG+H4s9SRQgQ=
 github.com/anyproto/any-sync-coordinator v0.8.4/go.mod h1:nPR/YcjEhLbqM8Ua/l6PlqG9zXabYJGaHXlPoJNyw6M=
 github.com/anyproto/any-sync-filenode v0.10.6 h1:v3fb4oky0mTJJnNrkAzGe9gmNbg+zNwFIU5gzog36o0=
