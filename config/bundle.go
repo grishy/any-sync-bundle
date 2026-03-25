@@ -251,8 +251,8 @@ func Load(cfgPath string) *Config {
 			zap.Int("current", CurrentBundleFormat),
 			zap.String("path", cfgPath))
 	}
-	if err := cfg.Validate(); err != nil {
-		log.Panic("invalid config", zap.Error(err), zap.String("path", cfgPath))
+	if validateErr := cfg.Validate(); validateErr != nil {
+		log.Panic("invalid config", zap.Error(validateErr), zap.String("path", cfgPath))
 	}
 
 	return &cfg
