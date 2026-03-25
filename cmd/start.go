@@ -35,6 +35,9 @@ const (
 	serviceShutdownTimeout = 10 * time.Second
 	clientConfigMode       = 0o644
 
+	bundleReadyEvent            = "bundle_ready"
+	bundleShutdownCompleteEvent = "bundle_shutdown_complete"
+
 	dockerMongoPort        = "27017"
 	dockerRedisPort        = "6379"
 	dockerMongoURI         = "mongodb://127.0.0.1:27017/"
@@ -115,11 +118,13 @@ func runBundleServices(ctx context.Context, bundleCfg *bundleConfig.Config) erro
 		return err
 	}
 
+	emitBundleEvent(bundleReadyEvent)
 	printStartupMsg()
 
 	<-ctx.Done()
 
 	shutdownServices(apps)
+	emitBundleEvent(bundleShutdownCompleteEvent)
 	printShutdownMsg()
 
 	log.Info("→ Goodbye!")
@@ -568,20 +573,35 @@ func initOneApp(n node) error {
 	log.Info("▶ initializing service", zap.String("name", n.name))
 
 	var firstError error
+	var initialized []app.ComponentRunnable
+	var failedRunnable app.ComponentRunnable
+
 	n.app.IterateComponents(func(c app.Component) {
 		if firstError != nil {
 			return
 		}
 		if err := c.Init(n.app); err != nil {
 			firstError = fmt.Errorf("component '%s': %w", c.Name(), err)
+			if runnable, ok := c.(app.ComponentRunnable); ok {
+				failedRunnable = runnable
+			}
 			log.Error("component init failed",
 				zap.String("service", n.name),
 				zap.String("component", c.Name()),
 				zap.Error(err))
+			return
+		}
+
+		if runnable, ok := c.(app.ComponentRunnable); ok {
+			initialized = append(initialized, runnable)
 		}
 	})
 
 	if firstError != nil {
+		if failedRunnable != nil {
+			initialized = append(initialized, failedRunnable)
+		}
+		shutdownRunnables(n.name, initialized)
 		return fmt.Errorf("service '%s' init failed: %w", n.name, firstError)
 	}
 
@@ -594,6 +614,9 @@ func runOneApp(ctx context.Context, n node, cfg *bundleConfig.Config) error {
 	log.Info("▶ running service", zap.String("name", n.name))
 
 	var firstError error
+	var running []app.ComponentRunnable
+	var failedRunnable app.ComponentRunnable
+
 	n.app.IterateComponents(func(c app.Component) {
 		if firstError != nil {
 			return
@@ -601,15 +624,22 @@ func runOneApp(ctx context.Context, n node, cfg *bundleConfig.Config) error {
 		if runnable, ok := c.(app.ComponentRunnable); ok {
 			if err := runnable.Run(ctx); err != nil {
 				firstError = fmt.Errorf("component '%s': %w", runnable.Name(), err)
+				failedRunnable = runnable
 				log.Error("component run failed",
 					zap.String("service", n.name),
 					zap.String("component", runnable.Name()),
 					zap.Error(err))
+				return
 			}
+			running = append(running, runnable)
 		}
 	})
 
 	if firstError != nil {
+		if failedRunnable != nil {
+			running = append(running, failedRunnable)
+		}
+		shutdownRunnables(n.name, running)
 		return fmt.Errorf("service '%s' run failed: %w", n.name, firstError)
 	}
 
@@ -619,6 +649,7 @@ func runOneApp(ctx context.Context, n node, cfg *bundleConfig.Config) error {
 		log.Info("waiting for coordinator TCP listener", zap.String("addr", addr))
 
 		if err := waitForTCPReady(addr, 5*time.Second); err != nil {
+			shutdownRunnables(n.name, running)
 			return fmt.Errorf("coordinator network not ready: %w", err)
 		}
 
@@ -627,6 +658,37 @@ func runOneApp(ctx context.Context, n node, cfg *bundleConfig.Config) error {
 
 	log.Info("✓ service running", zap.String("name", n.name))
 	return nil
+}
+
+func shutdownRunnables(serviceName string, runnables []app.ComponentRunnable) {
+	if len(runnables) == 0 {
+		return
+	}
+
+	log.Info("⚡ cleaning up partially started service",
+		zap.String("name", serviceName),
+		zap.Int("components", len(runnables)))
+
+	ctx, cancel := context.WithTimeout(context.Background(), serviceShutdownTimeout)
+	defer cancel()
+
+	for _, runnable := range slices.Backward(runnables) {
+		log.Info("▶ stopping component",
+			zap.String("service", serviceName),
+			zap.String("component", runnable.Name()))
+
+		if err := runnable.Close(ctx); err != nil {
+			log.Error("✗ component cleanup failed",
+				zap.String("service", serviceName),
+				zap.String("component", runnable.Name()),
+				zap.Error(err))
+			continue
+		}
+
+		log.Info("✓ component cleaned up",
+			zap.String("service", serviceName),
+			zap.String("component", runnable.Name()))
+	}
 }
 
 func shutdownServices(apps []node) {
@@ -645,6 +707,11 @@ func shutdownServices(apps []node) {
 
 		cancel()
 	}
+}
+
+func emitBundleEvent(event string, fields ...zap.Field) {
+	fields = append(fields, zap.String("event", event))
+	log.Info("bundle lifecycle event", fields...)
 }
 
 func printWelcomeMsg() {

@@ -33,6 +33,8 @@
           ...
         }:
         let
+          goPackage = pkgs.go;
+
           # Version information - extract from git or use defaults
           version = if self ? rev then self.shortRev else "dev";
           commit = self.rev or "dirty";
@@ -42,13 +44,13 @@
           buildDate = builtins.substring 0 10 date;
         in
         {
-          packages.default = (pkgs.buildGoModule.override { go = pkgs.go_1_25; }) rec {
+          packages.default = (pkgs.buildGoModule.override { go = goPackage; }) rec {
             pname = "any-sync-bundle";
             version = "v1.3.1-2026-02-16";
 
             src = ./.;
 
-            vendorHash = "sha256-0AnVTgSu9/wGmww+la92yC4wDdPq1LTs21ej1Nz2+UI=";
+            vendorHash = "sha256-nYq4z16mtnh/5F77Ah6Otr7XisTPt8X6/xAtoczeYVY=";
 
             env.CGO_ENABLED = 0;
 
@@ -78,7 +80,7 @@
 
             packages = with pkgs; [
               git
-              go_1_25
+              goPackage
 
               # Development tools
               golangci-lint

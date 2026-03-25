@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"net"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/anyproto/any-sync/app"
 )
 
 func TestIsIllegalInstruction(t *testing.T) {
@@ -152,4 +155,110 @@ func TestMongoAVXError(t *testing.T) {
 			t.Error("errors.Is() should find wrapped cause")
 		}
 	})
+}
+
+type lifecycleTestRunnable struct {
+	name    string
+	events  *[]string
+	initErr error
+	runErr  error
+}
+
+func (r *lifecycleTestRunnable) Init(*app.App) error {
+	*r.events = append(*r.events, "init:"+r.name)
+	return r.initErr
+}
+
+func (r *lifecycleTestRunnable) Name() string {
+	return r.name
+}
+
+func (r *lifecycleTestRunnable) Run(context.Context) error {
+	*r.events = append(*r.events, "run:"+r.name)
+	return r.runErr
+}
+
+func (r *lifecycleTestRunnable) Close(context.Context) error {
+	*r.events = append(*r.events, "close:"+r.name)
+	return nil
+}
+
+func TestInitOneApp_PartialFailureClosesCurrentService(t *testing.T) {
+	events := []string{}
+	first := &lifecycleTestRunnable{name: "first", events: &events}
+	second := &lifecycleTestRunnable{
+		name:    "second",
+		events:  &events,
+		initErr: errors.New("boom"),
+	}
+	third := &lifecycleTestRunnable{name: "third", events: &events}
+
+	testApp := new(app.App).
+		Register(first).
+		Register(second).
+		Register(third)
+
+	err := initOneApp(node{name: "test", app: testApp})
+	if err == nil {
+		t.Fatal("expected init error, got nil")
+	}
+
+	want := []string{
+		"init:first",
+		"init:second",
+		"close:second",
+		"close:first",
+	}
+	if len(events) != len(want) {
+		t.Fatalf("unexpected event count: got %v want %v", events, want)
+	}
+	for idx := range want {
+		if events[idx] != want[idx] {
+			t.Fatalf("unexpected events: got %v want %v", events, want)
+		}
+	}
+}
+
+func TestStartServices_RunFailureClosesCurrentAndPreviousServices(t *testing.T) {
+	events := []string{}
+	firstService := &lifecycleTestRunnable{name: "one", events: &events}
+	secondServiceFirst := &lifecycleTestRunnable{name: "two-a", events: &events}
+	secondServiceSecond := &lifecycleTestRunnable{
+		name:   "two-b",
+		events: &events,
+		runErr: errors.New("boom"),
+	}
+
+	appOne := new(app.App).Register(firstService)
+	appTwo := new(app.App).
+		Register(secondServiceFirst).
+		Register(secondServiceSecond)
+
+	err := startServices(context.Background(), []node{
+		{name: "svc-one", app: appOne},
+		{name: "svc-two", app: appTwo},
+	}, nil)
+	if err == nil {
+		t.Fatal("expected run error, got nil")
+	}
+
+	want := []string{
+		"init:one",
+		"init:two-a",
+		"init:two-b",
+		"run:one",
+		"run:two-a",
+		"run:two-b",
+		"close:two-b",
+		"close:two-a",
+		"close:one",
+	}
+	if len(events) != len(want) {
+		t.Fatalf("unexpected event count: got %v want %v", events, want)
+	}
+	for idx := range want {
+		if events[idx] != want[idx] {
+			t.Fatalf("unexpected events: got %v want %v", events, want)
+		}
+	}
 }

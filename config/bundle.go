@@ -3,9 +3,12 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/anyproto/any-sync/accountservice"
 	"github.com/anyproto/any-sync/app"
@@ -116,6 +119,114 @@ func validateS3Config(bucket, endpoint, region string, forcePathStyle bool) (*S3
 	}, nil
 }
 
+// Validate checks the bundle config before startup.
+func (cfg *Config) Validate() error {
+	if cfg == nil {
+		return errors.New("config is required")
+	}
+	if strings.TrimSpace(cfg.StoragePath) == "" {
+		return errors.New("storagePath is required")
+	}
+	if len(cfg.ExternalAddr) == 0 {
+		return errors.New("externalAddr must contain at least one address")
+	}
+	for idx, externalAddr := range cfg.ExternalAddr {
+		if strings.TrimSpace(externalAddr) == "" {
+			return fmt.Errorf("externalAddr[%d] is required", idx)
+		}
+	}
+
+	if err := validateListenAddr("network.listenTCPAddr", cfg.Network.ListenTCPAddr); err != nil {
+		return err
+	}
+	if err := validateListenAddr("network.listenUDPAddr", cfg.Network.ListenUDPAddr); err != nil {
+		return err
+	}
+	if err := validateURI("coordinator.mongoConnect", cfg.Coordinator.MongoConnect,
+		"mongodb", "mongodb+srv"); err != nil {
+		return err
+	}
+	if err := validateURI("consensus.mongoConnect", cfg.Consensus.MongoConnect,
+		"mongodb", "mongodb+srv"); err != nil {
+		return err
+	}
+	if err := validateURI("filenode.redisConnect", cfg.FileNode.RedisConnect,
+		"redis", "rediss"); err != nil {
+		return err
+	}
+	if cfg.FileNode.S3 != nil {
+		if err := cfg.FileNode.S3.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (cfg *S3Config) Validate() error {
+	if cfg == nil {
+		return nil
+	}
+	if strings.TrimSpace(cfg.Bucket) == "" {
+		return ErrS3BucketRequired
+	}
+	if strings.TrimSpace(cfg.Endpoint) == "" {
+		return ErrS3EndpointRequired
+	}
+	if err := validateURI("filenode.s3.endpoint", cfg.Endpoint); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateListenAddr(field string, raw string) error {
+	addr := strings.TrimSpace(raw)
+	if addr == "" {
+		return fmt.Errorf("%s is required", field)
+	}
+
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("%s must be in host:port format: %w", field, err)
+	}
+	if host == "" {
+		return fmt.Errorf("%s must include a host", field)
+	}
+	if port == "" {
+		return fmt.Errorf("%s must include a port", field)
+	}
+
+	return nil
+}
+
+func validateURI(field string, raw string, allowedSchemes ...string) error {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return fmt.Errorf("%s is required", field)
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return fmt.Errorf("%s must be a valid URI: %w", field, err)
+	}
+	if parsed.Scheme == "" {
+		return fmt.Errorf("%s must include a scheme", field)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("%s must include a host", field)
+	}
+	if len(allowedSchemes) == 0 {
+		return nil
+	}
+	for _, allowedScheme := range allowedSchemes {
+		if parsed.Scheme == allowedScheme {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s must use one of: %s", field, strings.Join(allowedSchemes, ", "))
+}
+
 func Load(cfgPath string) *Config {
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
@@ -139,6 +250,9 @@ func Load(cfgPath string) *Config {
 			zap.Int("format", cfg.BundleFormat),
 			zap.Int("current", CurrentBundleFormat),
 			zap.String("path", cfgPath))
+	}
+	if err := cfg.Validate(); err != nil {
+		log.Panic("invalid config", zap.Error(err), zap.String("path", cfgPath))
 	}
 
 	return &cfg
@@ -165,6 +279,9 @@ type CreateOptions struct {
 
 func CreateWrite(cfg *CreateOptions) *Config {
 	createdCfg := newBundleConfig(cfg)
+	if err := createdCfg.Validate(); err != nil {
+		log.Panic("invalid generated config", zap.Error(err), zap.String("path", cfg.CfgPath))
+	}
 
 	createCfgYaml, err := yaml.Marshal(createdCfg)
 	if err != nil {
