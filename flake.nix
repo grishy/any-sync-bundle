@@ -50,7 +50,7 @@
 
             src = ./.;
 
-            vendorHash = "sha256-nYq4z16mtnh/5F77Ah6Otr7XisTPt8X6/xAtoczeYVY=";
+            vendorHash = "sha256-dyDvgGwcsIyN5sWt/65lus0SfdxQpqiVupSAGf0eh8w=";
 
             env.CGO_ENABLED = 0;
 
