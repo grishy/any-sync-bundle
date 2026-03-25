@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/anyproto/any-sync/accountservice"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -500,4 +501,103 @@ filenode:
 
 	cfg := Load(cfgPath)
 	assert.Equal(t, uint64(10737418240), cfg.FileNode.DefaultLimit)
+}
+
+func TestConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(cfg *Config)
+		wantErr string
+	}{
+		{
+			name: "valid config",
+		},
+		{
+			name: "missing external address",
+			mutate: func(cfg *Config) {
+				cfg.ExternalAddr = nil
+			},
+			wantErr: "externalAddr must contain at least one address",
+		},
+		{
+			name: "blank external address",
+			mutate: func(cfg *Config) {
+				cfg.ExternalAddr = []string{" "}
+			},
+			wantErr: "externalAddr[0] is required",
+		},
+		{
+			name: "invalid tcp listen address",
+			mutate: func(cfg *Config) {
+				cfg.Network.ListenTCPAddr = "33010"
+			},
+			wantErr: "network.listenTCPAddr must be in host:port format",
+		},
+		{
+			name: "invalid redis uri",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.RedisConnect = "localhost:6379"
+			},
+			wantErr: "filenode.redisConnect must include a host",
+		},
+		{
+			name: "invalid s3 endpoint",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.S3 = &S3Config{
+					Bucket:   "bucket",
+					Endpoint: "minio:9000",
+				}
+			},
+			wantErr: "filenode.s3.endpoint must include a host",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validTestConfig()
+			if tt.mutate != nil {
+				tt.mutate(cfg)
+			}
+
+			err := cfg.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func validTestConfig() *Config {
+	return &Config{
+		BundleVersion: "1.0.0",
+		BundleFormat:  1,
+		ExternalAddr:  []string{"example.local"},
+		ConfigID:      "test-config-id",
+		NetworkID:     "test-network-id",
+		StoragePath:   "./data/storage",
+		Account: accountservice.Config{
+			PeerId:     "test-peer-id",
+			PeerKey:    "test-peer-key",
+			SigningKey: "test-signing-key",
+		},
+		Network: NetworkConfig{
+			ListenTCPAddr: "0.0.0.0:33010",
+			ListenUDPAddr: "0.0.0.0:33020",
+		},
+		Coordinator: CoordinatorConfig{
+			MongoConnect:  "mongodb://localhost:27017/",
+			MongoDatabase: "coordinator",
+		},
+		Consensus: ConsensusConfig{
+			MongoConnect:  "mongodb://localhost:27017/?w=majority",
+			MongoDatabase: "consensus",
+		},
+		FileNode: FileNodeConfig{
+			RedisConnect: "redis://localhost:6379/",
+		},
+	}
 }

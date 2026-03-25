@@ -17,11 +17,19 @@ import (
 	"time"
 )
 
+const (
+	bundleReadyEvent            = "bundle_ready"
+	bundleShutdownCompleteEvent = "bundle_shutdown_complete"
+	filenodeStorageBackendS3    = "filenode_storage_backend_s3"
+)
+
 // BundleProcess manages the any-sync-bundle process.
 type BundleProcess struct {
 	cmd         *exec.Cmd
 	output      *strings.Builder
 	mu          sync.Mutex
+	waitDone    chan struct{}
+	waitErr     error
 	tmpDir      string
 	projectRoot string
 }
@@ -113,6 +121,7 @@ func StartBundle(ctx context.Context, cfg BundleConfig) (*BundleProcess, error) 
 	bp := &BundleProcess{
 		cmd:         cmd,
 		output:      output,
+		waitDone:    make(chan struct{}),
 		tmpDir:      tmpDir,
 		projectRoot: projectRoot,
 	}
@@ -125,6 +134,7 @@ func StartBundle(ctx context.Context, cfg BundleConfig) (*BundleProcess, error) 
 	// Capture output in background
 	go bp.captureOutput(stdout)
 	go bp.captureOutput(stderr)
+	go bp.waitForExit()
 
 	return bp, nil
 }
@@ -136,6 +146,19 @@ func (bp *BundleProcess) captureOutput(r io.Reader) {
 		bp.output.WriteString(scanner.Text() + "\n")
 		bp.mu.Unlock()
 	}
+	if err := scanner.Err(); err != nil {
+		bp.mu.Lock()
+		bp.output.WriteString(fmt.Sprintf("output capture error: %v\n", err))
+		bp.mu.Unlock()
+	}
+}
+
+func (bp *BundleProcess) waitForExit() {
+	waitErr := bp.cmd.Wait()
+	bp.mu.Lock()
+	bp.waitErr = waitErr
+	bp.mu.Unlock()
+	close(bp.waitDone)
 }
 
 // Output returns captured stdout/stderr.
@@ -145,32 +168,14 @@ func (bp *BundleProcess) Output() string {
 	return bp.output.String()
 }
 
-// WaitReady waits for "AnySync Bundle is ready!" message.
+// WaitReady waits for the machine-readable ready event.
 func (bp *BundleProcess) WaitReady(timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if strings.Contains(bp.Output(), "AnySync Bundle is ready!") {
-			return nil
-		}
-		// Check if process died
-		if bp.cmd.ProcessState != nil && bp.cmd.ProcessState.Exited() {
-			return fmt.Errorf("bundle process died: %s", bp.Output())
-		}
-		time.Sleep(time.Second)
-	}
-	return fmt.Errorf("timeout waiting for ready: %s", bp.Output())
+	return bp.waitForOutputMarker(timeout, bundleReadyEvent, "ready")
 }
 
 // WaitForS3Backend verifies S3 storage backend was selected.
 func (bp *BundleProcess) WaitForS3Backend(timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if strings.Contains(bp.Output(), "using S3 storage backend") {
-			return nil
-		}
-		time.Sleep(time.Second)
-	}
-	return fmt.Errorf("S3 backend not selected: %s", bp.Output())
+	return bp.waitForOutputMarker(timeout, filenodeStorageBackendS3, "S3 backend")
 }
 
 // VerifyPort checks if TCP port is listening.
@@ -190,20 +195,15 @@ func (bp *BundleProcess) Stop() error {
 		return nil
 	}
 
+	if bp.hasExited() {
+		return bp.shutdownResult()
+	}
+
 	_ = bp.cmd.Process.Signal(os.Interrupt)
 
-	done := make(chan error, 1)
-	go func() {
-		done <- bp.cmd.Wait()
-	}()
-
 	select {
-	case <-done:
-		// Check for clean shutdown
-		if !strings.Contains(bp.Output(), "AnySync Bundle shutdown complete!") {
-			return fmt.Errorf("unclean shutdown: %s", bp.Output())
-		}
-		return nil
+	case <-bp.waitDone:
+		return bp.shutdownResult()
 	case <-time.After(30 * time.Second):
 		_ = bp.cmd.Process.Kill()
 		return errors.New("timeout during shutdown, killed process")
@@ -214,4 +214,65 @@ func (bp *BundleProcess) Stop() error {
 func (bp *BundleProcess) Cleanup() {
 	_ = os.RemoveAll(bp.tmpDir)
 	_ = os.Remove(filepath.Join(bp.projectRoot, "test-bundle"))
+}
+
+func (bp *BundleProcess) hasExited() bool {
+	select {
+	case <-bp.waitDone:
+		return true
+	default:
+		return false
+	}
+}
+
+func (bp *BundleProcess) waitForOutputMarker(
+	timeout time.Duration,
+	marker string,
+	description string,
+) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if strings.Contains(bp.Output(), marker) {
+			return nil
+		}
+		if bp.hasExited() {
+			return bp.exitedBeforeMarkerError(description)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if bp.hasExited() {
+		return bp.exitedBeforeMarkerError(description)
+	}
+	return fmt.Errorf("timeout waiting for %s marker %q\n%s",
+		description, marker, bp.Output())
+}
+
+func (bp *BundleProcess) shutdownResult() error {
+	output := bp.Output()
+	if !strings.Contains(output, bundleShutdownCompleteEvent) {
+		if err := bp.exitErr(); err != nil {
+			return fmt.Errorf("bundle exited without clean shutdown: %w\n%s", err, output)
+		}
+		return fmt.Errorf("bundle exited without shutdown marker %q\n%s",
+			bundleShutdownCompleteEvent, output)
+	}
+	if err := bp.exitErr(); err != nil {
+		return fmt.Errorf("bundle exited during shutdown: %w\n%s", err, output)
+	}
+	return nil
+}
+
+func (bp *BundleProcess) exitedBeforeMarkerError(description string) error {
+	output := bp.Output()
+	if err := bp.exitErr(); err != nil {
+		return fmt.Errorf("bundle process exited before %s: %w\n%s",
+			description, err, output)
+	}
+	return fmt.Errorf("bundle process exited before %s\n%s", description, output)
+}
+
+func (bp *BundleProcess) exitErr() error {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	return bp.waitErr
 }

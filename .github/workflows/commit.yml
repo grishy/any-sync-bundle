@@ -13,18 +13,18 @@ jobs:
   linter:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.2"
+          go-version: "1.26.1"
 
       - run: go mod download
       - run: go mod verify
       - run: go install tool
 
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.5.0
+          version: v2.11.4
 
   tests:
     name: tests-${{ matrix.os }}
@@ -47,17 +47,17 @@ jobs:
           - macos-15
           - macos-26
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.2"
+          go-version: "1.26.1"
 
       - run: go mod download
       - run: go test -v ./... -coverprofile=./coverage.txt -covermode=atomic -coverpkg=./...
 
       - name: Archive code coverage results
         if: matrix.os == 'ubuntu-24.04'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: code-coverage
           path: coverage.txt
@@ -76,13 +76,13 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Required for goreleaser to get git history
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.2"
+          go-version: "1.26.1"
 
       - name: Set up QEMU for cross-compilation of Docker images
         uses: docker/setup-qemu-action@v3
@@ -162,11 +162,11 @@ jobs:
           - macos-15
           - macos-26
     steps:
-      - uses: actions/checkout@v5
-      - uses: DeterminateSystems/nix-installer-action@v14
+      - uses: actions/checkout@v6
+      - uses: DeterminateSystems/nix-installer-action@main
         with:
           determinate: false
-      - uses: DeterminateSystems/magic-nix-cache-action@v8
+      - uses: DeterminateSystems/magic-nix-cache-action@v13
         with:
           use-flakehub: false
 
@@ -182,11 +182,11 @@ jobs:
   nix-devshell:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: DeterminateSystems/nix-installer-action@v14
+      - uses: actions/checkout@v6
+      - uses: DeterminateSystems/nix-installer-action@main
         with:
           determinate: false
-      - uses: DeterminateSystems/magic-nix-cache-action@v8
+      - uses: DeterminateSystems/magic-nix-cache-action@v13
         with:
           use-flakehub: false
 
@@ -201,10 +201,10 @@ jobs:
     runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.2"
+          go-version: "1.26.1"
 
       - run: go mod download
 
