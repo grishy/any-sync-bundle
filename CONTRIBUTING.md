@@ -71,7 +71,7 @@ goreleaser release --snapshot --clean
 
 ```sh
 # Set variables (fish shell)
-set VERSION v1.4.0
+set VERSION v1.4.1
 set ANYTYPE_UNIX_TIMESTAMP <current timestamp from https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/>
 set ANYTYPE_FORMATTED (date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d')
 set FINAL_VERSION $VERSION-$ANYTYPE_FORMATTED
@@ -85,7 +85,7 @@ git push origin tag $FINAL_VERSION
 
 `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.4.0` – Bundle's semantic version (SemVer)
+- `v1.4.1` – Bundle's semantic version (SemVer)
 - `YYYY-MM-DD` – Date derived from the current Anytype compatibility timestamp:
   https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
 
