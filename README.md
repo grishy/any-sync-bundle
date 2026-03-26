@@ -35,7 +35,7 @@ docker run -d \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
     --restart unless-stopped \
-  ghcr.io/grishy/any-sync-bundle:1.3.1-2026-02-16
+  ghcr.io/grishy/any-sync-bundle:1.4.1-2026-03-25
 ```
 
 After the first run, import `./data/client-config.yml` into Anytype apps.
@@ -84,8 +84,8 @@ Format: `v[bundle-version]-[anytype-compatibility-date]`
 
 | Image Tag                                                 | Description                         |
 | --------------------------------------------------------- | ----------------------------------- |
-| `ghcr.io/grishy/any-sync-bundle:1.3.1-2026-02-16`         | All-in-one (embedded MongoDB/Redis) |
-| `ghcr.io/grishy/any-sync-bundle:1.3.1-2026-02-16-minimal` | Minimal (external MongoDB/Redis)    |
+| `ghcr.io/grishy/any-sync-bundle:1.4.1-2026-03-25`         | All-in-one (embedded MongoDB/Redis) |
+| `ghcr.io/grishy/any-sync-bundle:1.4.1-2026-03-25-minimal` | Minimal (external MongoDB/Redis)    |
 
 Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are recommended.
 
