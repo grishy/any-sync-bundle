@@ -53,9 +53,9 @@ jobs:
             exit 0
           fi
 
-          # Create simple issue body
+          # Create issue body
           cat > issue.md << 'EOF'
-          New Anytype versions available.
+          New Anytype release available.
 
           **Current:** ${{ env.current_ts }}
           **Latest:** ${{ env.latest_ts }}
@@ -64,50 +64,38 @@ jobs:
           EOF
 
           # Add versions as simple list
-          jq -r 'to_entries | .[] | "- \(.key): v\(.value)"' new_versions.json >> issue.md
+          jq -r 'to_entries | .[] | "- `\(.key)`: v\(.value)"' new_versions.json >> issue.md
 
           # Add update process
           cat >> issue.md << 'EOF'
 
           ## Update
 
-          ### 1. Edit `go.mod` directly
-          Update the version numbers for packages that changed (see above):
-          ```
-          require (
-              github.com/anyproto/any-sync-consensusnode vX.Y.Z
-              github.com/anyproto/any-sync-coordinator vX.Y.Z
-              github.com/anyproto/any-sync-filenode vX.Y.Z
-              github.com/anyproto/any-sync-node vX.Y.Z
-          )
-          ```
+          Update `go.mod` with the versions above.
 
           Also update the timestamp comment:
           ```
           // Current timestamp: "${{ env.current_ts }}" → "${{ env.latest_ts }}"
           ```
 
-          ### 2. Sync and verify dependencies
-          ```bash
+          `go mod tidy` may also update `github.com/anyproto/any-sync` automatically.
+
+          Verify:
+          ```
           go mod tidy
           go mod verify
-          ```
-
-          ### 3. Fix any API breaking changes
-          If the build fails, check the changelogs above for breaking changes and update code accordingly.
-
-          ### 4. Run quality checks
-          ```bash
           golangci-lint run --fix ./...
           go test -race -shuffle=on -vet=all -failfast ./...
           go build -o any-sync-bundle .
-          ```
-
-          ### 5. Verify the binary
-          ```bash
           ./any-sync-bundle --version
           ./any-sync-bundle --help
+          nix build .#default
+          nix flake check
           ```
+
+          Optional smoke test:
+          ```bash
+          go test -tags=integration ./integration/...
           ```
 
           ---
