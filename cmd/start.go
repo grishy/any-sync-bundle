@@ -225,7 +225,13 @@ func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
 		"--maxmemory-policy", "noeviction",
 		"--protected-mode", "no",
 		"--bind", "127.0.0.1",
-		"--loadmodule", "/opt/redis-stack/lib/redisbloom.so",
+	}
+
+	// Load RedisBloom only if the .so is present; path can vary across image versions
+	const redisBloomSO = "/opt/redis-stack/lib/redisbloom.so"
+	if _, err := os.Stat(redisBloomSO); err == nil {
+		redisArgs = append(redisArgs, "--loadmodule", redisBloomSO)
+		log.Info("RedisBloom module found, loading explicitly", zap.String("path", redisBloomSO))
 	}
 
 	log.Info("starting embedded Redis",
