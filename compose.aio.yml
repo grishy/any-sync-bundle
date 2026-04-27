@@ -7,7 +7,7 @@
 
 services:
   any-sync-bundle:
-    image: ghcr.io/grishy/any-sync-bundle:1.4.2-2026-04-07
+    image: ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21
     container_name: any-sync-bundle-aio
     restart: unless-stopped
     ports:

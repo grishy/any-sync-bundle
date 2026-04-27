@@ -67,11 +67,22 @@ For maintainers releasing a new version.
 goreleaser release --snapshot --clean
 ```
 
-### 2. Create and push tag
+### 2. Update release references
+
+Before tagging, update user-facing release references to the final version:
+
+- README version section and Docker image examples
+- Compose file image tags
+- Nix package version in `flake.nix`
+
+Use `rg` to confirm that the previous release tag no longer appears in
+release-facing files.
+
+### 3. Create and push tag
 
 ```sh
 # Set variables (fish shell)
-set VERSION v1.4.2
+set VERSION v1.4.3
 set ANYTYPE_UNIX_TIMESTAMP <current timestamp from https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/>
 # The compatibility date suffix is always derived in UTC.
 set ANYTYPE_FORMATTED (env TZ=UTC date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d')
@@ -86,7 +97,7 @@ git push origin tag $FINAL_VERSION
 
 `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.4.2` – Bundle's semantic version (SemVer)
+- `v1.4.3` – Bundle's semantic version (SemVer)
 - `YYYY-MM-DD` – Date derived in UTC from the current Anytype compatibility timestamp:
   https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
 
