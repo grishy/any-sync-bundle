@@ -6,6 +6,7 @@
 #   1. Edit ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS below (replace with your server's IP/hostname)
 #   2. Run: docker compose -f compose.traefik.yml up -d
 #   3. Get client config: cat ./data/client-config.yml
+#   4. Run diagnostics: docker exec any-sync-bundle-aio any-sync-bundle doctor
 #
 # Debugging:
 #   - View Traefik dashboard: http://localhost:8080

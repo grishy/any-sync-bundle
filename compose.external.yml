@@ -2,6 +2,7 @@
 #
 # Usage:
 #   docker compose -f compose.external.yml up -d
+#   docker exec any-sync-bundle any-sync-bundle doctor
 #
 # The bundle container runs alongside dedicated MongoDB and Redis instances.
 

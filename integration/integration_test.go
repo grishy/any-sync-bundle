@@ -4,6 +4,8 @@ package integration
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,6 +46,19 @@ func TestBundleFreshInstall(t *testing.T) {
 	err = bundle.VerifyPort("33010")
 	require.NoError(t, err, "Port 33010 should be listening")
 	t.Log("Port 33010 is listening")
+
+	// Verify doctor can talk to the running process over bundle.sock and
+	// produce the JSON report a user would attach to an issue.
+	doctorOutput, err := bundle.RunDoctor(ctx)
+	require.NoError(t, err, "Doctor should complete against the running bundle")
+	require.Contains(t, doctorOutput, "[7/7] Report")
+	require.Contains(t, doctorOutput, "Verdict:")
+	reports, err := bundle.DoctorReports()
+	require.NoError(t, err, "Doctor report glob should work")
+	require.Len(t, reports, 1, "Doctor should write one report")
+	reportData, err := os.ReadFile(reports[0])
+	require.NoError(t, err, "Doctor report should be readable")
+	require.True(t, strings.Contains(string(reportData), `"verdict"`), "Doctor report should contain verdict")
 
 	// Graceful shutdown
 	err = bundle.Stop()

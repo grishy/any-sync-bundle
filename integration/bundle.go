@@ -189,6 +189,27 @@ func (bp *BundleProcess) VerifyPort(port string) error {
 	return nil
 }
 
+// RunDoctor executes the doctor CLI against the running bundle process.
+func (bp *BundleProcess) RunDoctor(ctx context.Context) (string, error) {
+	binaryPath := filepath.Join(bp.projectRoot, "test-bundle")
+	cmd := exec.CommandContext(ctx, binaryPath,
+		"doctor",
+		"--bundle-config", filepath.Join(bp.tmpDir, "bundle.yml"),
+	)
+	cmd.Dir = bp.projectRoot
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("doctor failed: %w\n%s", err, output)
+	}
+	return string(output), nil
+}
+
+// DoctorReports returns JSON reports written next to the test bundle config.
+func (bp *BundleProcess) DoctorReports() ([]string, error) {
+	return filepath.Glob(filepath.Join(bp.tmpDir, "doctor", "doctor_*.json"))
+}
+
 // Stop gracefully stops the bundle process.
 func (bp *BundleProcess) Stop() error {
 	if bp.cmd.Process == nil {

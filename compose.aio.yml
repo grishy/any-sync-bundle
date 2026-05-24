@@ -2,6 +2,7 @@
 #
 # Usage:
 #   docker compose -f compose.aio.yml up -d
+#   docker exec any-sync-bundle-aio any-sync-bundle doctor
 #
 # The bundle image already contains MongoDB and Redis. Only the bundle service is required.
 
