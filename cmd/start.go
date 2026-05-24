@@ -23,12 +23,19 @@ import (
 	"go.uber.org/zap"
 
 	bundleConfig "github.com/grishy/any-sync-bundle/config"
+	"github.com/grishy/any-sync-bundle/doctor"
 	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
 type node struct {
 	name string
 	app  *app.App
+}
+
+type preparedBundleConfig struct {
+	Config           *bundleConfig.Config
+	BundleConfigPath string
+	ClientConfigPath string
 }
 
 const (
@@ -59,12 +66,12 @@ func cmdStartAllInOne(ctx context.Context) *cli.Command {
 
 			printWelcomeMsg()
 
-			bundleCfg, err := prepareBundleConfig(cCtx)
+			preparedCfg, err := prepareBundleConfig(cCtx)
 			if err != nil {
 				return err
 			}
 
-			applyAllInOneDefaults(bundleCfg)
+			applyAllInOneDefaults(preparedCfg.Config)
 
 			// Start pprof server if enabled
 			startPprofServer(ctx, cCtx)
@@ -75,7 +82,7 @@ func cmdStartAllInOne(ctx context.Context) *cli.Command {
 			}
 			defer infra.stop()
 
-			return runBundleServices(ctx, bundleCfg)
+			return runBundleServices(ctx, preparedCfg)
 		},
 	}
 }
@@ -88,7 +95,7 @@ func cmdStartBundle(ctx context.Context) *cli.Command {
 		Action: func(cCtx *cli.Context) error {
 			printWelcomeMsg()
 
-			bundleCfg, err := prepareBundleConfig(cCtx)
+			preparedCfg, err := prepareBundleConfig(cCtx)
 			if err != nil {
 				return err
 			}
@@ -96,12 +103,13 @@ func cmdStartBundle(ctx context.Context) *cli.Command {
 			// Start pprof server if enabled
 			startPprofServer(ctx, cCtx)
 
-			return runBundleServices(ctx, bundleCfg)
+			return runBundleServices(ctx, preparedCfg)
 		},
 	}
 }
 
-func runBundleServices(ctx context.Context, bundleCfg *bundleConfig.Config) error {
+func runBundleServices(ctx context.Context, preparedCfg *preparedBundleConfig) error {
+	bundleCfg := preparedCfg.Config
 	printConfigurationInfo(bundleCfg)
 
 	cfgNodes := bundleCfg.NodeConfigs()
@@ -118,10 +126,40 @@ func runBundleServices(ctx context.Context, bundleCfg *bundleConfig.Config) erro
 		return err
 	}
 
+	doctorRunner, err := doctor.NewLiveRuntimeRunner(doctor.LiveRuntimeConfig{
+		BundleConfig:     bundleCfg,
+		BundleConfigPath: preparedCfg.BundleConfigPath,
+		ClientConfigPath: preparedCfg.ClientConfigPath,
+		Build: doctor.BuildInfo{
+			Version: version,
+			Commit:  commit,
+			Date:    date,
+		},
+		FileNode: bundle.FileNode,
+	})
+	if err != nil {
+		shutdownServices(apps)
+		return fmt.Errorf("create doctor runner: %w", err)
+	}
+	doctorServer := doctor.NewServer(doctor.ServerConfig{
+		SocketPath: doctor.SocketPath(preparedCfg.BundleConfigPath),
+		Runner:     doctorRunner,
+	})
+	if startErr := doctorServer.Start(ctx); startErr != nil {
+		shutdownServices(apps)
+		return fmt.Errorf("start doctor server: %w", startErr)
+	}
+
 	emitBundleEvent(bundleReadyEvent)
 	printStartupMsg()
 
 	<-ctx.Done()
+
+	doctorCtx, doctorCancel := context.WithTimeout(context.Background(), serviceShutdownTimeout)
+	if closeErr := doctorServer.Close(doctorCtx); closeErr != nil {
+		log.Warn("doctor server shutdown failed", zap.Error(closeErr))
+	}
+	doctorCancel()
 
 	shutdownServices(apps)
 	emitBundleEvent(bundleShutdownCompleteEvent)
@@ -131,19 +169,30 @@ func runBundleServices(ctx context.Context, bundleCfg *bundleConfig.Config) erro
 	return nil
 }
 
-func prepareBundleConfig(cCtx *cli.Context) (*bundleConfig.Config, error) {
-	bundleCfg := loadOrCreateConfig(cCtx, log)
-	clientCfgPath := cCtx.String(flagStartClientConfigPath)
-
-	if err := writeClientConfig(bundleCfg, clientCfgPath); err != nil {
-		return nil, err
+func prepareBundleConfig(cCtx *cli.Context) (*preparedBundleConfig, error) {
+	bundleCfgPath, err := filepath.Abs(cCtx.String(flagStartBundleConfigPath))
+	if err != nil {
+		return nil, fmt.Errorf("resolve bundle config path: %w", err)
+	}
+	clientCfgPath, err := filepath.Abs(cCtx.String(flagStartClientConfigPath))
+	if err != nil {
+		return nil, fmt.Errorf("resolve client config path: %w", err)
 	}
 
-	return bundleCfg, nil
+	bundleCfg := loadOrCreateConfig(cCtx, log, bundleCfgPath)
+
+	if writeErr := writeClientConfig(bundleCfg, clientCfgPath); writeErr != nil {
+		return nil, writeErr
+	}
+
+	return &preparedBundleConfig{
+		Config:           bundleCfg,
+		BundleConfigPath: bundleCfgPath,
+		ClientConfigPath: clientCfgPath,
+	}, nil
 }
 
-func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.Config {
-	cfgPath := cCtx.String(flagStartBundleConfigPath)
+func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger, cfgPath string) *bundleConfig.Config {
 	log.Info("loading config")
 
 	if _, err := os.Stat(cfgPath); err == nil {

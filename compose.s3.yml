@@ -2,6 +2,7 @@
 #
 # Usage:
 #   docker compose -f compose.s3.yml up -d
+#   docker exec any-sync-bundle-aio any-sync-bundle doctor
 #
 # This runs the all-in-one bundle (embedded MongoDB/Redis) with MinIO for S3 storage.
 # MinIO Console: http://localhost:9001 (minioadmin/minioadmin)

@@ -30,6 +30,7 @@
 
 ```sh
 docker run -d \
+    --name any-sync-bundle \
     -e ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS="192.168.100.9" \
     -p 33010:33010 \
     -p 33020:33020/udp \
@@ -145,6 +146,7 @@ Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 | -------------------------- | ----------------------------------------- | ------- |
 | `./data/bundle-config.yml` | Service config + private keys             | 🔴 Yes  |
 | `./data/client-config.yml` | Client config (regenerated on each start) | 🟢 No   |
+| `./data/doctor/*.json`     | Experimental diagnostic reports           | 🟢 No   |
 
 ### Storage Options
 
@@ -221,6 +223,7 @@ All parameters available as binary flags or environment variables. See `./any-sy
 | ------------------ | ---------------------------------------------------------------- |
 | `start-bundle`     | Start with external MongoDB/Redis                                |
 | `start-all-in-one` | Start with embedded MongoDB/Redis (used in all-in-one container) |
+| `doctor`           | Run experimental diagnostics against the already running bundle  |
 
 ### Start Command Flags
 
@@ -238,7 +241,38 @@ All parameters available as binary flags or environment variables. See `./any-sy
 | `--initial-s3-force-path-style`    | Use path-style S3 URLs (required for MinIO) <br> ‣ Default: `false` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_S3_FORCE_PATH_STYLE`                                      |
 | `--initial-filenode-default-limit` | Storage limit per space in bytes <br> ‣ Default: `1099511627776` (1 TiB) <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_INIT_FILENODE_DEFAULT_LIMIT`                              |
 
+### Doctor Command Flags
+
+| Flag                    | Description                                                                                                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bundle-config`, `-c` | Path to the bundle configuration YAML file, used to locate the doctor socket <br> ‣ Default: `./data/bundle-config.yml` <br> ‣ Environment Variable: `ANY_SYNC_BUNDLE_CONFIG` |
+
 ## Operations
+
+### Diagnostics
+
+Run diagnostics from inside the running container:
+
+```sh
+docker exec any-sync-bundle any-sync-bundle doctor
+```
+
+The command connects to the running bundle over a local Unix socket next to
+`bundle-config.yml`. In the default container layout this is `/data/bundle.sock`.
+
+```text
+Connecting to running bundle
+  socket: /data/bundle.sock
+  status: connected
+
+Experimental:
+  doctor output and JSON report schema may change between releases.
+
+...
+
+[7/7] Report
+  written: /data/doctor/doctor_2026-05-22T14-33-10Z.json
+```
 
 ### Backup & Recovery
 

@@ -30,6 +30,11 @@ const (
 
 	// oneTiB is one tebibyte (2^40 bytes), used as the default filenode storage limit.
 	oneTiB = 1024 * 1024 * 1024 * 1024
+
+	defaultListenTCPAddr          = "0.0.0.0:33010"
+	defaultListenUDPAddr          = "0.0.0.0:33020"
+	defaultCoordinatorMongoDBName = "coordinator"
+	defaultConsensusMongoDBName   = "consensus"
 )
 
 type Config struct {
@@ -334,16 +339,16 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		StoragePath:   cfg.StorePath,
 		Account:       newAcc(netKey),
 		Network: NetworkConfig{
-			ListenTCPAddr: "0.0.0.0:33010",
-			ListenUDPAddr: "0.0.0.0:33020",
+			ListenTCPAddr: defaultListenTCPAddr,
+			ListenUDPAddr: defaultListenUDPAddr,
 		},
 		Coordinator: CoordinatorConfig{
 			MongoConnect:  cfg.MongoURI,
-			MongoDatabase: "coordinator",
+			MongoDatabase: defaultCoordinatorMongoDBName,
 		},
 		Consensus: ConsensusConfig{
 			MongoConnect:  mongoConsensusURI.String(),
-			MongoDatabase: "consensus",
+			MongoDatabase: defaultConsensusMongoDBName,
 		},
 		FileNode: FileNodeConfig{
 			RedisConnect: cfg.RedisURI,

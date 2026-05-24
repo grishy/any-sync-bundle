@@ -74,6 +74,7 @@ func Root(ctx context.Context) *cli.App {
 		Commands: []*cli.Command{
 			cmdStartAllInOne(ctx),
 			cmdStartBundle(ctx),
+			cmdDoctor(ctx),
 		},
 	}
 }
