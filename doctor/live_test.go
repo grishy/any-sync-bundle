@@ -55,7 +55,7 @@ func TestProbeRuntimeReportsMissingStorageLayout(t *testing.T) {
 	if !problemIssuesContain(result.Problems, "storage layout check failed") {
 		t.Fatalf("problems do not include storage layout failure: %v", result.Problems)
 	}
-	if !problemIssuesContain(result.Problems, "network-store/coordinator") {
+	if !problemIssuesContain(result.Problems, filepath.Join("network-store", "coordinator")) {
 		t.Fatalf("problems do not mention missing coordinator network store: %v", result.Problems)
 	}
 }

@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
 
 func TestReportPathUsesDoctorDirectoryNextToBundleConfig(t *testing.T) {
 	generatedAt := time.Date(2026, 5, 22, 14, 33, 10, 0, time.UTC)
+	bundleConfigPath := filepath.Join("/", "data", "bundle-config.yml")
 
-	got := ReportPath("/data/bundle-config.yml", generatedAt)
-	want := "/data/doctor/doctor_2026-05-22T14-33-10Z.json"
+	got := ReportPath(bundleConfigPath, generatedAt)
+	want := filepath.Join(filepath.Dir(bundleConfigPath), "doctor", "doctor_2026-05-22T14-33-10Z.json")
 
 	if got != want {
 		t.Fatalf("ReportPath() = %q, want %q", got, want)
@@ -20,8 +22,10 @@ func TestReportPathUsesDoctorDirectoryNextToBundleConfig(t *testing.T) {
 }
 
 func TestSocketPathUsesBundleConfigDirectory(t *testing.T) {
-	got := SocketPath("/data/bundle-config.yml")
-	want := "/data/bundle.sock"
+	bundleConfigPath := filepath.Join("/", "data", "bundle-config.yml")
+
+	got := SocketPath(bundleConfigPath)
+	want := filepath.Join(filepath.Dir(bundleConfigPath), "bundle.sock")
 
 	if got != want {
 		t.Fatalf("SocketPath() = %q, want %q", got, want)
@@ -72,12 +76,14 @@ func TestWriteReportAtomicCreatesDoctorDirectoryAndWritesJSON(t *testing.T) {
 	if got.Summary.Spaces != 13 {
 		t.Fatalf("report spaces = %d, want 13", got.Summary.Spaces)
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat report: %v", err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("report mode = %o, want 600", info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		info, statErr := os.Stat(path)
+		if statErr != nil {
+			t.Fatalf("stat report: %v", statErr)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Fatalf("report mode = %o, want 600", info.Mode().Perm())
+		}
 	}
 
 	tmpMatches, err := filepath.Glob(filepath.Join(dir, "doctor", "*.tmp"))
