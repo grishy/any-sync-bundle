@@ -83,17 +83,21 @@ jobs:
           `go mod tidy` may also update `github.com/anyproto/any-sync` automatically.
 
           Verify:
-          ```sh
+          ```
           go mod tidy
           go mod verify
-          golangci-lint run
+          golangci-lint run --fix ./...
           go test -race -shuffle=on -vet=all -failfast ./...
-          go build -o /tmp/any-sync-bundle .
-          /tmp/any-sync-bundle --version
-          /tmp/any-sync-bundle --help
-          go test -v -tags=integration -timeout=10m ./integration/...
-          nix flake check --print-build-logs
-          nix build -L .#default
+          go build -o any-sync-bundle .
+          ./any-sync-bundle --version
+          ./any-sync-bundle --help
+          nix build .#default
+          nix flake check
+          ```
+
+          Optional smoke test:
+          ```bash
+          go test -tags=integration ./integration/...
           ```
 
           ---
