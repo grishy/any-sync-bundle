@@ -19,7 +19,6 @@
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
-        "x86_64-darwin"
       ];
 
       perSystem =
@@ -35,8 +34,6 @@
         let
           goPackage = pkgs.go;
 
-          # Version information - extract from git or use defaults
-          version = if self ? rev then self.shortRev else "dev";
           commit = self.rev or "dirty";
           date = self.lastModifiedDate or "1970-01-01T00:00:00Z";
 
@@ -62,6 +59,8 @@
               "-X github.com/grishy/any-sync-bundle/cmd.date=${buildDate}"
             ];
 
+            # Integration tests require Docker and run in their own CI job.
+            excludedPackages = [ "integration" ];
             doCheck = true;
 
             meta = with lib; {
@@ -92,7 +91,7 @@
             ];
 
             shellHook = ''
-              echo "🚀 any-sync-bundle development environment"
+              echo "any-sync-bundle development environment"
               echo ""
               echo "Available commands:"
               echo "  go build          - Build the binary"
