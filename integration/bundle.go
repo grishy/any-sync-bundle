@@ -15,12 +15,15 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	bundlecmd "github.com/grishy/any-sync-bundle/cmd"
 )
 
 const (
 	bundleReadyEvent            = "bundle_ready"
 	bundleShutdownCompleteEvent = "bundle_shutdown_complete"
 	filenodeStorageBackendS3    = "filenode_storage_backend_s3"
+	shutdownObservationMargin   = 5 * time.Second
 )
 
 // BundleProcess manages the any-sync-bundle process.
@@ -204,7 +207,7 @@ func (bp *BundleProcess) Stop() error {
 	select {
 	case <-bp.waitDone:
 		return bp.shutdownResult()
-	case <-time.After(30 * time.Second):
+	case <-time.After(bundlecmd.ShutdownTimeout + shutdownObservationMargin):
 		_ = bp.cmd.Process.Kill()
 		return errors.New("timeout during shutdown, killed process")
 	}

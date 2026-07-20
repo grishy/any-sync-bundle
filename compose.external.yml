@@ -60,6 +60,7 @@ services:
     image: ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21-minimal
     container_name: any-sync-bundle
     restart: unless-stopped
+    stop_grace_period: 2m
     depends_on:
       mongo:
         condition: service_healthy

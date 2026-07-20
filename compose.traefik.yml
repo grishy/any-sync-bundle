@@ -42,6 +42,7 @@ services:
     image: ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21
     container_name: any-sync-bundle-aio
     restart: unless-stopped
+    stop_grace_period: 2m
     environment:
       # IMPORTANT: Replace this with your server's public IP or hostname
       # This is the address clients will use to connect (Traefik's public address)

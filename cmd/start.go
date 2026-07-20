@@ -1,139 +1,173 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime/debug"
-	"slices"
 	"strings"
 	"time"
 
-	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 
-	bundleConfig "github.com/grishy/any-sync-bundle/config"
+	"github.com/grishy/any-sync-bundle/config"
 	"github.com/grishy/any-sync-bundle/lightnode"
 )
 
-type node struct {
-	name string
-	app  *app.App
-}
-
 const (
-	serviceShutdownTimeout = 10 * time.Second
-	clientConfigMode       = 0o644
+	// Bundle services share one shutdown deadline.
+	servicesShutdownTimeout = 30 * time.Second
 
+	// WaitDelay is the SIGTERM grace period before os/exec sends SIGKILL.
+	infraProcessWaitDelay = 60 * time.Second
+	// Allow cmd.Wait to publish the exit after a forced kill.
+	infraProcessReapMargin = 5 * time.Second
+	infraShutdownTimeout   = infraProcessWaitDelay + infraProcessReapMargin
+
+	// Keep the process watchdog outside all cleanup deadlines.
+	shutdownWatchdogMargin = 10 * time.Second
+	// ShutdownTimeout bounds process shutdown after root cancellation. Container
+	// stop grace periods must be longer so the application owns forced exit.
+	ShutdownTimeout = servicesShutdownTimeout + infraShutdownTimeout + shutdownWatchdogMargin
+
+	// Lifecycle events.
 	bundleReadyEvent            = "bundle_ready"
 	bundleShutdownCompleteEvent = "bundle_shutdown_complete"
-
-	dockerMongoPort        = "27017"
-	dockerRedisPort        = "6379"
-	dockerMongoURI         = "mongodb://127.0.0.1:27017/"
-	dockerMongoMajorityURI = "mongodb://127.0.0.1:27017/?w=majority"
-	dockerRedisURI         = "redis://127.0.0.1:6379/"
-	dockerMongoDataDir     = "/data/mongo"
-	dockerRedisDataDir     = "/data/redis"
 )
 
-func cmdStartAllInOne(ctx context.Context) *cli.Command {
+func cmdStartAllInOne(ctx context.Context, cancelRoot context.CancelFunc) *cli.Command {
 	return &cli.Command{
 		Name:  "start-all-in-one",
 		Usage: "Start bundle together with embedded MongoDB and Redis",
 		Flags: buildStartFlags(),
-		Action: func(cCtx *cli.Context) error {
+		Action: func(c *cli.Context) error {
 			if err := assertContainerRuntime(); err != nil {
 				return err
 			}
 
 			printWelcomeMsg()
 
-			bundleCfg, err := prepareBundleConfig(cCtx)
+			bundleCfg, err := prepareBundleConfig(c)
 			if err != nil {
 				return err
 			}
 
 			applyAllInOneDefaults(bundleCfg)
+			startPprofServer(ctx, c)
 
-			// Start pprof server if enabled
-			startPprofServer(ctx, cCtx)
+			infra := newInfraSuite(ctx, cancelRoot, infraProcessWaitDelay)
 
-			infra, err := startAllInOneInfra(ctx)
-			if err != nil {
-				return err
+			startErr := startAllInOneInfra(ctx, infra)
+			var bundleErr error
+			if startErr != nil {
+				rootInterrupted := isRootInterruption(ctx, startErr)
+				cancelRoot()
+				if rootInterrupted {
+					startErr = nil
+				}
+			} else {
+				bundleErr = runBundleServices(ctx, cancelRoot, bundleCfg)
 			}
-			defer infra.stop()
 
-			return runBundleServices(ctx, bundleCfg)
+			shutdownCtx, cancelShutdown := context.WithTimeout(
+				context.WithoutCancel(ctx),
+				infraShutdownTimeout,
+			)
+			infraErr := infra.stop(shutdownCtx)
+			cancelShutdown()
+
+			resultErr := errors.Join(startErr, bundleErr, infraErr)
+			if resultErr != nil {
+				return resultErr
+			}
+			reportShutdownComplete()
+			return nil
 		},
 	}
 }
 
-func cmdStartBundle(ctx context.Context) *cli.Command {
+func cmdStartBundle(ctx context.Context, cancelRoot context.CancelFunc) *cli.Command {
 	return &cli.Command{
 		Name:  "start-bundle",
 		Usage: "Start bundle services and use external MongoDB/Redis",
 		Flags: buildStartFlags(),
-		Action: func(cCtx *cli.Context) error {
+		Action: func(c *cli.Context) error {
 			printWelcomeMsg()
 
-			bundleCfg, err := prepareBundleConfig(cCtx)
+			bundleCfg, err := prepareBundleConfig(c)
 			if err != nil {
 				return err
 			}
 
-			// Start pprof server if enabled
-			startPprofServer(ctx, cCtx)
+			startPprofServer(ctx, c)
 
-			return runBundleServices(ctx, bundleCfg)
+			err = runBundleServices(ctx, cancelRoot, bundleCfg)
+			if err != nil {
+				return err
+			}
+			reportShutdownComplete()
+			return nil
 		},
 	}
 }
 
-func runBundleServices(ctx context.Context, bundleCfg *bundleConfig.Config) error {
+func runBundleServices(
+	ctx context.Context,
+	cancelRoot context.CancelFunc,
+	bundleCfg *config.Config,
+) error {
 	printConfigurationInfo(bundleCfg)
 
-	cfgNodes := bundleCfg.NodeConfigs()
-	bundle := lightnode.NewBundle(cfgNodes)
+	nodeCfgs := bundleCfg.NodeConfigs()
+	bundle := lightnode.NewBundle(nodeCfgs)
 
-	apps := []node{
+	services := []bundleService{
 		{name: "coordinator", app: bundle.Coordinator},
 		{name: "consensus", app: bundle.Consensus},
 		{name: "filenode", app: bundle.FileNode},
 		{name: "sync", app: bundle.Sync},
 	}
 
-	if err := startServices(ctx, apps, bundleCfg); err != nil {
+	if err := startServices(ctx, cancelRoot, services, bundleCfg); err != nil {
+		if isRootInterruption(ctx, err) {
+			return nil
+		}
 		return err
 	}
 
-	emitBundleEvent(bundleReadyEvent)
-	printStartupMsg()
+	select {
+	case <-ctx.Done():
+	default:
+		emitBundleEvent(bundleReadyEvent)
+		printStartupMsg()
+		<-ctx.Done()
+	}
 
-	<-ctx.Done()
-
-	shutdownServices(apps)
-	emitBundleEvent(bundleShutdownCompleteEvent)
-	printShutdownMsg()
-
-	log.Info("→ Goodbye!")
-	return nil
+	shutdownCtx, cancelShutdown := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		servicesShutdownTimeout,
+	)
+	shutdownErr := shutdownServices(shutdownCtx, services)
+	cancelShutdown()
+	return shutdownErr
 }
 
-func prepareBundleConfig(cCtx *cli.Context) (*bundleConfig.Config, error) {
-	bundleCfg := loadOrCreateConfig(cCtx, log)
-	clientCfgPath := cCtx.String(flagStartClientConfigPath)
+// A wrapped or joined interruption may contain another failure, so only the
+// exact root error represents an operator-requested stop.
+func isRootInterruption(ctx context.Context, err error) bool {
+	rootErr := ctx.Err()
+	return rootErr != nil && err == rootErr //nolint:errorlint // Error traversal would weaken the invariant.
+}
+
+func prepareBundleConfig(c *cli.Context) (*config.Config, error) {
+	bundleCfg := loadOrCreateConfig(c, log)
+	clientCfgPath := c.String(flagStartClientConfigPath)
 
 	if err := writeClientConfig(bundleCfg, clientCfgPath); err != nil {
 		return nil, err
@@ -142,35 +176,37 @@ func prepareBundleConfig(cCtx *cli.Context) (*bundleConfig.Config, error) {
 	return bundleCfg, nil
 }
 
-func loadOrCreateConfig(cCtx *cli.Context, log logger.CtxLogger) *bundleConfig.Config {
-	cfgPath := cCtx.String(flagStartBundleConfigPath)
+func loadOrCreateConfig(c *cli.Context, log logger.CtxLogger) *config.Config {
+	cfgPath := c.String(flagStartBundleConfigPath)
 	log.Info("loading config")
 
 	if _, err := os.Stat(cfgPath); err == nil {
 		log.Info("loaded existing config")
-		return bundleConfig.Load(cfgPath)
+		return config.Load(cfgPath)
 	}
 
 	log.Info("creating new config")
-	return bundleConfig.CreateWrite(&bundleConfig.CreateOptions{
+	return config.CreateWrite(&config.CreateOptions{
 		CfgPath:       cfgPath,
-		StorePath:     cCtx.String(flagStartStoragePath),
-		MongoURI:      cCtx.String(flagStartMongoURI),
-		RedisURI:      cCtx.String(flagStartRedisURI),
-		ExternalAddrs: cCtx.StringSlice(flagStartExternalAddrs),
+		StorePath:     c.String(flagStartStoragePath),
+		MongoURI:      c.String(flagStartMongoURI),
+		RedisURI:      c.String(flagStartRedisURI),
+		ExternalAddrs: c.StringSlice(flagStartExternalAddrs),
 
 		// S3 configuration (optional) - credentials via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY env vars
-		S3Bucket:         cCtx.String(flagStartS3Bucket),
-		S3Endpoint:       cCtx.String(flagStartS3Endpoint),
-		S3Region:         cCtx.String(flagStartS3Region),
-		S3ForcePathStyle: cCtx.Bool(flagStartS3ForcePathStyle),
+		S3Bucket:         c.String(flagStartS3Bucket),
+		S3Endpoint:       c.String(flagStartS3Endpoint),
+		S3Region:         c.String(flagStartS3Region),
+		S3ForcePathStyle: c.Bool(flagStartS3ForcePathStyle),
 
 		// Filenode configuration
-		FilenodeDefaultLimit: cCtx.Uint64(flagStartFilenodeDefaultLimit),
+		FilenodeDefaultLimit: c.Uint64(flagStartFilenodeDefaultLimit),
 	})
 }
 
-func writeClientConfig(cfg *bundleConfig.Config, path string) error {
+func writeClientConfig(cfg *config.Config, path string) error {
+	const clientConfigMode = 0o644
+
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("failed to create client config directory: %w", err)
 	}
@@ -180,533 +216,12 @@ func writeClientConfig(cfg *bundleConfig.Config, path string) error {
 		return fmt.Errorf("failed to generate client config: %w", err)
 	}
 
-	if writeErr := os.WriteFile(path, yamlData, clientConfigMode); writeErr != nil {
-		return fmt.Errorf("failed to write client config: %w", writeErr)
+	if err = os.WriteFile(path, yamlData, clientConfigMode); err != nil {
+		return fmt.Errorf("failed to write client config: %w", err)
 	}
 
 	log.Info("client configuration written", zap.String("path", path))
 	return nil
-}
-
-func startAllInOneInfra(ctx context.Context) (*infraSuite, error) {
-	// Create required data directories with proper permissions
-	if err := os.MkdirAll(dockerMongoDataDir, 0o750); err != nil {
-		return nil, fmt.Errorf("failed to create mongo data dir: %w", err)
-	}
-	if err := os.MkdirAll(dockerRedisDataDir, 0o750); err != nil {
-		return nil, fmt.Errorf("failed to create redis data dir: %w", err)
-	}
-
-	log.Info("data directories prepared",
-		zap.String("mongo", dockerMongoDataDir),
-		zap.String("redis", dockerRedisDataDir))
-
-	mongoArgs := []string{
-		"--port", dockerMongoPort,
-		"--dbpath", dockerMongoDataDir,
-		"--replSet", defaultMongoReplica,
-		"--bind_ip", "127.0.0.1",
-	}
-
-	log.Info("starting embedded MongoDB",
-		zap.String("addr", "127.0.0.1:"+dockerMongoPort),
-		zap.String("dbpath", dockerMongoDataDir))
-
-	mongoProc, mongoErr := newInfraProcess(ctx, "mongo", "mongod", mongoArgs...)
-	if mongoErr != nil {
-		return nil, fmt.Errorf("start mongod: %w", mongoErr)
-	}
-
-	redisArgs := []string{
-		"--port", dockerRedisPort,
-		"--dir", dockerRedisDataDir,
-		"--appendonly", "yes",
-		"--maxmemory", "256mb",
-		"--maxmemory-policy", "noeviction",
-		"--protected-mode", "no",
-		"--bind", "127.0.0.1",
-		"--loadmodule", "/opt/redis-stack/lib/redisbloom.so",
-	}
-
-	log.Info("starting embedded Redis",
-		zap.String("addr", "127.0.0.1:"+dockerRedisPort),
-		zap.String("dir", dockerRedisDataDir))
-
-	redisProc, redisErr := newInfraProcess(ctx, "redis", "redis-server", redisArgs...)
-	if redisErr != nil {
-		mongoProc.stop()
-		_ = mongoProc.wait()
-		return nil, fmt.Errorf("start redis-server: %w", redisErr)
-	}
-
-	suite := &infraSuite{
-		processes: []*infraProcess{mongoProc, redisProc},
-	}
-
-	// Wait for MongoDB TCP ready (or process death)
-	mongoAddr := net.JoinHostPort("127.0.0.1", dockerMongoPort)
-	if err := waitForTCPOrExit(mongoAddr, 180*time.Second, mongoProc); err != nil {
-		suite.stop()
-		if isIllegalInstruction(err) {
-			printMongoAVXError()
-			return nil, &MongoAVXError{Cause: err}
-		}
-		return nil, fmt.Errorf("mongodb not ready: %w", err)
-	}
-
-	if initErr := initReplicaSetAction(ctx, defaultMongoReplica, dockerMongoURI); initErr != nil {
-		suite.stop()
-		return nil, fmt.Errorf("init replica set: %w", initErr)
-	}
-
-	// Wait for Redis TCP ready (or process death)
-	redisAddr := net.JoinHostPort("127.0.0.1", dockerRedisPort)
-	if err := waitForTCPOrExit(redisAddr, 30*time.Second, redisProc); err != nil {
-		suite.stop()
-		return nil, fmt.Errorf("redis not ready: %w", err)
-	}
-
-	return suite, nil
-}
-
-func applyAllInOneDefaults(cfg *bundleConfig.Config) {
-	cfg.Coordinator.MongoConnect = dockerMongoURI
-	cfg.Consensus.MongoConnect = dockerMongoMajorityURI
-	cfg.FileNode.RedisConnect = dockerRedisURI
-}
-
-type infraProcess struct {
-	name    string
-	cmd     *exec.Cmd
-	done    chan struct{} // Closed when process exits
-	exitErr error         // Set when process exits
-}
-
-func newInfraProcess(ctx context.Context, name, bin string, args ...string) (*infraProcess, error) {
-	cmd := exec.CommandContext(ctx, bin, args...)
-
-	stdout, pipeErr := cmd.StdoutPipe()
-	if pipeErr != nil {
-		return nil, fmt.Errorf("failed to capture stdout for %s: %w", name, pipeErr)
-	}
-
-	stderr, errPipe := cmd.StderrPipe()
-	if errPipe != nil {
-		return nil, fmt.Errorf("failed to capture stderr for %s: %w", name, errPipe)
-	}
-
-	if startErr := cmd.Start(); startErr != nil {
-		return nil, fmt.Errorf("failed to start %s: %w", name, startErr)
-	}
-
-	p := &infraProcess{
-		name: name,
-		cmd:  cmd,
-		done: make(chan struct{}),
-	}
-
-	go func() {
-		p.exitErr = cmd.Wait()
-		close(p.done)
-	}()
-
-	go streamPipe(name, stdout)
-	go streamPipe(name, stderr)
-
-	return p, nil
-}
-
-func (p *infraProcess) stop() {
-	if p == nil || p.cmd.Process == nil {
-		return
-	}
-
-	if p.cmd.ProcessState != nil && p.cmd.ProcessState.Exited() {
-		return
-	}
-
-	if err := p.cmd.Process.Signal(os.Interrupt); err != nil && !errors.Is(err, os.ErrProcessDone) {
-		log.Warn("failed to interrupt process",
-			zap.String("process", p.name),
-			zap.Error(err))
-	}
-}
-
-func (p *infraProcess) wait() error {
-	if p == nil {
-		return nil
-	}
-
-	<-p.done
-	return p.exitErr
-}
-
-type infraSuite struct {
-	processes []*infraProcess
-}
-
-func (s *infraSuite) stop() {
-	if s == nil {
-		return
-	}
-
-	for _, p := range s.processes {
-		p.stop()
-	}
-
-	for _, p := range s.processes {
-		if err := p.wait(); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, os.ErrProcessDone) {
-			log.Debug("process terminated with error",
-				zap.String("process", p.name),
-				zap.Error(err))
-		}
-	}
-}
-
-func streamPipe(name string, reader io.Reader) {
-	scanner := bufio.NewScanner(reader)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
-
-	for scanner.Scan() {
-		fmt.Printf("[%s] %s\n", name, scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
-		log.Warn("log stream error",
-			zap.String("process", name),
-			zap.Error(err))
-	}
-}
-
-// isIllegalInstruction checks if an error indicates SIGILL.
-// This typically means the CPU lacks required instructions (e.g., AVX for MongoDB 5.0+).
-func isIllegalInstruction(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(strings.ToLower(err.Error()), "illegal instruction")
-}
-
-// MongoAVXError indicates MongoDB failed due to missing AVX CPU support.
-type MongoAVXError struct {
-	Cause error
-}
-
-func (e *MongoAVXError) Error() string {
-	return fmt.Sprintf("mongodb requires AVX CPU support: %v", e.Cause)
-}
-
-func (e *MongoAVXError) Unwrap() error {
-	return e.Cause
-}
-
-// printMongoAVXError displays a user-friendly error message for AVX failures.
-func printMongoAVXError() {
-	const msg = `
-┌─────────────────────────────────────────────────────────────────────┐
-│  MongoDB failed to start: CPU does not support AVX instructions     │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  MongoDB 5.0+ requires AVX CPU instructions, but your processor     │
-│  does not support them. The process was terminated by the kernel    │
-│  with SIGILL (Illegal Instruction).                                 │
-│                                                                     │
-│  Solutions:                                                         │
-│    • Use external MongoDB 4.4 with the start-bundle command         │
-│    • See compose.external.yml for example setup                     │
-│                                                                     │
-│  More info: https://github.com/grishy/any-sync-bundle/pull/39       │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-`
-	fmt.Fprint(os.Stderr, msg)
-}
-
-// waitForTCPReady polls the address until a TCP connection succeeds or timeout is reached.
-func waitForTCPReady(addr string, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	dialer := &net.Dialer{
-		Timeout: 100 * time.Millisecond,
-	}
-
-	attempt := 0
-	startTime := time.Now()
-
-	for {
-		attempt++
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
-		if err == nil {
-			_ = conn.Close()
-			elapsed := time.Since(startTime)
-			log.Info("TCP listener ready",
-				zap.String("addr", addr),
-				zap.Int("attempts", attempt),
-				zap.Duration("elapsed", elapsed))
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("TCP listener not ready after %v (attempts: %d): %w", timeout, attempt, ctx.Err())
-		default:
-		}
-
-		if attempt%5 == 0 {
-			log.Debug("waiting for TCP listener",
-				zap.String("addr", addr),
-				zap.Int("attempts", attempt),
-				zap.Duration("elapsed", time.Since(startTime)))
-		}
-
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-// waitForTCPOrExit polls the address until TCP connects, process exits, or timeout.
-// Returns nil if TCP is ready.
-// Returns process exit error if process dies.
-// Returns timeout error if deadline reached.
-func waitForTCPOrExit(addr string, timeout time.Duration, proc *infraProcess) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	dialer := &net.Dialer{
-		Timeout: 100 * time.Millisecond,
-	}
-
-	attempt := 0
-	startTime := time.Now()
-
-	for {
-		attempt++
-
-		// Check if process died
-		select {
-		case <-proc.done:
-			return proc.exitErr
-		default:
-		}
-
-		// Try TCP connect
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
-		if err == nil {
-			_ = conn.Close()
-			log.Info("TCP listener ready",
-				zap.String("addr", addr),
-				zap.Int("attempts", attempt),
-				zap.Duration("elapsed", time.Since(startTime)))
-			return nil
-		}
-
-		// Check for timeout
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout after %v (attempts: %d)", timeout, attempt)
-		default:
-		}
-
-		if attempt%5 == 0 {
-			log.Debug("waiting for TCP listener",
-				zap.String("addr", addr),
-				zap.Int("attempts", attempt),
-				zap.Duration("elapsed", time.Since(startTime)))
-		}
-
-		// Wait before retry, watching for process exit
-		select {
-		case <-proc.done:
-			return proc.exitErr
-		case <-ctx.Done():
-			return fmt.Errorf("timeout after %v (attempts: %d)", timeout, attempt)
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-}
-
-// startServices initializes and runs all bundle services using a custom two-phase approach.
-//
-// Why we can't use app.Start() directly:
-// The bundle architecture has 4 separate apps (coordinator, consensus, filenode, sync) that
-// share a single DRPC multiplexer from the coordinator's server component. If we call
-// app.Start() sequentially on each service, a race condition occurs:
-//
-//  1. coordinator.Start() = Init (registers handlers) + Run (starts network listeners)
-//  2. Network is now accepting connections and calling mux.HandleRPC()
-//  3. consensus.Start() = Init tries to register handlers on the same mux
-//  4. RACE: goroutine reads mux map (HandleRPC) while another writes to it (register)
-func startServices(ctx context.Context, apps []node, cfg *bundleConfig.Config) error {
-	log.Info("initiating service startup", zap.Int("count", len(apps)))
-	log.Info("━━━ Phase 1: Initializing all services ━━━")
-
-	initialized := []node{}
-	for _, app := range apps {
-		if err := initOneApp(app); err != nil {
-			shutdownServices(initialized)
-			return err
-		}
-		initialized = append(initialized, app)
-	}
-	log.Info("✓ all services initialized, all DRPC handlers registered")
-
-	// Phase 2: Run all services
-	// Track which services have been successfully Run() to avoid closing
-	// components that were Init'd but never Run'd (they may have nil pointers).
-	log.Info("━━━ Phase 2: Running all services ━━━")
-	running := []node{}
-	for _, app := range initialized {
-		if err := runOneApp(ctx, app, cfg); err != nil {
-			shutdownServices(running)
-			return err
-		}
-		running = append(running, app)
-	}
-	log.Info("✓ all services running")
-
-	return nil
-}
-
-// initOneApp initializes all components for a single app.
-func initOneApp(n node) error {
-	log.Info("▶ initializing service", zap.String("name", n.name))
-
-	var firstError error
-	var initialized []app.ComponentRunnable
-	var failedRunnable app.ComponentRunnable
-
-	n.app.IterateComponents(func(c app.Component) {
-		if firstError != nil {
-			return
-		}
-		if err := c.Init(n.app); err != nil {
-			firstError = fmt.Errorf("component '%s': %w", c.Name(), err)
-			if runnable, ok := c.(app.ComponentRunnable); ok {
-				failedRunnable = runnable
-			}
-			log.Error("component init failed",
-				zap.String("service", n.name),
-				zap.String("component", c.Name()),
-				zap.Error(err))
-			return
-		}
-
-		if runnable, ok := c.(app.ComponentRunnable); ok {
-			initialized = append(initialized, runnable)
-		}
-	})
-
-	if firstError != nil {
-		if failedRunnable != nil {
-			initialized = append(initialized, failedRunnable)
-		}
-		shutdownRunnables(n.name, initialized)
-		return fmt.Errorf("service '%s' init failed: %w", n.name, firstError)
-	}
-
-	log.Info("✓ service initialized", zap.String("name", n.name))
-	return nil
-}
-
-// runOneApp runs all runnable components for a single app.
-func runOneApp(ctx context.Context, n node, cfg *bundleConfig.Config) error {
-	log.Info("▶ running service", zap.String("name", n.name))
-
-	var firstError error
-	var running []app.ComponentRunnable
-	var failedRunnable app.ComponentRunnable
-
-	n.app.IterateComponents(func(c app.Component) {
-		if firstError != nil {
-			return
-		}
-		if runnable, ok := c.(app.ComponentRunnable); ok {
-			if err := runnable.Run(ctx); err != nil {
-				firstError = fmt.Errorf("component '%s': %w", runnable.Name(), err)
-				failedRunnable = runnable
-				log.Error("component run failed",
-					zap.String("service", n.name),
-					zap.String("component", runnable.Name()),
-					zap.Error(err))
-				return
-			}
-			running = append(running, runnable)
-		}
-	})
-
-	if firstError != nil {
-		if failedRunnable != nil {
-			running = append(running, failedRunnable)
-		}
-		shutdownRunnables(n.name, running)
-		return fmt.Errorf("service '%s' run failed: %w", n.name, firstError)
-	}
-
-	// Coordinator-specific: wait for network to be ready
-	if n.name == "coordinator" {
-		addr := cfg.Network.ListenTCPAddr
-		log.Info("waiting for coordinator TCP listener", zap.String("addr", addr))
-
-		if err := waitForTCPReady(addr, 5*time.Second); err != nil {
-			shutdownRunnables(n.name, running)
-			return fmt.Errorf("coordinator network not ready: %w", err)
-		}
-
-		log.Info("coordinator network ready")
-	}
-
-	log.Info("✓ service running", zap.String("name", n.name))
-	return nil
-}
-
-func shutdownRunnables(serviceName string, runnables []app.ComponentRunnable) {
-	if len(runnables) == 0 {
-		return
-	}
-
-	log.Info("⚡ cleaning up partially started service",
-		zap.String("name", serviceName),
-		zap.Int("components", len(runnables)))
-
-	ctx, cancel := context.WithTimeout(context.Background(), serviceShutdownTimeout)
-	defer cancel()
-
-	for _, runnable := range slices.Backward(runnables) {
-		log.Info("▶ stopping component",
-			zap.String("service", serviceName),
-			zap.String("component", runnable.Name()))
-
-		if err := runnable.Close(ctx); err != nil {
-			log.Error("✗ component cleanup failed",
-				zap.String("service", serviceName),
-				zap.String("component", runnable.Name()),
-				zap.Error(err))
-			continue
-		}
-
-		log.Info("✓ component cleaned up",
-			zap.String("service", serviceName),
-			zap.String("component", runnable.Name()))
-	}
-}
-
-func shutdownServices(apps []node) {
-	log.Info("⚡ initiating service shutdown", zap.Int("count", len(apps)))
-
-	for _, a := range slices.Backward(apps) {
-		log.Info("▶ stopping service", zap.String("name", a.name))
-
-		ctx, cancel := context.WithTimeout(context.Background(), serviceShutdownTimeout)
-
-		if err := a.app.Close(ctx); err != nil {
-			log.Error("✗ service shutdown failed", zap.String("name", a.name), zap.Error(err))
-		} else {
-			log.Info("✓ service stopped successfully", zap.String("name", a.name))
-		}
-
-		cancel()
-	}
 }
 
 func emitBundleEvent(event string, fields ...zap.Field) {
@@ -756,7 +271,8 @@ func printStartupMsg() {
 `)
 }
 
-func printShutdownMsg() {
+func reportShutdownComplete() {
+	emitBundleEvent(bundleShutdownCompleteEvent)
 	fmt.Printf(`
 ┌───────────────────────────────────────────────────────────────────┐
 
@@ -765,9 +281,10 @@ func printShutdownMsg() {
 
 └───────────────────────────────────────────────────────────────────┘
 `)
+	log.Info("→ Goodbye!")
 }
 
-func printConfigurationInfo(cfg *bundleConfig.Config) {
+func printConfigurationInfo(cfg *config.Config) {
 	log.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	log.Info("Configuration Summary")
 	log.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -802,28 +319,23 @@ func assertContainerRuntime() error {
 	)
 }
 
-func startPprofServer(ctx context.Context, cCtx *cli.Context) {
-	if !cCtx.Bool(flagPprof) {
+func startPprofServer(ctx context.Context, c *cli.Context) {
+	if !c.Bool(flagPprof) {
 		return
 	}
 
-	addr := cCtx.String(flagPprofAddr)
+	addr := c.String(flagPprofAddr)
 	log.Info("🔍 starting pprof HTTP server",
 		zap.String("addr", addr),
 		zap.String("url", "http://"+addr+"/debug/pprof/"))
 
-	// Create a custom mux and manually register pprof handlers
-	// This avoids gosec G108 warning and is more secure than using the default mux
+	// A private mux avoids exposing pprof through the process-wide default mux.
 	mux := http.NewServeMux()
-
-	// Register pprof handlers
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-	// Register additional profile types
 	mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
 	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
@@ -845,8 +357,8 @@ func startPprofServer(ctx context.Context, cCtx *cli.Context) {
 
 	go func() {
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancelShutdown()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Warn("pprof server shutdown failed", zap.Error(err))
 		}
