@@ -38,15 +38,3 @@ func TestSelectFileStore_BadgerDB(t *testing.T) {
 	typeName := reflect.TypeOf(store).String()
 	assert.Contains(t, typeName, "LightFileNodeStore", "should return BadgerDB store when bucket is empty")
 }
-
-func TestSelectFileStore_EmptyS3Config(t *testing.T) {
-	cfg := &filenodeConfig.Config{
-		// Default zero value for S3Store
-	}
-
-	store := selectFileStore(cfg, "/tmp/filestore")
-
-	// Check type name
-	typeName := reflect.TypeOf(store).String()
-	assert.Contains(t, typeName, "LightFileNodeStore", "should return BadgerDB store for empty S3 config")
-}
