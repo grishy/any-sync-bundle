@@ -1,0 +1,27 @@
+bundleVersion: "1.3.0"
+bundleFormat: 1
+externalAddr:
+  - "192.168.1.100"
+configId: "test-config-id"
+networkId: "test-network-id"
+storagePath: "./data/storage"
+account:
+  peerId: "test-peer-id"
+  peerKey: "test-peer-key"
+  signingKey: "test-signing-key"
+network:
+  listenTCPAddr: "0.0.0.0:33010"
+  listenUDPAddr: "0.0.0.0:33020"
+coordinator:
+  mongoConnect: "mongodb://localhost:27017/"
+  mongoDatabase: "coordinator"
+consensus:
+  mongoConnect: "mongodb://localhost:27017/?w=majority"
+  mongoDatabase: "consensus"
+filenode:
+  redisConnect: "redis://localhost:6379/"
+  s3:
+    bucket: "my-bucket"
+    endpoint: "https://s3.eu-central-1.amazonaws.com"
+    region: "eu-central-1"
+  defaultLimit: 10737418240

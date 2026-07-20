@@ -8,114 +8,90 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConvertS3Config_AllFields(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+func TestConvertS3Config(t *testing.T) {
+	t.Run("all configured fields", func(t *testing.T) {
+		t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+		t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
 
-	cfg := &Config{
-		FileNode: FileNodeConfig{
-			RedisConnect: "redis://localhost:6379/",
-			S3: &S3Config{
-				Bucket:         "my-bucket",
-				Endpoint:       "https://s3.amazonaws.com",
-				ForcePathStyle: false,
-			},
-		},
-	}
+		cfg := newTestConfig()
+		cfg.FileNode.S3 = &S3Config{
+			Bucket:         "my-bucket",
+			Endpoint:       "http://minio:9000",
+			Region:         "custom-region",
+			ForcePathStyle: true,
+		}
 
-	s3Cfg := cfg.convertS3Config()
+		s3Cfg := cfg.convertS3Config()
 
-	assert.Equal(t, "my-bucket", s3Cfg.Bucket)
-	assert.Equal(t, "my-bucket", s3Cfg.IndexBucket, "IndexBucket should match Bucket")
-	assert.Equal(t, "https://s3.amazonaws.com", s3Cfg.Endpoint)
-	assert.Equal(t, "us-east-1", s3Cfg.Region)
-	assert.Equal(t, "default", s3Cfg.Profile)
-	assert.Equal(t, 16, s3Cfg.MaxThreads)
-	assert.False(t, s3Cfg.ForcePathStyle)
-	assert.Equal(t, "test-access-key", s3Cfg.Credentials.AccessKey)
-	assert.Equal(t, "test-secret-key", s3Cfg.Credentials.SecretKey)
+		assert.Equal(t, "custom-region", s3Cfg.Region)
+		assert.Equal(t, "my-bucket", s3Cfg.Bucket)
+		assert.Equal(t, "my-bucket", s3Cfg.IndexBucket)
+		assert.Equal(t, "http://minio:9000", s3Cfg.Endpoint)
+		assert.Equal(t, "default", s3Cfg.Profile)
+		assert.Equal(t, 16, s3Cfg.MaxThreads)
+		assert.True(t, s3Cfg.ForcePathStyle)
+		assert.Equal(t, "test-access-key", s3Cfg.Credentials.AccessKey)
+		assert.Equal(t, "test-secret-key", s3Cfg.Credentials.SecretKey)
+	})
+
+	t.Run("empty region preserves backwards-compatible default", func(t *testing.T) {
+		cfg := newTestConfig()
+		cfg.FileNode.S3 = &S3Config{
+			Bucket:   "my-bucket",
+			Endpoint: "https://s3.amazonaws.com",
+		}
+
+		assert.Equal(t, "us-east-1", cfg.convertS3Config().Region)
+	})
 }
 
-func TestConvertS3Config_ForcePathStyle(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "minio-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "minio-secret")
+func TestFilenodeConfig(t *testing.T) {
+	t.Run("S3 configured", func(t *testing.T) {
+		t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
+		t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
 
-	cfg := &Config{
-		FileNode: FileNodeConfig{
-			S3: &S3Config{
-				Bucket:         "local-bucket",
-				Endpoint:       "http://minio:9000",
-				ForcePathStyle: true,
-			},
-		},
-	}
+		cfg := newTestConfig()
+		cfg.FileNode.S3 = &S3Config{
+			Bucket:         "test-bucket",
+			Endpoint:       "http://minio:9000",
+			Region:         "custom-region",
+			ForcePathStyle: true,
+		}
 
-	s3Cfg := cfg.convertS3Config()
+		filenode := cfg.NodeConfigs().Filenode
 
-	assert.True(t, s3Cfg.ForcePathStyle)
-	assert.Equal(t, "http://minio:9000", s3Cfg.Endpoint)
+		require.NotNil(t, filenode)
+		assert.Equal(t, "test-bucket", filenode.S3Store.Bucket)
+		assert.Equal(t, "test-bucket", filenode.S3Store.IndexBucket)
+		assert.Equal(t, "http://minio:9000", filenode.S3Store.Endpoint)
+		assert.Equal(t, "custom-region", filenode.S3Store.Region)
+		assert.True(t, filenode.S3Store.ForcePathStyle)
+	})
+
+	t.Run("S3 absent", func(t *testing.T) {
+		filenode := newTestConfig().NodeConfigs().Filenode
+
+		require.NotNil(t, filenode)
+		assert.Empty(t, filenode.S3Store.Bucket)
+	})
+
+	t.Run("explicit storage limit", func(t *testing.T) {
+		const tenGiB = 10 * 1024 * 1024 * 1024
+
+		cfg := newTestConfig()
+		cfg.FileNode.DefaultLimit = tenGiB
+
+		assert.Equal(t, uint64(tenGiB), cfg.NodeConfigs().Filenode.DefaultLimit)
+	})
+
+	t.Run("zero storage limit uses compatibility default", func(t *testing.T) {
+		cfg := newTestConfig()
+		cfg.FileNode.DefaultLimit = 0
+
+		assert.Equal(t, uint64(oneTiB), cfg.NodeConfigs().Filenode.DefaultLimit)
+	})
 }
 
-func TestConvertS3Config_CustomRegion(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "minio-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "minio-secret")
-
-	cfg := &Config{
-		FileNode: FileNodeConfig{
-			S3: &S3Config{
-				Bucket:         "local-bucket",
-				Endpoint:       "http://minio:9000",
-				Region:         "sz-hq",
-				ForcePathStyle: true,
-			},
-		},
-	}
-
-	s3Cfg := cfg.convertS3Config()
-
-	assert.Equal(t, "sz-hq", s3Cfg.Region)
-}
-
-func TestConvertS3Config_EmptyRegionDefaultsToUSEast1(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
-
-	cfg := &Config{
-		FileNode: FileNodeConfig{
-			S3: &S3Config{
-				Bucket:   "my-bucket",
-				Endpoint: "https://s3.amazonaws.com",
-				Region:   "", // Explicitly empty
-			},
-		},
-	}
-
-	s3Cfg := cfg.convertS3Config()
-
-	assert.Equal(t, "us-east-1", s3Cfg.Region, "Empty region should default to us-east-1")
-}
-
-func TestConvertS3Config_MissingCredentials(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-
-	cfg := &Config{
-		FileNode: FileNodeConfig{
-			S3: &S3Config{
-				Bucket:   "my-bucket",
-				Endpoint: "https://s3.amazonaws.com",
-			},
-		},
-	}
-
-	s3Cfg := cfg.convertS3Config()
-
-	// Should still create config, but with empty credentials
-	assert.Empty(t, s3Cfg.Credentials.AccessKey)
-	assert.Empty(t, s3Cfg.Credentials.SecretKey)
-}
-
-// newTestConfig creates a minimal valid Config for testing.
 func newTestConfig() *Config {
 	return &Config{
 		ConfigID:    "test-config-id",
@@ -143,61 +119,4 @@ func newTestConfig() *Config {
 		},
 		ExternalAddr: []string{"192.168.1.100"},
 	}
-}
-
-func TestFilenodeConfig_WithS3(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
-
-	cfg := newTestConfig()
-	cfg.FileNode.S3 = &S3Config{
-		Bucket:         "test-bucket",
-		Endpoint:       "https://s3.amazonaws.com",
-		ForcePathStyle: false,
-	}
-
-	nodeCfgs := cfg.NodeConfigs()
-
-	require.NotNil(t, nodeCfgs.Filenode)
-	assert.Equal(t, "test-bucket", nodeCfgs.Filenode.S3Store.Bucket)
-	assert.Equal(t, "test-bucket", nodeCfgs.Filenode.S3Store.IndexBucket)
-	assert.Equal(t, "https://s3.amazonaws.com", nodeCfgs.Filenode.S3Store.Endpoint)
-}
-
-func TestFilenodeConfig_WithoutS3(t *testing.T) {
-	cfg := newTestConfig()
-	// No S3 config - default
-
-	nodeCfgs := cfg.NodeConfigs()
-
-	require.NotNil(t, nodeCfgs.Filenode)
-	// S3Store should be empty (zero value)
-	assert.Empty(t, nodeCfgs.Filenode.S3Store.Bucket)
-}
-
-// Filenode Default Limit Tests
-
-func TestFilenodeConfig_DefaultLimit_CustomValue(t *testing.T) {
-	const tenGiB = 10 * 1024 * 1024 * 1024 // 10 GiB
-
-	cfg := newTestConfig()
-	cfg.FileNode.DefaultLimit = tenGiB
-
-	nodeCfgs := cfg.NodeConfigs()
-
-	require.NotNil(t, nodeCfgs.Filenode)
-	assert.Equal(t, uint64(tenGiB), nodeCfgs.Filenode.DefaultLimit)
-}
-
-func TestFilenodeConfig_DefaultLimit_ZeroDefaultsTo1TiB(t *testing.T) {
-	const oneTiB = 1024 * 1024 * 1024 * 1024 // 1 TiB
-
-	cfg := newTestConfig()
-	cfg.FileNode.DefaultLimit = 0 // Not set
-
-	nodeCfgs := cfg.NodeConfigs()
-
-	require.NotNil(t, nodeCfgs.Filenode)
-	assert.Equal(t, uint64(oneTiB), nodeCfgs.Filenode.DefaultLimit,
-		"Zero DefaultLimit should fallback to 1 TiB")
 }
