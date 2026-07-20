@@ -34,6 +34,7 @@ docker run -d \
     -p 33010:33010 \
     -p 33020:33020/udp \
     -v $(pwd)/data:/data \
+    --stop-timeout 120 \
     --restart unless-stopped \
   ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21
 ```
@@ -49,49 +50,45 @@ After the first run, import `./data/client-config.yml` into Anytype apps.
 - **Easy to start**: A single command to launch the server
 - **All-in-one option**: All services in a single container or in separate binaries
 - **Zero-config**: Sensible defaults, configurable when needed
-- **Lightweight**: No MinIO option, and no duplicate logical services
+- **Lightweight**: No required MinIO, and no duplicate logical services
 - **Only 2 open ports**: TCP 33010 (DRPC protocol) and UDP 33020 (QUIC protocol)
 
-### Who is this for?
+**Who is this for?**
 
-- ✅ **Self-hosters** who value simplicity over complexity
-- ✅ **Low resource** Homelab setups and Raspberry Pi deployments
+- Self-hosters who value simplicity over complexity
+- Low resource Homelab setups and Raspberry Pi deployments
 
-### Not for you if
+**Not for you if**
 
-- ❌ You need high-availability clustering across multiple nodes
-- ❌ You require horizontal scaling beyond a single server
-- ❌ You want to use the official Anytype architecture as-is
+- You need high-availability clustering across multiple nodes
+- You require horizontal scaling beyond a single server
+- You want to use the official Anytype architecture as-is
 
 ### Architecture
 
 ![Comparison with original deployment](./docs/arch.svg)
 
-### Version
-
 Current version: **`v1.4.3-2026-04-21`**
-
+Compatibility: Bundle configuration format 1 remains readable across 1.x releases.
 Format: `v[bundle-version]-[anytype-compatibility-date]`
 
 - `v1.4.3` – Bundle's semantic version (SemVer)
-- `2026-04-21` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
-
-> The compatibility date suffix is always derived in UTC.
-
-> Compatibility: From 1.x onward we follow SemVer; 1.x upgrades are non‑breaking.
+- `2026-04-21` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/). Derived in UTC.
 
 ## Installation
 
-### Available Images
+### Container Images
 
-| Image Tag                                                 | Description                         |
-| --------------------------------------------------------- | ----------------------------------- |
-| `ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21`         | All-in-one (embedded MongoDB/Redis) |
-| `ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21-minimal` | Minimal (external MongoDB/Redis)    |
+| Image Tag                                                 | Description                                      |
+| --------------------------------------------------------- | ------------------------------------------------ |
+| `ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21`         | All-in-one (embedded MongoDB/Redis)              |
+| `ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21-minimal` | Minimal (external MongoDB/Redis, start your own) |
 
-Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are recommended.
+Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are recommended. Better to use exact version and update your own.
 
-### Docker Compose (Recommended)
+### Docker Compose
+
+Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 
 | File                   | Description                                  |
 | ---------------------- | -------------------------------------------- |
@@ -101,15 +98,15 @@ Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are
 | `compose.traefik.yml`  | With Traefik reverse proxy                   |
 
 ```sh
-# Pick one as example:
+# Pick one as example one of
 docker compose -f compose.aio.yml up -d
 docker compose -f compose.external.yml up -d
 docker compose -f compose.s3.yml up -d
 ```
 
-Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
-
 ### Binary
+
+This is only with external MongoDB/Redis option.
 
 1. Download from the [Release page](https://github.com/grishy/any-sync-bundle/releases)
 2. Run:
@@ -124,7 +121,9 @@ Edit `ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS` in the compose file before starting.
 
 ## Configuration
 
-### Quick Reference
+### Reference
+
+All `ANY_SYNC_BUNDLE_INIT*` will be taked into account on start and later on baked into config.
 
 | Variable                                      | Purpose                          | Required |
 | --------------------------------------------- | -------------------------------- | -------- |
@@ -244,8 +243,11 @@ All parameters available as binary flags or environment variables. See `./any-sy
 
 **Backup:**
 
+Take a backup only after a successful clean stop.
+
 ```sh
-# Stop service first
+docker compose -f compose.aio.yml stop
+# Confirm the logs contain bundle_shutdown_complete before archiving.
 tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz ./data/
 ```
 
@@ -297,7 +299,7 @@ This project wouldn't exist without:
 
 ## License
 
-© 2025 [Sergei G.](https://github.com/grishy)
+© 2026 [Sergei G.](https://github.com/grishy)
 Licensed under [MIT](./LICENSE).
 
 <p align="center">
