@@ -4,10 +4,41 @@ import (
 	"reflect"
 	"testing"
 
+	coordinatorConfig "github.com/anyproto/any-sync-coordinator/config"
+	"github.com/anyproto/any-sync-coordinator/coordinator"
+	"github.com/anyproto/any-sync-coordinator/invitestore"
 	filenodeConfig "github.com/anyproto/any-sync-filenode/config"
 	"github.com/anyproto/any-sync-filenode/store/s3store"
+	"github.com/anyproto/any-sync/net/transport/quic"
+	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+var _ func(*filenodeConfig.Config, string) s3store.S3Store = selectFileStore
+
+// The upstream coordinator owns its component list. This focused check keeps
+// the wrapper aligned when a new required component is added there.
+func TestNewCoordinatorAppRegistersInviteStore(t *testing.T) {
+	coordinatorApp := newCoordinatorApp(&coordinatorConfig.Config{})
+
+	assert.NotNil(t, coordinatorApp.Component(invitestore.CName))
+}
+
+// Transports open the shared listeners. Starting them last prevents requests
+// from reaching coordinator components that have not run yet, and reversed
+// shutdown closes the listeners before their dependencies.
+func TestNewCoordinatorAppStartsTransportsLast(t *testing.T) {
+	coordinatorApp := newCoordinatorApp(&coordinatorConfig.Config{})
+	names := coordinatorApp.ComponentNames()
+	require.GreaterOrEqual(t, len(names), 3)
+
+	assert.Equal(t, []string{
+		coordinator.CName,
+		yamux.CName,
+		quic.CName,
+	}, names[len(names)-3:])
+}
 
 func TestSelectFileStore_S3(t *testing.T) {
 	cfg := &filenodeConfig.Config{

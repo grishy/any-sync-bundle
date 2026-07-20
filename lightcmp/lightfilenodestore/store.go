@@ -56,6 +56,7 @@ type LightFileNodeStore struct {
 	cfg      storeConfig
 	db       *badger.DB
 	gcCancel context.CancelFunc
+	gcDone   chan struct{}
 }
 
 func New(storePath string) *LightFileNodeStore {
@@ -79,8 +80,10 @@ func (s *LightFileNodeStore) Name() string {
 }
 
 func (s *LightFileNodeStore) Run(ctx context.Context) error {
+	// Match S3's durability boundary: acknowledged writes must survive a hard reboot.
 	opts := badger.DefaultOptions(s.cfg.storePath).
 		WithLogger(badgerLogger{}).
+		WithSyncWrites(true).
 		WithCompression(options.None).
 		WithZSTDCompressionLevel(0)
 
@@ -91,24 +94,34 @@ func (s *LightFileNodeStore) Run(ctx context.Context) error {
 
 	s.db = db
 
-	// Create a cancellable context for GC
 	gcCtx, cancel := context.WithCancel(ctx)
+	gcDone := make(chan struct{})
 	s.gcCancel = cancel
-	go s.runGC(gcCtx)
+	s.gcDone = gcDone
+	go func() {
+		defer close(gcDone)
+		s.runGC(gcCtx)
+	}()
 
 	return nil
 }
 
 func (s *LightFileNodeStore) Close(_ context.Context) error {
-	// Cancel the GC goroutine
 	if s.gcCancel != nil {
 		s.gcCancel()
 	}
-	if s.db == nil {
-		return nil
+
+	var err error
+	if s.db != nil {
+		err = s.db.Close()
 	}
-	err := s.db.Close()
+
+	if s.gcDone != nil {
+		<-s.gcDone
+	}
 	s.db = nil
+	s.gcCancel = nil
+	s.gcDone = nil
 	return err
 }
 
@@ -249,25 +262,19 @@ func (s *LightFileNodeStore) Add(_ context.Context, bs []blocks.Block) error {
 }
 
 func (s *LightFileNodeStore) Delete(_ context.Context, c cid.Cid) error {
-	// TODO: Create an issue that no Delete call after clean up of Bin in Anytype.
-	// Check before, that here is no deferred call to Delete
-
 	st := time.Now()
-	err := s.db.Update(func(txn *badger.Txn) error {
-		deleteErr := txn.Delete(blockKeyBytes(c))
-		if errors.Is(deleteErr, badger.ErrKeyNotFound) {
-			return nil
-		}
-		return deleteErr
-	})
+	if err := s.db.Update(func(txn *badger.Txn) error {
+		return txn.Delete(blockKeyBytes(c))
+	}); err != nil {
+		return fmt.Errorf("failed to delete block: %w", err)
+	}
 
 	log.Debug("badger delete",
-		zap.Error(err),
 		zap.Duration("total", time.Since(st)),
 		zap.String("cid", c.String()),
 	)
 
-	return err
+	return nil
 }
 
 func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) error {
@@ -275,26 +282,21 @@ func (s *LightFileNodeStore) DeleteMany(_ context.Context, toDelete []cid.Cid) e
 	wb := s.db.NewWriteBatch()
 	defer wb.Cancel()
 
-	// S3 implementation deletes sequentially and logs each failure. We keep the behavior but
-	// rely on Badger's batch API for efficiency and aggregate logging.
 	for _, c := range toDelete {
 		if err := wb.Delete(blockKeyBytes(c)); err != nil {
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				continue
-			}
-			log.Warn("can't delete cid", zap.Error(err), zap.String("cid", c.String()))
+			return fmt.Errorf("failed to queue block deletion: %w", err)
 		}
 	}
 
-	err := wb.Flush()
+	if err := wb.Flush(); err != nil {
+		return fmt.Errorf("failed to delete blocks: %w", err)
+	}
 
 	log.Debug("badger delete many",
-		zap.Error(err),
 		zap.Duration("total", time.Since(st)),
 		zap.Int("count", len(toDelete)),
 	)
 
-	// Original implementation never return an error
 	return nil
 }
 

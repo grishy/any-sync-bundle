@@ -93,6 +93,44 @@ func TestS3StorageCustomRegionRoundTrip(t *testing.T) {
 	require.True(t, bytes.Equal(expected.RawData(), actual.RawData()))
 }
 
+// The direct S3 test proves request signing; this test proves that bundle
+// configuration selects and runs the same backend through the filenode app.
+func TestBundleWithS3CustomRegion(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+
+	mongo, err := StartMongo(ctx)
+	require.NoError(t, err, "start MongoDB")
+	defer mongo.Terminate(ctx)
+
+	redis, err := StartRedis(ctx)
+	require.NoError(t, err, "start Redis")
+	defer redis.Terminate(ctx)
+
+	const minioRegion = "custom-test-region"
+	minio, err := StartMinIOWithRegion(ctx, minioRegion)
+	require.NoError(t, err, "start MinIO")
+	defer minio.Terminate(ctx)
+
+	bundle, err := StartBundle(ctx, BundleConfig{
+		MongoURI:    mongo.URI,
+		RedisURI:    redis.URI,
+		S3Bucket:    "anytype-data",
+		S3Endpoint:  minio.Endpoint,
+		S3Region:    minioRegion,
+		S3AccessKey: minio.AccessKey,
+		S3SecretKey: minio.SecretKey,
+	})
+	require.NoError(t, err, "start bundle")
+	defer bundle.Cleanup()
+	defer bundle.Stop()
+
+	require.NoError(t, bundle.WaitForS3Backend(5*time.Second))
+	require.NoError(t, bundle.WaitReady(90*time.Second))
+	require.NoError(t, bundle.VerifyPort("33010"))
+	require.NoError(t, bundle.Stop(), "bundle should shut down cleanly")
+}
+
 // This is the container-boundary proof for the embedded process supervisor.
 // A clean exit means services stopped first, MongoDB and Redis received their
 // grace period, every child was reaped, and the final marker was published.

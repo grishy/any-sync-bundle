@@ -49,7 +49,7 @@ func initReplicaSetAction(ctx context.Context, replica, mongoURI string) error {
 			return nil
 		}
 		if ctx.Err() != nil {
-			return lastErr
+			return ctx.Err()
 		}
 	}
 
@@ -64,11 +64,19 @@ func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, r
 
 	client, err := mongo.Connect(connCtx, clientOpts)
 	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return fmt.Errorf("failed to connect to mongo: %w", err)
 	}
 
 	defer func() {
-		if disconnectErr := client.Disconnect(ctx); disconnectErr != nil {
+		disconnectCtx, cancelDisconnect := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			mongoCommandTimeout,
+		)
+		defer cancelDisconnect()
+		if disconnectErr := client.Disconnect(disconnectCtx); disconnectErr != nil {
 			log.Error("failed to disconnect from mongo", zap.Error(disconnectErr))
 		}
 	}()
@@ -84,6 +92,9 @@ func tryInitReplicaSet(ctx context.Context, clientOpts *options.ClientOptions, r
 		}
 	}
 	log.Warn("failed to initialize new replica set", zap.Error(initErr))
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 
 	return checkReplicaSetStatus(ctx, client)
 }

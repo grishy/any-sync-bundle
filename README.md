@@ -36,7 +36,7 @@ docker run -d \
     -v $(pwd)/data:/data \
     --stop-timeout 120 \
     --restart unless-stopped \
-  ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21
+  ghcr.io/grishy/any-sync-bundle:1.5.0-2026-07-17
 ```
 
 After the first run, import `./data/client-config.yml` into Anytype apps.
@@ -68,12 +68,12 @@ After the first run, import `./data/client-config.yml` into Anytype apps.
 
 ![Comparison with original deployment](./docs/arch.svg)
 
-Current version: **`v1.4.3-2026-04-21`**
+Current version: **`v1.5.0-2026-07-17`**
 Compatibility: Bundle configuration format 1 remains readable across 1.x releases.
 Format: `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.4.3` – Bundle's semantic version (SemVer)
-- `2026-04-21` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/). Derived in UTC.
+- `v1.5.0` – Bundle's semantic version (SemVer)
+- `2026-07-17` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/). Derived in UTC.
 
 ## Installation
 
@@ -81,8 +81,8 @@ Format: `v[bundle-version]-[anytype-compatibility-date]`
 
 | Image Tag                                                 | Description                                      |
 | --------------------------------------------------------- | ------------------------------------------------ |
-| `ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21`         | All-in-one (embedded MongoDB/Redis)              |
-| `ghcr.io/grishy/any-sync-bundle:1.4.3-2026-04-21-minimal` | Minimal (external MongoDB/Redis, start your own) |
+| `ghcr.io/grishy/any-sync-bundle:1.5.0-2026-07-17`         | All-in-one (embedded MongoDB/Redis)              |
+| `ghcr.io/grishy/any-sync-bundle:1.5.0-2026-07-17-minimal` | Minimal (external MongoDB/Redis, start your own) |
 
 Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are recommended. Better to use exact version and update your own.
 
@@ -248,7 +248,10 @@ Take a backup only after a successful clean stop.
 ```sh
 docker compose -f compose.aio.yml stop
 # Confirm the logs contain bundle_shutdown_complete before archiving.
-tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz ./data/
+# MongoDB diagnostic.data contains diagnostics, not database state.
+tar --exclude='./data/mongo/diagnostic.data' \
+  -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz \
+  ./data/
 ```
 
 **Restore:**

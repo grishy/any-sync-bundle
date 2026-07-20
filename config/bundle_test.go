@@ -291,6 +291,13 @@ func TestConfigValidate(t *testing.T) {
 			wantErr: "network.listenTCPAddr must be in host:port format",
 		},
 		{
+			name: "tcp listen address with surrounding whitespace",
+			mutate: func(cfg *Config) {
+				cfg.Network.ListenTCPAddr = " 0.0.0.0:33010 "
+			},
+			wantErr: "network.listenTCPAddr must not contain surrounding whitespace",
+		},
+		{
 			name: "invalid MongoDB URI",
 			mutate: func(cfg *Config) {
 				cfg.Consensus.MongoConnect = "mongodb://localhost:27017?w=majority"
@@ -312,6 +319,26 @@ func TestConfigValidate(t *testing.T) {
 			wantErr: "filenode.redisConnect must include a host",
 		},
 		{
+			name: "Redis URI with surrounding whitespace",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.RedisConnect = " redis://localhost:6379/ "
+			},
+			wantErr: "filenode.redisConnect must not contain surrounding whitespace",
+		},
+		{
+			name: "Redis URI with unsupported option",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.RedisConnect = "redis://localhost:6379/?unsupported=true"
+			},
+			wantErr: "filenode.redisConnect must be a valid Redis URI",
+		},
+		{
+			name: "Redis URI with supported options",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.RedisConnect = "redis://localhost:6379/1?dial_timeout=3s&max_retries=2"
+			},
+		},
+		{
 			name: "invalid S3 endpoint",
 			mutate: func(cfg *Config) {
 				cfg.FileNode.S3 = &S3Config{
@@ -320,6 +347,26 @@ func TestConfigValidate(t *testing.T) {
 				}
 			},
 			wantErr: "filenode.s3.endpoint must include a host",
+		},
+		{
+			name: "S3 endpoint with surrounding whitespace",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.S3 = &S3Config{
+					Bucket:   "bucket",
+					Endpoint: " https://s3.amazonaws.com ",
+				}
+			},
+			wantErr: "filenode.s3.endpoint must not contain surrounding whitespace",
+		},
+		{
+			name: "S3 endpoint with unsupported scheme",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.S3 = &S3Config{
+					Bucket:   "bucket",
+					Endpoint: "ftp://s3.example.com",
+				}
+			},
+			wantErr: "filenode.s3.endpoint must use one of: http, https",
 		},
 	}
 

@@ -66,6 +66,14 @@ func TestLightFileNodeStoreBlockRoundTrip(t *testing.T) {
 	}
 }
 
+// A successful write must survive a hard reboot, matching the durable
+// acknowledgement provided by the upstream S3 backend.
+func TestLightFileNodeStoreDurableWrites(t *testing.T) {
+	store := setupTestStore(t)
+
+	assert.True(t, store.db.Opts().SyncWrites)
+}
+
 func TestLightFileNodeStoreMissingBlock(t *testing.T) {
 	store := setupTestStore(t)
 	missing := createTestBlock(t, []byte("missing"))
@@ -156,6 +164,22 @@ func TestLightFileNodeStoreDelete(t *testing.T) {
 			_, err := store.Get(ctx, blockCID)
 			assert.ErrorIs(t, err, fileblockstore.ErrCIDNotFound)
 		}
+	})
+
+	// The filenode removes index metadata only after DeleteMany succeeds, so a
+	// storage failure must remain visible to its caller.
+	t.Run("batch failure is returned", func(t *testing.T) {
+		store := setupTestStore(t)
+		oversizedHash, err := multihash.Encode(
+			make([]byte, 41_000),
+			multihash.IDENTITY,
+		)
+		require.NoError(t, err)
+		oversizedCID := cid.NewCidV1(cid.Raw, oversizedHash)
+
+		err = store.DeleteMany(t.Context(), []cid.Cid{oversizedCID})
+
+		assert.ErrorContains(t, err, "failed to queue block deletion")
 	})
 }
 
@@ -258,4 +282,21 @@ func TestLightFileNodeStoreGarbageCollection(t *testing.T) {
 	actual, err := store.Get(ctx, expected.Cid())
 	require.NoError(t, err)
 	assert.True(t, bytes.Equal(expected.RawData(), actual.RawData()))
+}
+
+// Close owns the GC goroutine as well as the database. Returning before that
+// goroutine exits would allow it to access the database after its lifetime.
+func TestLightFileNodeStoreCloseJoinsGarbageCollection(t *testing.T) {
+	store := New(t.TempDir())
+	require.NoError(t, store.Init(&app.App{}))
+	require.NoError(t, store.Run(t.Context()))
+	gcDone := store.gcDone
+
+	require.NoError(t, store.Close(t.Context()))
+
+	select {
+	case <-gcDone:
+	default:
+		t.Fatal("Close returned before garbage collection stopped")
+	}
 }

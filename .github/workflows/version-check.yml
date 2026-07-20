@@ -34,9 +34,11 @@ jobs:
           fi
 
           echo "📦 Update available: $CURRENT_TIMESTAMP → $LATEST_TIMESTAMP"
-          echo "needs_update=true" >> $GITHUB_ENV
-          echo "latest_ts=$LATEST_TIMESTAMP" >> $GITHUB_ENV
-          echo "current_ts=$CURRENT_TIMESTAMP" >> $GITHUB_ENV
+          {
+            echo "needs_update=true"
+            echo "latest_ts=$LATEST_TIMESTAMP"
+            echo "current_ts=$CURRENT_TIMESTAMP"
+          } >> "$GITHUB_ENV"
 
           # Store versions for issue body
           echo "$API_JSON" | jq -r ".\"$LATEST_TIMESTAMP\"" > new_versions.json
@@ -81,21 +83,17 @@ jobs:
           `go mod tidy` may also update `github.com/anyproto/any-sync` automatically.
 
           Verify:
-          ```
+          ```sh
           go mod tidy
           go mod verify
-          golangci-lint run --fix ./...
+          golangci-lint run
           go test -race -shuffle=on -vet=all -failfast ./...
-          go build -o any-sync-bundle .
-          ./any-sync-bundle --version
-          ./any-sync-bundle --help
-          nix build .#default
-          nix flake check
-          ```
-
-          Optional smoke test:
-          ```bash
-          go test -tags=integration ./integration/...
+          go build -o /tmp/any-sync-bundle .
+          /tmp/any-sync-bundle --version
+          /tmp/any-sync-bundle --help
+          go test -v -tags=integration -timeout=10m ./integration/...
+          nix flake check --print-build-logs
+          nix build -L .#default
           ```
 
           ---

@@ -16,6 +16,7 @@ import (
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/util/crypto"
 
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	"gopkg.in/mgo.v2/bson"
@@ -155,8 +156,7 @@ func (cfg *Config) Validate() error {
 	if err := validateMongoURI("consensus.mongoConnect", cfg.Consensus.MongoConnect); err != nil {
 		return err
 	}
-	if err := validateURI("filenode.redisConnect", cfg.FileNode.RedisConnect,
-		"redis", "rediss"); err != nil {
+	if err := validateRedisURI("filenode.redisConnect", cfg.FileNode.RedisConnect); err != nil {
 		return err
 	}
 	if cfg.FileNode.S3 != nil {
@@ -178,7 +178,7 @@ func (cfg *S3Config) Validate() error {
 	if strings.TrimSpace(cfg.Endpoint) == "" {
 		return ErrS3EndpointRequired
 	}
-	if err := validateURI("filenode.s3.endpoint", cfg.Endpoint); err != nil {
+	if err := validateURI("filenode.s3.endpoint", cfg.Endpoint, "http", "https"); err != nil {
 		return err
 	}
 	return nil
@@ -188,6 +188,9 @@ func validateListenAddr(field string, raw string) error {
 	addr := strings.TrimSpace(raw)
 	if addr == "" {
 		return fmt.Errorf("%s is required", field)
+	}
+	if addr != raw {
+		return fmt.Errorf("%s must not contain surrounding whitespace", field)
 	}
 
 	host, port, err := net.SplitHostPort(addr)
@@ -211,10 +214,23 @@ func validateMongoURI(field string, mongoURI string) error {
 	return nil
 }
 
+func validateRedisURI(field string, redisURI string) error {
+	if err := validateURI(field, redisURI, "redis", "rediss"); err != nil {
+		return err
+	}
+	if _, err := redis.ParseURL(redisURI); err != nil {
+		return fmt.Errorf("%s must be a valid Redis URI: %w", field, err)
+	}
+	return nil
+}
+
 func validateURI(field string, raw string, allowedSchemes ...string) error {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return fmt.Errorf("%s is required", field)
+	}
+	if value != raw {
+		return fmt.Errorf("%s must not contain surrounding whitespace", field)
 	}
 
 	parsed, err := url.Parse(value)

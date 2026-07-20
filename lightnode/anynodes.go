@@ -17,6 +17,7 @@ import (
 	"github.com/anyproto/any-sync-coordinator/deletionlog"
 	"github.com/anyproto/any-sync-coordinator/identityrepo"
 	"github.com/anyproto/any-sync-coordinator/inbox"
+	"github.com/anyproto/any-sync-coordinator/invitestore"
 	coordinatorNodeconfsource "github.com/anyproto/any-sync-coordinator/nodeconfsource"
 	"github.com/anyproto/any-sync-coordinator/spacestatus"
 	"github.com/anyproto/any-sync-coordinator/subscribe"
@@ -27,6 +28,7 @@ import (
 	"github.com/anyproto/any-sync-filenode/index"
 	"github.com/anyproto/any-sync-filenode/redisprovider"
 	filenodeStat "github.com/anyproto/any-sync-filenode/stat"
+	"github.com/anyproto/any-sync-filenode/store/s3store"
 
 	"github.com/anyproto/any-sync/acl"
 	"github.com/anyproto/any-sync/app"
@@ -65,7 +67,6 @@ import (
 	"github.com/anyproto/any-sync-node/nodesync/coldsync"
 	"github.com/anyproto/any-sync-node/nodesync/hotsync"
 
-	"github.com/anyproto/any-sync-filenode/store/s3store"
 	"github.com/anyproto/any-sync/app/logger"
 	"go.uber.org/zap"
 
@@ -91,14 +92,10 @@ func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 		// Data
 		Register(deletionlog.New()).
 
-		// Security & Transport
-		Register(secureservice.New()).
-		Register(yamux.New()).
-		Register(quic.New()).
-
 		// Network Services
 		Register(peerservice.New()).
 		Register(pool.New()).
+		Register(secureservice.New()).
 		Register(server.New()).
 
 		// Logging & Monitoring
@@ -113,7 +110,12 @@ func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 		Register(inbox.New()).
 		Register(accountlimit.New()).
 		Register(identityrepo.New()).
-		Register(coordinator.New())
+		Register(invitestore.New()).
+		Register(coordinator.New()).
+
+		// Start listeners only after every request dependency is running.
+		Register(yamux.New()).
+		Register(quic.New())
 
 	return a
 }
@@ -176,7 +178,7 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 }
 
 // selectFileStore returns S3 or BadgerDB storage based on configuration.
-func selectFileStore(cfg *filenodeConfig.Config, fileDir string) app.Component {
+func selectFileStore(cfg *filenodeConfig.Config, fileDir string) s3store.S3Store {
 	if cfg.S3Store.Bucket != "" {
 		log.Info("using S3 storage backend",
 			zap.String("event", "filenode_storage_backend_s3"),
