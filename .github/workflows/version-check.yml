@@ -34,9 +34,11 @@ jobs:
           fi
 
           echo "📦 Update available: $CURRENT_TIMESTAMP → $LATEST_TIMESTAMP"
-          echo "needs_update=true" >> $GITHUB_ENV
-          echo "latest_ts=$LATEST_TIMESTAMP" >> $GITHUB_ENV
-          echo "current_ts=$CURRENT_TIMESTAMP" >> $GITHUB_ENV
+          {
+            echo "needs_update=true"
+            echo "latest_ts=$LATEST_TIMESTAMP"
+            echo "current_ts=$CURRENT_TIMESTAMP"
+          } >> "$GITHUB_ENV"
 
           # Store versions for issue body
           echo "$API_JSON" | jq -r ".\"$LATEST_TIMESTAMP\"" > new_versions.json

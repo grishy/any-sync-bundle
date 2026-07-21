@@ -6,7 +6,7 @@ Thanks for your interest in improving any-sync-bundle! This document explains ho
 
 ### Prerequisites
 
-- Go 1.26.1 or later
+- Go 1.26.4 or later
 - Docker (optional, for testing with containers)
 - golangci-lint (for linting)
 
@@ -82,7 +82,7 @@ release-facing files.
 
 ```sh
 # Set variables (fish shell)
-set VERSION v1.4.3
+set VERSION v1.5.0
 set ANYTYPE_UNIX_TIMESTAMP <current timestamp from https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/>
 # The compatibility date suffix is always derived in UTC.
 set ANYTYPE_FORMATTED (env TZ=UTC date -r $ANYTYPE_UNIX_TIMESTAMP +'%Y-%m-%d')
@@ -97,7 +97,7 @@ git push origin tag $FINAL_VERSION
 
 `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.4.3` – Bundle's semantic version (SemVer)
+- `v1.5.0` – Bundle's semantic version (SemVer)
 - `YYYY-MM-DD` – Date derived in UTC from the current Anytype compatibility timestamp:
   https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
 

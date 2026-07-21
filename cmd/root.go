@@ -50,10 +50,10 @@ const (
 var log = logger.NewNamed("cli")
 
 // Root returns the main CLI application with all commands and flags configured.
-func Root(ctx context.Context) *cli.App {
+func Root(ctx context.Context, cancelRoot context.CancelFunc) *cli.App {
 	cli.VersionPrinter = versionPrinter
 
-	// Any-sync package, used in network communication but just for info.
+	// any-sync package, used in network communication but just for info.
 	// Yes, this is global between all instances of the app...
 	// TODO: Create issue to avoid global app and use app instance instead.
 	app.AppName = appName
@@ -72,8 +72,8 @@ func Root(ctx context.Context) *cli.App {
 		Flags:  buildGlobalFlags(),
 		Before: setupLogger,
 		Commands: []*cli.Command{
-			cmdStartAllInOne(ctx),
-			cmdStartBundle(ctx),
+			cmdStartAllInOne(ctx, cancelRoot),
+			cmdStartBundle(ctx, cancelRoot),
 		},
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/anyproto/any-sync/accountservice"
@@ -15,6 +16,8 @@ import (
 	"github.com/anyproto/any-sync/app/logger"
 	"github.com/anyproto/any-sync/util/crypto"
 
+	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/yaml.v3"
@@ -30,6 +33,11 @@ const (
 
 	// oneTiB is one tebibyte (2^40 bytes), used as the default filenode storage limit.
 	oneTiB = 1024 * 1024 * 1024 * 1024
+
+	defaultListenTCPAddr       = "0.0.0.0:33010"
+	defaultListenUDPAddr       = "0.0.0.0:33020"
+	defaultCoordinatorDatabase = "coordinator"
+	defaultConsensusDatabase   = "consensus"
 )
 
 type Config struct {
@@ -142,16 +150,13 @@ func (cfg *Config) Validate() error {
 	if err := validateListenAddr("network.listenUDPAddr", cfg.Network.ListenUDPAddr); err != nil {
 		return err
 	}
-	if err := validateURI("coordinator.mongoConnect", cfg.Coordinator.MongoConnect,
-		"mongodb", "mongodb+srv"); err != nil {
+	if err := validateMongoURI("coordinator.mongoConnect", cfg.Coordinator.MongoConnect); err != nil {
 		return err
 	}
-	if err := validateURI("consensus.mongoConnect", cfg.Consensus.MongoConnect,
-		"mongodb", "mongodb+srv"); err != nil {
+	if err := validateMongoURI("consensus.mongoConnect", cfg.Consensus.MongoConnect); err != nil {
 		return err
 	}
-	if err := validateURI("filenode.redisConnect", cfg.FileNode.RedisConnect,
-		"redis", "rediss"); err != nil {
+	if err := validateRedisURI("filenode.redisConnect", cfg.FileNode.RedisConnect); err != nil {
 		return err
 	}
 	if cfg.FileNode.S3 != nil {
@@ -173,7 +178,7 @@ func (cfg *S3Config) Validate() error {
 	if strings.TrimSpace(cfg.Endpoint) == "" {
 		return ErrS3EndpointRequired
 	}
-	if err := validateURI("filenode.s3.endpoint", cfg.Endpoint); err != nil {
+	if err := validateURI("filenode.s3.endpoint", cfg.Endpoint, "http", "https"); err != nil {
 		return err
 	}
 	return nil
@@ -183,6 +188,9 @@ func validateListenAddr(field string, raw string) error {
 	addr := strings.TrimSpace(raw)
 	if addr == "" {
 		return fmt.Errorf("%s is required", field)
+	}
+	if addr != raw {
+		return fmt.Errorf("%s must not contain surrounding whitespace", field)
 	}
 
 	host, port, err := net.SplitHostPort(addr)
@@ -199,10 +207,30 @@ func validateListenAddr(field string, raw string) error {
 	return nil
 }
 
+func validateMongoURI(field string, mongoURI string) error {
+	if err := options.Client().ApplyURI(mongoURI).Validate(); err != nil {
+		return fmt.Errorf("%s must be a valid MongoDB URI: %w", field, err)
+	}
+	return nil
+}
+
+func validateRedisURI(field string, redisURI string) error {
+	if err := validateURI(field, redisURI, "redis", "rediss"); err != nil {
+		return err
+	}
+	if _, err := redis.ParseURL(redisURI); err != nil {
+		return fmt.Errorf("%s must be a valid Redis URI: %w", field, err)
+	}
+	return nil
+}
+
 func validateURI(field string, raw string, allowedSchemes ...string) error {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return fmt.Errorf("%s is required", field)
+	}
+	if value != raw {
+		return fmt.Errorf("%s must not contain surrounding whitespace", field)
 	}
 
 	parsed, err := url.Parse(value)
@@ -218,10 +246,8 @@ func validateURI(field string, raw string, allowedSchemes ...string) error {
 	if len(allowedSchemes) == 0 {
 		return nil
 	}
-	for _, allowedScheme := range allowedSchemes {
-		if parsed.Scheme == allowedScheme {
-			return nil
-		}
+	if slices.Contains(allowedSchemes, parsed.Scheme) {
+		return nil
 	}
 
 	return fmt.Errorf("%s must use one of: %s", field, strings.Join(allowedSchemes, ", "))
@@ -251,6 +277,7 @@ func Load(cfgPath string) *Config {
 			zap.Int("current", CurrentBundleFormat),
 			zap.String("path", cfgPath))
 	}
+
 	if validateErr := cfg.Validate(); validateErr != nil {
 		log.Panic("invalid config", zap.Error(validateErr), zap.String("path", cfgPath))
 	}
@@ -312,8 +339,8 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 
 	netID := netKey.GetPublic().Network()
 
-	// Parse MongoDB URI and add w=majority if not already present.
-	// Base on Anytype dockercompose version.
+	// Consensus requires majority writes. Preserve the operator-provided URI
+	// for the coordinator and derive the consensus URI from it.
 	mongoConsensusURI, err := url.Parse(cfg.MongoURI)
 	if err != nil {
 		log.Panic("invalid mongo URI", zap.Error(err))
@@ -321,6 +348,10 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 
 	query := mongoConsensusURI.Query()
 	if query.Get("w") == "" {
+		// A path separator becomes mandatory when the bundle adds query options.
+		if mongoConsensusURI.Path == "" {
+			mongoConsensusURI.Path = "/"
+		}
 		query.Set("w", "majority")
 		mongoConsensusURI.RawQuery = query.Encode()
 	}
@@ -334,16 +365,16 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		StoragePath:   cfg.StorePath,
 		Account:       newAcc(netKey),
 		Network: NetworkConfig{
-			ListenTCPAddr: "0.0.0.0:33010",
-			ListenUDPAddr: "0.0.0.0:33020",
+			ListenTCPAddr: defaultListenTCPAddr,
+			ListenUDPAddr: defaultListenUDPAddr,
 		},
 		Coordinator: CoordinatorConfig{
 			MongoConnect:  cfg.MongoURI,
-			MongoDatabase: "coordinator",
+			MongoDatabase: defaultCoordinatorDatabase,
 		},
 		Consensus: ConsensusConfig{
 			MongoConnect:  mongoConsensusURI.String(),
-			MongoDatabase: "consensus",
+			MongoDatabase: defaultConsensusDatabase,
 		},
 		FileNode: FileNodeConfig{
 			RedisConnect: cfg.RedisURI,

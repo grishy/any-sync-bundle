@@ -8,499 +8,258 @@ import (
 	"github.com/anyproto/any-sync/accountservice"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
-func TestLoad_ValidFormat(t *testing.T) {
-	// Create a temporary valid config with bundleFormat=1
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "valid-config.yml")
+// Loading has three format states: supported, older than supported, and newer
+// than this binary. Values within either rejected range have identical meaning.
+func TestLoadBundleFormat(t *testing.T) {
+	tests := []struct {
+		name        string
+		format      int
+		shouldPanic bool
+	}{
+		{name: "current", format: CurrentBundleFormat},
+		{name: "below minimum", format: MinSupportedBundleFormat - 1, shouldPanic: true},
+		{name: "newer than binary", format: CurrentBundleFormat + 1, shouldPanic: true},
+	}
 
-	validConfig := `bundleVersion: "0.13.0"
-bundleFormat: 1
-externalAddr:
-  - "192.168.1.100"
-configId: "test-config-id"
-networkId: "test-network-id"
-storagePath: "./data/storage"
-account:
-  peerId: "test-peer-id"
-  peerKey: "test-peer-key"
-  signingKey: "test-signing-key"
-network:
-  listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
-coordinator:
-  mongoConnect: "mongodb://localhost:27017/"
-  mongoDatabase: "coordinator"
-consensus:
-  mongoConnect: "mongodb://localhost:27017/?w=majority"
-  mongoDatabase: "consensus"
-filenode:
-  redisConnect: "redis://localhost:6379/"
-`
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := validTestConfig()
+			cfg.BundleFormat = test.format
 
-	err := os.WriteFile(cfgPath, []byte(validConfig), 0o600)
-	require.NoError(t, err)
+			data, err := yaml.Marshal(cfg)
+			require.NoError(t, err)
 
-	// Should load successfully
-	cfg := Load(cfgPath)
-	assert.NotNil(t, cfg)
-	assert.Equal(t, 1, cfg.BundleFormat)
-	assert.Equal(t, "0.13.0", cfg.BundleVersion)
+			cfgPath := filepath.Join(t.TempDir(), "bundle.yml")
+			require.NoError(t, os.WriteFile(cfgPath, data, 0o600))
+
+			if test.shouldPanic {
+				assert.Panics(t, func() {
+					Load(cfgPath)
+				})
+				return
+			}
+
+			loaded := Load(cfgPath)
+			assert.Equal(t, CurrentBundleFormat, loaded.BundleFormat)
+		})
+	}
 }
 
-func TestLoad_MissingFormat(t *testing.T) {
-	// Create a config without bundleFormat field (defaults to 0)
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "missing-format.yml")
+// Release fixtures exercise the reader independently of the current writer.
+// Together with the creation round trips below, they cover every 1.x config
+// shape that changed while bundle format 1 remained supported.
+func TestLoadV1Compatibility(t *testing.T) {
+	t.Run("v1.0 local storage", func(t *testing.T) {
+		cfg := Load("testdata/bundle-v1.0.yml")
 
-	configWithoutFormat := `bundleVersion: "0.13.0"
-externalAddr:
-  - "192.168.1.100"
-configId: "test-config-id"
-networkId: "test-network-id"
-storagePath: "./data/storage"
-account:
-  peerId: "test-peer-id"
-  peerKey: "test-peer-key"
-  signingKey: "test-signing-key"
-network:
-  listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
-coordinator:
-  mongoConnect: "mongodb://localhost:27017/"
-  mongoDatabase: "coordinator"
-consensus:
-  mongoConnect: "mongodb://localhost:27017/?w=majority"
-  mongoDatabase: "consensus"
-filenode:
-  redisConnect: "redis://localhost:6379/"
-`
+		assert.Equal(t, 1, cfg.BundleFormat)
+		assert.Equal(t, "1.0.0", cfg.BundleVersion)
+		assert.Equal(t, []string{"192.168.1.100"}, cfg.ExternalAddr)
+		assert.Equal(t, "test-config-id", cfg.ConfigID)
+		assert.Equal(t, "test-network-id", cfg.NetworkID)
+		assert.Equal(t, "./data/storage", cfg.StoragePath)
+		assert.Equal(t, "test-peer-id", cfg.Account.PeerId)
+		assert.Equal(t, "test-peer-key", cfg.Account.PeerKey)
+		assert.Equal(t, "test-signing-key", cfg.Account.SigningKey)
+		assert.Equal(t, "0.0.0.0:33010", cfg.Network.ListenTCPAddr)
+		assert.Equal(t, "0.0.0.0:33020", cfg.Network.ListenUDPAddr)
+		assert.Equal(t, "mongodb://localhost:27017/", cfg.Coordinator.MongoConnect)
+		assert.Equal(t, "coordinator", cfg.Coordinator.MongoDatabase)
+		assert.Equal(t, "mongodb://localhost:27017/?w=majority", cfg.Consensus.MongoConnect)
+		assert.Equal(t, "consensus", cfg.Consensus.MongoDatabase)
+		assert.Equal(t, "redis://localhost:6379/", cfg.FileNode.RedisConnect)
+		assert.Nil(t, cfg.FileNode.S3)
+		assert.Equal(t, uint64(oneTiB), cfg.NodeConfigs().Filenode.DefaultLimit)
+	})
 
-	err := os.WriteFile(cfgPath, []byte(configWithoutFormat), 0o600)
+	t.Run("v1.2 S3 storage", func(t *testing.T) {
+		cfg := Load("testdata/bundle-v1.2-s3.yml")
+
+		assert.Equal(t, 1, cfg.BundleFormat)
+		assert.Equal(t, "1.2.0", cfg.BundleVersion)
+		require.NotNil(t, cfg.FileNode.S3)
+		assert.Equal(t, "my-bucket", cfg.FileNode.S3.Bucket)
+		assert.Equal(t, "https://s3.amazonaws.com", cfg.FileNode.S3.Endpoint)
+		assert.True(t, cfg.FileNode.S3.ForcePathStyle)
+
+		filenodeCfg := cfg.NodeConfigs().Filenode
+		assert.Equal(t, uint64(oneTiB), filenodeCfg.DefaultLimit)
+		assert.Equal(t, "us-east-1", filenodeCfg.S3Store.Region)
+	})
+
+	t.Run("v1.3 explicit storage settings", func(t *testing.T) {
+		const tenGiB = 10 * 1024 * 1024 * 1024
+
+		cfg := Load("testdata/bundle-v1.3-s3.yml")
+
+		assert.Equal(t, 1, cfg.BundleFormat)
+		assert.Equal(t, "1.3.0", cfg.BundleVersion)
+		assert.Equal(t, uint64(tenGiB), cfg.FileNode.DefaultLimit)
+		require.NotNil(t, cfg.FileNode.S3)
+		assert.Equal(t, "eu-central-1", cfg.FileNode.S3.Region)
+
+		filenodeCfg := cfg.NodeConfigs().Filenode
+		assert.Equal(t, uint64(tenGiB), filenodeCfg.DefaultLimit)
+		assert.Equal(t, "eu-central-1", filenodeCfg.S3Store.Region)
+	})
+}
+
+// Loading treats the persisted configuration as operator-owned input. Invalid
+// MongoDB syntax must stop startup instead of becoming different runtime state.
+func TestLoadRejectsInvalidMongoURI(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Consensus.MongoConnect = "mongodb://localhost:27017?w=majority"
+
+	data, err := yaml.Marshal(cfg)
 	require.NoError(t, err)
 
-	// Should panic with "config format too old"
+	cfgPath := filepath.Join(t.TempDir(), "bundle.yml")
+	require.NoError(t, os.WriteFile(cfgPath, data, 0o600))
+
 	assert.Panics(t, func() {
 		Load(cfgPath)
 	})
 }
 
-func TestLoad_FormatZero(t *testing.T) {
-	// Create a config with explicit bundleFormat=0
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "format-zero.yml")
+// Generated defaults are persisted, not reconstructed only in memory, so the
+// configuration remains explicit and stable across restarts.
+func TestCreateWriteRoundTrip(t *testing.T) {
+	options := validCreateOptions(t)
 
-	configFormatZero := `bundleVersion: "0.12.0"
-bundleFormat: 0
-externalAddr:
-  - "192.168.1.100"
-configId: "test-config-id"
-networkId: "test-network-id"
-storagePath: "./data/storage"
-account:
-  peerId: "test-peer-id"
-  peerKey: "test-peer-key"
-  signingKey: "test-signing-key"
-network:
-  listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
-coordinator:
-  mongoConnect: "mongodb://localhost:27017/"
-  mongoDatabase: "coordinator"
-consensus:
-  mongoConnect: "mongodb://localhost:27017/?w=majority"
-  mongoDatabase: "consensus"
-filenode:
-  redisConnect: "redis://localhost:6379/"
-`
+	created := CreateWrite(options)
+	loaded := Load(options.CfgPath)
 
-	err := os.WriteFile(cfgPath, []byte(configFormatZero), 0o600)
-	require.NoError(t, err)
-
-	// Should panic with "config format too old"
-	assert.Panics(t, func() {
-		Load(cfgPath)
-	})
+	assert.Equal(t, CurrentBundleFormat, created.BundleFormat)
+	assert.Equal(t, CurrentBundleFormat, loaded.BundleFormat)
+	assert.Equal(t, uint64(oneTiB), created.FileNode.DefaultLimit)
+	assert.Equal(t, uint64(oneTiB), loaded.FileNode.DefaultLimit)
+	assert.Nil(t, created.FileNode.S3)
+	assert.Nil(t, loaded.FileNode.S3)
 }
 
-func TestLoad_FutureFormat(t *testing.T) {
-	// Create a config with bundleFormat=2 (future version)
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "future-format.yml")
+// The coordinator receives the valid operator-provided URI unchanged. The
+// bundle owns the derived consensus URI and therefore its required separator.
+func TestCreateWritePreservesMongoURI(t *testing.T) {
+	options := validCreateOptions(t)
+	options.MongoURI = "mongodb://localhost:27017"
 
-	futureConfig := `bundleVersion: "1.0.0"
-bundleFormat: 2
-externalAddr:
-  - "192.168.1.100"
-configId: "test-config-id"
-networkId: "test-network-id"
-storagePath: "./data/storage"
-account:
-  peerId: "test-peer-id"
-  peerKey: "test-peer-key"
-  signingKey: "test-signing-key"
-network:
-  listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
-coordinator:
-  mongoConnect: "mongodb://localhost:27017/"
-  mongoDatabase: "coordinator"
-consensus:
-  mongoConnect: "mongodb://localhost:27017/?w=majority"
-  mongoDatabase: "consensus"
-filenode:
-  redisConnect: "redis://localhost:6379/"
-`
+	cfg := CreateWrite(options)
 
-	err := os.WriteFile(cfgPath, []byte(futureConfig), 0o600)
-	require.NoError(t, err)
-
-	// Should panic with "config format too new"
-	assert.Panics(t, func() {
-		Load(cfgPath)
-	})
+	assert.Equal(t, options.MongoURI, cfg.Coordinator.MongoConnect)
+	assert.Equal(t, "mongodb://localhost:27017/?w=majority", cfg.Consensus.MongoConnect)
 }
 
-func TestLoad_NegativeFormat(t *testing.T) {
-	// Create a config with bundleFormat=-1 (invalid)
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "negative-format.yml")
+func TestCreateWriteRejectsInvalidMongoURI(t *testing.T) {
+	options := validCreateOptions(t)
+	options.MongoURI = "mongodb://localhost:27017?replicaSet=rs0"
 
-	negativeConfig := `bundleVersion: "0.13.0"
-bundleFormat: -1
-externalAddr:
-  - "192.168.1.100"
-configId: "test-config-id"
-networkId: "test-network-id"
-storagePath: "./data/storage"
-account:
-  peerId: "test-peer-id"
-  peerKey: "test-peer-key"
-  signingKey: "test-signing-key"
-network:
-  listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
-coordinator:
-  mongoConnect: "mongodb://localhost:27017/"
-  mongoDatabase: "coordinator"
-consensus:
-  mongoConnect: "mongodb://localhost:27017/?w=majority"
-  mongoDatabase: "consensus"
-filenode:
-  redisConnect: "redis://localhost:6379/"
-`
-
-	err := os.WriteFile(cfgPath, []byte(negativeConfig), 0o600)
-	require.NoError(t, err)
-
-	// Should panic with "config format too old"
 	assert.Panics(t, func() {
-		Load(cfgPath)
+		CreateWrite(options)
 	})
+
+	_, err := os.Stat(options.CfgPath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-func TestCreateWrite_SetsBundleFormat(t *testing.T) {
-	// Verify that CreateWrite sets bundleFormat to CurrentBundleFormat
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "created-config.yml")
-
-	opts := &CreateOptions{
-		CfgPath:       cfgPath,
-		StorePath:     filepath.Join(tmpDir, "storage"),
-		MongoURI:      "mongodb://localhost:27017/",
-		RedisURI:      "redis://localhost:6379/",
-		ExternalAddrs: []string{"192.168.1.100"},
+func TestValidateS3Config(t *testing.T) {
+	tests := []struct {
+		name            string
+		bucket          string
+		endpoint        string
+		withCredentials bool
+		wantErr         error
+	}{
+		{
+			name:            "valid",
+			bucket:          "my-bucket",
+			endpoint:        "http://minio:9000",
+			withCredentials: true,
+		},
+		{
+			name:     "missing bucket",
+			endpoint: "http://minio:9000",
+			wantErr:  ErrS3BucketRequired,
+		},
+		{
+			name:    "missing endpoint",
+			bucket:  "my-bucket",
+			wantErr: ErrS3EndpointRequired,
+		},
+		{
+			name:     "credentials may come from another AWS provider",
+			bucket:   "my-bucket",
+			endpoint: "https://s3.amazonaws.com",
+		},
 	}
 
-	cfg := CreateWrite(opts)
-	assert.Equal(t, CurrentBundleFormat, cfg.BundleFormat)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.withCredentials {
+				t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
+				t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
+			} else {
+				t.Setenv("AWS_ACCESS_KEY_ID", "")
+				t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+			}
 
-	// Verify the written file can be loaded back
-	loadedCfg := Load(cfgPath)
-	assert.Equal(t, CurrentBundleFormat, loadedCfg.BundleFormat)
+			cfg, err := validateS3Config(
+				test.bucket,
+				test.endpoint,
+				"custom-region",
+				true,
+			)
+			if test.wantErr != nil {
+				assert.Nil(t, cfg)
+				assert.ErrorIs(t, err, test.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, cfg)
+			assert.Equal(t, test.bucket, cfg.Bucket)
+			assert.Equal(t, test.endpoint, cfg.Endpoint)
+			assert.Equal(t, "custom-region", cfg.Region)
+			assert.True(t, cfg.ForcePathStyle)
+		})
+	}
 }
 
-// S3 Configuration Tests
-
-func TestValidateS3Config_Valid(t *testing.T) {
-	// Set credentials for this test
+func TestCreateWriteS3RoundTrip(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
 
-	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", "", false)
-	require.NoError(t, err)
-	assert.Equal(t, "my-bucket", cfg.Bucket)
-	assert.Equal(t, "https://s3.amazonaws.com", cfg.Endpoint)
-	assert.Empty(t, cfg.Region, "Region should be empty when not provided")
-	assert.False(t, cfg.ForcePathStyle)
-}
+	options := validCreateOptions(t)
+	options.S3Bucket = "test-bucket"
+	options.S3Endpoint = "http://minio:9000"
+	options.S3Region = "custom-region"
+	options.S3ForcePathStyle = true
 
-func TestValidateS3Config_WithForcePathStyle(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
+	created := CreateWrite(options)
+	loaded := Load(options.CfgPath)
 
-	cfg, err := validateS3Config("my-bucket", "http://minio:9000", "", true)
-	require.NoError(t, err)
-	assert.True(t, cfg.ForcePathStyle)
-}
-
-func TestValidateS3Config_WithRegion(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
-
-	cfg, err := validateS3Config("my-bucket", "http://minio:9000", "sz-hq", true)
-	require.NoError(t, err)
-	assert.Equal(t, "sz-hq", cfg.Region)
-}
-
-func TestValidateS3Config_MissingBucket(t *testing.T) {
-	cfg, err := validateS3Config("", "https://s3.amazonaws.com", "", false)
-	assert.Nil(t, cfg)
-	assert.ErrorIs(t, err, ErrS3BucketRequired)
-}
-
-func TestValidateS3Config_MissingEndpoint(t *testing.T) {
-	cfg, err := validateS3Config("my-bucket", "", "", false)
-	assert.Nil(t, cfg)
-	assert.ErrorIs(t, err, ErrS3EndpointRequired)
-}
-
-func TestValidateS3Config_MissingBoth(t *testing.T) {
-	// When both are missing, bucket error should come first
-	cfg, err := validateS3Config("", "", "", false)
-	assert.Nil(t, cfg)
-	assert.ErrorIs(t, err, ErrS3BucketRequired)
-}
-
-func TestValidateS3Config_MissingCredentials(t *testing.T) {
-	// Ensure credentials are not set
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-
-	// Should still succeed but with a warning (tested via logs)
-	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", "", false)
-	require.NoError(t, err)
-	assert.NotNil(t, cfg)
-}
-
-func TestValidateS3Config_PartialCredentials(t *testing.T) {
-	// Only access key set
-	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-
-	// Should still succeed but with a warning
-	cfg, err := validateS3Config("my-bucket", "https://s3.amazonaws.com", "", false)
-	require.NoError(t, err)
-	assert.NotNil(t, cfg)
-}
-
-func TestCreateWrite_WithS3Config(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
-
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "s3-config.yml")
-
-	opts := &CreateOptions{
-		CfgPath:          cfgPath,
-		StorePath:        filepath.Join(tmpDir, "storage"),
-		MongoURI:         "mongodb://localhost:27017/",
-		RedisURI:         "redis://localhost:6379/",
-		ExternalAddrs:    []string{"192.168.1.100"},
-		S3Bucket:         "test-bucket",
-		S3Endpoint:       "https://s3.amazonaws.com",
-		S3ForcePathStyle: true,
+	for _, cfg := range []*Config{created, loaded} {
+		require.NotNil(t, cfg.FileNode.S3)
+		assert.Equal(t, "test-bucket", cfg.FileNode.S3.Bucket)
+		assert.Equal(t, "http://minio:9000", cfg.FileNode.S3.Endpoint)
+		assert.Equal(t, "custom-region", cfg.FileNode.S3.Region)
+		assert.True(t, cfg.FileNode.S3.ForcePathStyle)
 	}
-
-	cfg := CreateWrite(opts)
-	require.NotNil(t, cfg.FileNode.S3)
-	assert.Equal(t, "test-bucket", cfg.FileNode.S3.Bucket)
-	assert.Equal(t, "https://s3.amazonaws.com", cfg.FileNode.S3.Endpoint)
-	assert.True(t, cfg.FileNode.S3.ForcePathStyle)
-
-	// Verify the config can be loaded back with S3 settings
-	loadedCfg := Load(cfgPath)
-	require.NotNil(t, loadedCfg.FileNode.S3)
-	assert.Equal(t, "test-bucket", loadedCfg.FileNode.S3.Bucket)
 }
 
-func TestCreateWrite_WithoutS3Config(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "no-s3-config.yml")
+func TestCreateWriteExplicitFilenodeLimit(t *testing.T) {
+	const tenGiB = 10 * 1024 * 1024 * 1024
 
-	opts := &CreateOptions{
-		CfgPath:       cfgPath,
-		StorePath:     filepath.Join(tmpDir, "storage"),
-		MongoURI:      "mongodb://localhost:27017/",
-		RedisURI:      "redis://localhost:6379/",
-		ExternalAddrs: []string{"192.168.1.100"},
-		// No S3 options
-	}
+	options := validCreateOptions(t)
+	options.FilenodeDefaultLimit = tenGiB
 
-	cfg := CreateWrite(opts)
-	assert.Nil(t, cfg.FileNode.S3, "S3 config should be nil when not configured")
-}
+	created := CreateWrite(options)
+	loaded := Load(options.CfgPath)
 
-func TestCreateWrite_S3MissingEndpoint_Panics(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "invalid-s3-config.yml")
-
-	opts := &CreateOptions{
-		CfgPath:       cfgPath,
-		StorePath:     filepath.Join(tmpDir, "storage"),
-		MongoURI:      "mongodb://localhost:27017/",
-		RedisURI:      "redis://localhost:6379/",
-		ExternalAddrs: []string{"192.168.1.100"},
-		S3Bucket:      "test-bucket",
-		// Missing S3Endpoint
-	}
-
-	assert.Panics(t, func() {
-		CreateWrite(opts)
-	})
-}
-
-func TestCreateWrite_S3MissingBucket_Panics(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "invalid-s3-config.yml")
-
-	opts := &CreateOptions{
-		CfgPath:       cfgPath,
-		StorePath:     filepath.Join(tmpDir, "storage"),
-		MongoURI:      "mongodb://localhost:27017/",
-		RedisURI:      "redis://localhost:6379/",
-		ExternalAddrs: []string{"192.168.1.100"},
-		S3Endpoint:    "https://s3.amazonaws.com",
-		// Missing S3Bucket
-	}
-
-	assert.Panics(t, func() {
-		CreateWrite(opts)
-	})
-}
-
-func TestLoad_WithS3Config(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "s3-config.yml")
-
-	configWithS3 := `bundleVersion: "1.0.0"
-bundleFormat: 1
-externalAddr:
-  - "192.168.1.100"
-configId: "test-config-id"
-networkId: "test-network-id"
-storagePath: "./data/storage"
-account:
-  peerId: "test-peer-id"
-  peerKey: "test-peer-key"
-  signingKey: "test-signing-key"
-network:
-  listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
-coordinator:
-  mongoConnect: "mongodb://localhost:27017/"
-  mongoDatabase: "coordinator"
-consensus:
-  mongoConnect: "mongodb://localhost:27017/?w=majority"
-  mongoDatabase: "consensus"
-filenode:
-  redisConnect: "redis://localhost:6379/"
-  s3:
-    bucket: "my-bucket"
-    endpoint: "https://s3.amazonaws.com"
-    forcePathStyle: true
-`
-
-	err := os.WriteFile(cfgPath, []byte(configWithS3), 0o600)
-	require.NoError(t, err)
-
-	cfg := Load(cfgPath)
-	require.NotNil(t, cfg.FileNode.S3)
-	assert.Equal(t, "my-bucket", cfg.FileNode.S3.Bucket)
-	assert.Equal(t, "https://s3.amazonaws.com", cfg.FileNode.S3.Endpoint)
-	assert.True(t, cfg.FileNode.S3.ForcePathStyle)
-}
-
-// Filenode Default Limit Tests
-
-func TestCreateWrite_WithFilenodeDefaultLimit(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "limit-config.yml")
-
-	const tenGiB = 10 * 1024 * 1024 * 1024 // 10 GiB
-
-	opts := &CreateOptions{
-		CfgPath:              cfgPath,
-		StorePath:            filepath.Join(tmpDir, "storage"),
-		MongoURI:             "mongodb://localhost:27017/",
-		RedisURI:             "redis://localhost:6379/",
-		ExternalAddrs:        []string{"192.168.1.100"},
-		FilenodeDefaultLimit: tenGiB,
-	}
-
-	cfg := CreateWrite(opts)
-	assert.Equal(t, uint64(tenGiB), cfg.FileNode.DefaultLimit)
-
-	// Verify it persists and loads back correctly
-	loadedCfg := Load(cfgPath)
-	assert.Equal(t, uint64(tenGiB), loadedCfg.FileNode.DefaultLimit)
-}
-
-func TestCreateWrite_WithoutFilenodeDefaultLimit(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "no-limit-config.yml")
-
-	const oneTiB = 1024 * 1024 * 1024 * 1024 // 1 TiB
-
-	opts := &CreateOptions{
-		CfgPath:       cfgPath,
-		StorePath:     filepath.Join(tmpDir, "storage"),
-		MongoURI:      "mongodb://localhost:27017/",
-		RedisURI:      "redis://localhost:6379/",
-		ExternalAddrs: []string{"192.168.1.100"},
-		// FilenodeDefaultLimit not set (zero value)
-	}
-
-	cfg := CreateWrite(opts)
-	assert.Equal(t, uint64(oneTiB), cfg.FileNode.DefaultLimit,
-		"DefaultLimit should be 1 TiB when not configured (written to config file)")
-}
-
-func TestLoad_WithFilenodeDefaultLimit(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "limit-config.yml")
-
-	configWithLimit := `bundleVersion: "1.0.0"
-bundleFormat: 1
-externalAddr:
-  - "192.168.1.100"
-configId: "test-config-id"
-networkId: "test-network-id"
-storagePath: "./data/storage"
-account:
-  peerId: "test-peer-id"
-  peerKey: "test-peer-key"
-  signingKey: "test-signing-key"
-network:
-  listenTCPAddr: "0.0.0.0:33010"
-  listenUDPAddr: "0.0.0.0:33020"
-coordinator:
-  mongoConnect: "mongodb://localhost:27017/"
-  mongoDatabase: "coordinator"
-consensus:
-  mongoConnect: "mongodb://localhost:27017/?w=majority"
-  mongoDatabase: "consensus"
-filenode:
-  redisConnect: "redis://localhost:6379/"
-  defaultLimit: 10737418240
-`
-
-	err := os.WriteFile(cfgPath, []byte(configWithLimit), 0o600)
-	require.NoError(t, err)
-
-	cfg := Load(cfgPath)
-	assert.Equal(t, uint64(10737418240), cfg.FileNode.DefaultLimit)
+	assert.Equal(t, uint64(tenGiB), created.FileNode.DefaultLimit)
+	assert.Equal(t, uint64(tenGiB), loaded.FileNode.DefaultLimit)
 }
 
 func TestConfigValidate(t *testing.T) {
@@ -509,9 +268,7 @@ func TestConfigValidate(t *testing.T) {
 		mutate  func(cfg *Config)
 		wantErr string
 	}{
-		{
-			name: "valid config",
-		},
+		{name: "valid config"},
 		{
 			name: "missing external address",
 			mutate: func(cfg *Config) {
@@ -534,14 +291,55 @@ func TestConfigValidate(t *testing.T) {
 			wantErr: "network.listenTCPAddr must be in host:port format",
 		},
 		{
-			name: "invalid redis uri",
+			name: "tcp listen address with surrounding whitespace",
+			mutate: func(cfg *Config) {
+				cfg.Network.ListenTCPAddr = " 0.0.0.0:33010 "
+			},
+			wantErr: "network.listenTCPAddr must not contain surrounding whitespace",
+		},
+		{
+			name: "invalid MongoDB URI",
+			mutate: func(cfg *Config) {
+				cfg.Consensus.MongoConnect = "mongodb://localhost:27017?w=majority"
+			},
+			wantErr: "consensus.mongoConnect must be a valid MongoDB URI",
+		},
+		{
+			name: "MongoDB URI with surrounding whitespace",
+			mutate: func(cfg *Config) {
+				cfg.Consensus.MongoConnect = " mongodb://localhost:27017/?w=majority "
+			},
+			wantErr: "consensus.mongoConnect must be a valid MongoDB URI",
+		},
+		{
+			name: "invalid redis URI",
 			mutate: func(cfg *Config) {
 				cfg.FileNode.RedisConnect = "localhost:6379"
 			},
 			wantErr: "filenode.redisConnect must include a host",
 		},
 		{
-			name: "invalid s3 endpoint",
+			name: "Redis URI with surrounding whitespace",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.RedisConnect = " redis://localhost:6379/ "
+			},
+			wantErr: "filenode.redisConnect must not contain surrounding whitespace",
+		},
+		{
+			name: "Redis URI with unsupported option",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.RedisConnect = "redis://localhost:6379/?unsupported=true"
+			},
+			wantErr: "filenode.redisConnect must be a valid Redis URI",
+		},
+		{
+			name: "Redis URI with supported options",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.RedisConnect = "redis://localhost:6379/1?dial_timeout=3s&max_retries=2"
+			},
+		},
+		{
+			name: "invalid S3 endpoint",
 			mutate: func(cfg *Config) {
 				cfg.FileNode.S3 = &S3Config{
 					Bucket:   "bucket",
@@ -550,31 +348,64 @@ func TestConfigValidate(t *testing.T) {
 			},
 			wantErr: "filenode.s3.endpoint must include a host",
 		},
+		{
+			name: "S3 endpoint with surrounding whitespace",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.S3 = &S3Config{
+					Bucket:   "bucket",
+					Endpoint: " https://s3.amazonaws.com ",
+				}
+			},
+			wantErr: "filenode.s3.endpoint must not contain surrounding whitespace",
+		},
+		{
+			name: "S3 endpoint with unsupported scheme",
+			mutate: func(cfg *Config) {
+				cfg.FileNode.S3 = &S3Config{
+					Bucket:   "bucket",
+					Endpoint: "ftp://s3.example.com",
+				}
+			},
+			wantErr: "filenode.s3.endpoint must use one of: http, https",
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			cfg := validTestConfig()
-			if tt.mutate != nil {
-				tt.mutate(cfg)
+			if test.mutate != nil {
+				test.mutate(cfg)
 			}
 
 			err := cfg.Validate()
-			if tt.wantErr == "" {
+			if test.wantErr == "" {
 				require.NoError(t, err)
 				return
 			}
 
 			require.Error(t, err)
-			assert.ErrorContains(t, err, tt.wantErr)
+			assert.ErrorContains(t, err, test.wantErr)
 		})
+	}
+}
+
+func validCreateOptions(t *testing.T) *CreateOptions {
+	t.Helper()
+
+	dir := t.TempDir()
+	return &CreateOptions{
+		CfgPath:       filepath.Join(dir, "bundle.yml"),
+		StorePath:     filepath.Join(dir, "storage"),
+		MongoURI:      "mongodb://localhost:27017/",
+		RedisURI:      "redis://localhost:6379/",
+		ExternalAddrs: []string{"192.168.1.100"},
 	}
 }
 
 func validTestConfig() *Config {
 	return &Config{
 		BundleVersion: "1.0.0",
-		BundleFormat:  1,
+		BundleFormat:  CurrentBundleFormat,
 		ExternalAddr:  []string{"example.local"},
 		ConfigID:      "test-config-id",
 		NetworkID:     "test-network-id",

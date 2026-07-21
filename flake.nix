@@ -19,7 +19,6 @@
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
-        "x86_64-darwin"
       ];
 
       perSystem =
@@ -35,8 +34,6 @@
         let
           goPackage = pkgs.go;
 
-          # Version information - extract from git or use defaults
-          version = if self ? rev then self.shortRev else "dev";
           commit = self.rev or "dirty";
           date = self.lastModifiedDate or "1970-01-01T00:00:00Z";
 
@@ -46,11 +43,11 @@
         {
           packages.default = (pkgs.buildGoModule.override { go = goPackage; }) rec {
             pname = "any-sync-bundle";
-            version = "v1.4.3-2026-04-21";
+            version = "v1.5.0-2026-07-17";
 
             src = ./.;
 
-            vendorHash = "sha256-qYqMaGfEzJR2feV2GhDBhEPnkH6a5cdhTB3+hmc7ykI=";
+            vendorHash = "sha256-zdmDItdWo76+wluHRz3hqG4IQsXaYnRtUpT0EleRsew=";
 
             env.CGO_ENABLED = 0;
 
@@ -62,6 +59,8 @@
               "-X github.com/grishy/any-sync-bundle/cmd.date=${buildDate}"
             ];
 
+            # Integration tests require Docker and run in their own CI job.
+            excludedPackages = [ "integration" ];
             doCheck = true;
 
             meta = with lib; {
@@ -92,7 +91,7 @@
             ];
 
             shellHook = ''
-              echo "🚀 any-sync-bundle development environment"
+              echo "any-sync-bundle development environment"
               echo ""
               echo "Available commands:"
               echo "  go build          - Build the binary"
