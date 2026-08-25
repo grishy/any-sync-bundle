@@ -57,7 +57,7 @@ services:
       start_period: 5s
 
   any-sync-bundle:
-    image: ghcr.io/grishy/any-sync-bundle:1.5.0-2026-07-17-minimal
+    image: ghcr.io/grishy/any-sync-bundle:1.6.0-2026-08-18-minimal
     container_name: any-sync-bundle
     restart: unless-stopped
     stop_grace_period: 2m
