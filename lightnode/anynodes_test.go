@@ -11,11 +11,15 @@ import (
 	"github.com/anyproto/any-sync-filenode/store/s3store"
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
+	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var _ func(*filenodeConfig.Config, string) s3store.S3Store = selectFileStore
+var (
+	_ func(*filenodeConfig.Config, string) s3store.S3Store = selectFileStore
+	_ nodeconf.HistoryStore                                = (*sharedNodeConfStoreComponent)(nil)
+)
 
 // The upstream coordinator owns its component list. This focused check keeps
 // the wrapper aligned when a new required component is added there.

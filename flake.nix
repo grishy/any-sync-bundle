@@ -32,7 +32,7 @@
           ...
         }:
         let
-          goPackage = pkgs.go;
+          goPackage = pkgs.go_1_27;
 
           commit = self.rev or "dirty";
           date = self.lastModifiedDate or "1970-01-01T00:00:00Z";
@@ -47,7 +47,7 @@
 
             src = ./.;
 
-            vendorHash = "sha256-zdmDItdWo76+wluHRz3hqG4IQsXaYnRtUpT0EleRsew=";
+            vendorHash = "sha256-kvHW28uTsBi71ZrgS/Obr4WaD3RDQPpU7ZODkPZExOE=";
 
             env.CGO_ENABLED = 0;
 
