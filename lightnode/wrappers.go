@@ -209,19 +209,16 @@ func (s *sharedNodeConfComponent) Init(_ *app.App) error         { return nil }
 func (s *sharedNodeConfComponent) Run(_ context.Context) error   { return nil }
 func (s *sharedNodeConfComponent) Close(_ context.Context) error { return nil }
 
-// sharedNodeConfStoreComponent wraps nodeconf.Store with no-op lifecycle methods.
-//
-// NodeConfStore is a simple file-based storage for network configuration.
-// It has no Run() or Close() methods, only Init() which creates the storage directory.
+// Preserve config history while sharing the coordinator store.
 type sharedNodeConfStoreComponent struct {
 	noOpComponent
-	nodeconf.Store
+	nodeconf.HistoryStore
 }
 
 func newSharedNodeConfStoreComponent(coordinator *app.App) *sharedNodeConfStoreComponent {
 	return &sharedNodeConfStoreComponent{
 		noOpComponent: noOpComponent{name: nodeconf.CNameStore},
-		Store:         extractComponent[nodeconf.Store](coordinator, nodeconf.CNameStore),
+		HistoryStore:  extractComponent[nodeconf.HistoryStore](coordinator, nodeconf.CNameStore),
 	}
 }
 

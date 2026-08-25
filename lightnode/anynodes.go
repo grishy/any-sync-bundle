@@ -15,6 +15,7 @@ import (
 	"github.com/anyproto/any-sync-coordinator/coordinatorlog"
 	"github.com/anyproto/any-sync-coordinator/db"
 	"github.com/anyproto/any-sync-coordinator/deletionlog"
+	"github.com/anyproto/any-sync-coordinator/fileusage"
 	"github.com/anyproto/any-sync-coordinator/identityrepo"
 	"github.com/anyproto/any-sync-coordinator/inbox"
 	"github.com/anyproto/any-sync-coordinator/invitestore"
@@ -53,6 +54,7 @@ import (
 	"github.com/anyproto/any-sync/util/syncqueues"
 
 	"github.com/anyproto/any-sync-node/archive"
+	"github.com/anyproto/any-sync-node/archive/adopter"
 	"github.com/anyproto/any-sync-node/archive/archivestore"
 	"github.com/anyproto/any-sync-node/config"
 	"github.com/anyproto/any-sync-node/debug/nodedebugrpc"
@@ -61,11 +63,14 @@ import (
 	"github.com/anyproto/any-sync-node/nodespace"
 	"github.com/anyproto/any-sync-node/nodespace/nodecache"
 	"github.com/anyproto/any-sync-node/nodespace/peermanager"
+	"github.com/anyproto/any-sync-node/nodespace/pubsubrelay"
 	"github.com/anyproto/any-sync-node/nodespace/spacedeleter"
 	"github.com/anyproto/any-sync-node/nodestorage"
 	"github.com/anyproto/any-sync-node/nodesync"
 	"github.com/anyproto/any-sync-node/nodesync/coldsync"
 	"github.com/anyproto/any-sync-node/nodesync/hotsync"
+	"github.com/anyproto/any-sync-node/repairer"
+	"github.com/anyproto/any-sync-node/resharder"
 
 	"github.com/anyproto/any-sync/app/logger"
 	"go.uber.org/zap"
@@ -109,6 +114,7 @@ func newCoordinatorApp(cfg *coordinatorConfig.Config) *app.App {
 		Register(subscribe.New()).
 		Register(inbox.New()).
 		Register(accountlimit.New()).
+		Register(fileusage.New()).
 		Register(identityrepo.New()).
 		Register(invitestore.New()).
 		Register(coordinator.New()).
@@ -164,6 +170,7 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 		// Space Services
 		Register(commonspace.New()).
 		Register(nodespace.New()).
+		Register(pubsubrelay.New()).
 		Register(spacedeleter.New()).
 		Register(peermanager.New()).
 
@@ -174,7 +181,10 @@ func newSyncApp(cfg *config.Config, net *sharedCmp) *app.App {
 
 		// Archive
 		Register(archivestore.New()).
-		Register(archive.New())
+		Register(archive.New()).
+		Register(adopter.New()).
+		Register(resharder.New()).
+		Register(repairer.New())
 }
 
 // selectFileStore returns S3 or BadgerDB storage based on configuration.
