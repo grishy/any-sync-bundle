@@ -15,6 +15,9 @@ import (
 	"time"
 )
 
+// Bound leaked helpers while keeping them alive beyond current test deadlines.
+const infraHelperLifetime = 10 * time.Minute
+
 // TestInfraProcessHelper runs as a child test binary. The ready file is
 // written only after signal handling is installed, which makes the parent
 // tests independent of scheduler timing.
@@ -46,7 +49,8 @@ func TestInfraProcessHelper(t *testing.T) {
 		if err := os.WriteFile(readyPath, nil, 0o600); err != nil {
 			t.Fatal(err)
 		}
-		select {}
+		time.Sleep(infraHelperLifetime)
+		return
 	}
 
 	signals := make(chan os.Signal, 1)
