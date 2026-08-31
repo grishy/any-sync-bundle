@@ -25,7 +25,11 @@ jobs:
           LATEST_TIMESTAMP=$(echo "$API_JSON" | jq -r 'keys | max')
 
           # Extract current timestamp from go.mod comment
-          CURRENT_TIMESTAMP=$(grep 'Current timestamp:' go.mod | head -1 | sed 's/.*"\([0-9]*\)".*/\1/')
+          CURRENT_TIMESTAMP=$(sed -nE 's/^\/\/ Timestamp: "([0-9]+)"$/\1/p' go.mod)
+          if [ -z "$CURRENT_TIMESTAMP" ]; then
+            echo "Invalid or missing timestamp in go.mod" >&2
+            exit 1
+          fi
 
           # Simple comparison: different timestamp = update available
           if [ "$LATEST_TIMESTAMP" = "$CURRENT_TIMESTAMP" ]; then
@@ -77,7 +81,7 @@ jobs:
 
           Also update the timestamp comment:
           ```
-          // Current timestamp: "${{ env.current_ts }}" → "${{ env.latest_ts }}"
+          // Timestamp: "${{ env.current_ts }}" → "${{ env.latest_ts }}"
           ```
 
           `go mod tidy` may also update `github.com/anyproto/any-sync` automatically.
