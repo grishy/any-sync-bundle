@@ -41,7 +41,7 @@ docker run -d \
 
 After the first run, import `./data/client-config.yml` into Anytype apps.
 
-> How to configure Anytype apps to use your self-hosted server? [Client setup →](https://doc.anytype.io/anytype-docs/advanced/data-and-security/self-hosting/self-hosted#how-to-switch-to-a-self-hosted-network)
+> How to configure Anytype apps to use your self-hosted server? [Client setup →](https://doc.anytype.io/anytype/data/sync-and-backup/self-host#how-to-switch-to-a-self-hosted-network)
 
 ## Overview
 
