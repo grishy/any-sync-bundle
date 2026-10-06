@@ -37,7 +37,8 @@ jobs:
       - name: Fix Segmentation fault or QEMU - https://github.com/docker/buildx/issues/1170
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes -c yes
 
-      - uses: goreleaser/goreleaser-action@v6
+      - name: Build archives and upload draft release
+        uses: goreleaser/goreleaser-action@v6
         id: goreleaser
         with:
           distribution: goreleaser
@@ -46,7 +47,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker base on Goreleaser
+      - name: Prepare versioned image tags and labels
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -56,6 +57,7 @@ jobs:
             type=raw,value=${{ fromJSON(steps.goreleaser.outputs.metadata).version }}
 
       - name: Build and push Docker image (stage-release-minimal)
+        id: minimal
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -66,7 +68,6 @@ jobs:
             linux/amd64
           target: stage-release-minimal
           tags: |
-            ghcr.io/${{ github.repository }}:minimal
             ${{ steps.meta.outputs.tags }}-minimal
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -79,6 +80,7 @@ jobs:
           sbom: true
 
       - name: Build and push Docker image (stage-release-all-in-one)
+        id: aio
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -89,7 +91,6 @@ jobs:
             linux/amd64
           target: stage-release-all-in-one
           tags: |
-            ghcr.io/${{ github.repository }}:latest
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -100,3 +101,19 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      - name: Update Docker aliases after both builds succeed
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+          MINIMAL_DIGEST: ${{ steps.minimal.outputs.digest }}
+          AIO_DIGEST: ${{ steps.aio.outputs.digest }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:minimal" "$IMAGE@$MINIMAL_DIGEST"
+          docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE@$AIO_DIGEST"
+
+      - name: Publish GitHub release last
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest

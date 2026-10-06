@@ -36,7 +36,7 @@ docker run -d \
     -v $(pwd)/data:/data \
     --stop-timeout 120 \
     --restart unless-stopped \
-  ghcr.io/grishy/any-sync-bundle:1.6.0-2026-08-18
+  ghcr.io/grishy/any-sync-bundle:1.6.1-2026-10-05
 ```
 
 After the first run, import `./data/client-config.yml` into Anytype apps.
@@ -68,12 +68,12 @@ After the first run, import `./data/client-config.yml` into Anytype apps.
 
 ![Comparison with original deployment](./docs/arch.svg)
 
-Current version: **`v1.6.0-2026-08-18`**
+Current version: **`v1.6.1-2026-10-05`**
 Compatibility: Bundle configuration format 1 remains readable across 1.x releases.
 Format: `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.6.0` – Bundle's semantic version (SemVer)
-- `2026-08-18` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/). Derived in UTC.
+- `v1.6.1` – Bundle's semantic version (SemVer)
+- `2026-10-05` – Anytype any-sync compatibility date from [anytype.io](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/). Derived in UTC.
 
 ## Installation
 
@@ -81,8 +81,8 @@ Format: `v[bundle-version]-[anytype-compatibility-date]`
 
 | Image Tag                                                 | Description                                      |
 | --------------------------------------------------------- | ------------------------------------------------ |
-| `ghcr.io/grishy/any-sync-bundle:1.6.0-2026-08-18`         | All-in-one (embedded MongoDB/Redis)              |
-| `ghcr.io/grishy/any-sync-bundle:1.6.0-2026-08-18-minimal` | Minimal (external MongoDB/Redis, start your own) |
+| `ghcr.io/grishy/any-sync-bundle:1.6.1-2026-10-05`         | All-in-one (embedded MongoDB/Redis)              |
+| `ghcr.io/grishy/any-sync-bundle:1.6.1-2026-10-05-minimal` | Minimal (external MongoDB/Redis, start your own) |
 
 Latest tags (`:latest`, `:minimal`) are available, but explicit version tags are recommended. Better to use exact version and update your own.
 

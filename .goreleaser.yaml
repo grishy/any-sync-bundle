@@ -31,7 +31,8 @@ checksum:
   name_template: "checksums.txt"
 
 release:
-  # https://goreleaser.com/customization/release/
+  # The workflow publishes after both container variants are built.
+  draft: true
   target_commitish: "{{ .Commit }}"
   mode: replace
   header: |

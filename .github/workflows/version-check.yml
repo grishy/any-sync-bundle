@@ -77,32 +77,18 @@ jobs:
 
           ## Update
 
-          Update `go.mod` with the versions above.
+          Update only the service modules already required by `go.mod` using the
+          latest compatible set. Other matrix entries do not require adding new
+          services to the bundle. Recheck the source above if this issue is old.
 
           Also update the timestamp comment:
           ```
           // Timestamp: "${{ env.current_ts }}" → "${{ env.latest_ts }}"
           ```
 
-          `go mod tidy` may also update `github.com/anyproto/any-sync` automatically.
-
-          Verify:
-          ```
-          go mod tidy
-          go mod verify
-          golangci-lint run --fix ./...
-          go test -race -shuffle=on -vet=all -failfast ./...
-          go build -o any-sync-bundle .
-          ./any-sync-bundle --version
-          ./any-sync-bundle --help
-          nix build .#default
-          nix flake check
-          ```
-
-          Optional smoke test:
-          ```bash
-          go test -tags=integration ./integration/...
-          ```
+          Follow the [dependency update checklist](https://github.com/grishy/any-sync-bundle/blob/main/CONTRIBUTING.md#dependency-updates)
+          for shared-core compatibility review, dependency/Nix hashes, and all
+          required checks, including Docker integration tests.
 
           ---
           *Automated by version-check workflow*
