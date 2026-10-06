@@ -90,6 +90,18 @@ By submitting a PR, you agree that your contribution is licensed under the repos
 1. Update the version in README, Compose image tags, and `flake.nix`. The
    compatibility date is derived in UTC from the `go.mod` timestamp selected
    during the dependency update, not from a new compatibility-matrix response.
+
+   Generate the version from the repository root (bash on macOS):
+
+   ```bash
+   VERSION=v1.6.1
+   ANYTYPE_UNIX_TIMESTAMP=$(awk -F '"' '/Timestamp:/ {print $2}' go.mod)
+   ANYTYPE_FORMATTED=$(date -u -r "$ANYTYPE_UNIX_TIMESTAMP" +%Y-%m-%d)
+   FINAL_VERSION="$VERSION-$ANYTYPE_FORMATTED"
+   echo "$FINAL_VERSION"
+   # v1.6.1-2026-10-05
+   ```
+
 2. Run the repository checks above, then check release packaging locally:
 
    ```sh
@@ -98,11 +110,11 @@ By submitting a PR, you agree that your contribution is licensed under the repos
    ```
 
 3. Commit the reviewed changes and wait for CI to pass on that commit. Create
-   and push an annotated tag (example for this release):
+   and push an annotated tag using the version generated above:
 
-   ```sh
-   git tag -a v1.6.1-2026-10-05 -m "Release v1.6.1-2026-10-05"
-   git push origin refs/tags/v1.6.1-2026-10-05
+   ```bash
+   git tag -a "$FINAL_VERSION" -m "Release $FINAL_VERSION"
+   git push origin "refs/tags/$FINAL_VERSION"
    ```
 
 The workflow creates a GitHub draft with GoReleaser's generated changelog,
