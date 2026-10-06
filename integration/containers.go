@@ -117,16 +117,14 @@ func StartMinIOWithRegion(ctx context.Context, region string) (*MinIOContainer, 
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        minioImage,
-			ExposedPorts: []string{"9000/tcp"},
-			Env:          env,
-			Cmd:          []string{"server", "/data"},
-			WaitingFor:   wait.ForHTTP("/minio/health/live").WithPort("9000/tcp"),
-			Networks:     []string{networkName},
-			NetworkAliases: map[string][]string{
-				networkName: {"minio"},
-			},
+		Image:        minioImage,
+		ExposedPorts: []string{"9000/tcp"},
+		Env:          env,
+		Cmd:          []string{"server", "/data"},
+		WaitingFor:   wait.ForHTTP("/minio/health/live").WithPort("9000/tcp"),
+		Networks:     []string{networkName},
+		NetworkAliases: map[string][]string{
+			networkName: {"minio"},
 		},
 		Started: true,
 	})
@@ -187,17 +185,15 @@ func (m *MinIOContainer) Terminate(ctx context.Context) error {
 
 func createMinioBucket(ctx context.Context, networkName, endpoint, accessKey, secretKey, bucket string) error {
 	mc, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:      minioImage,
-			Entrypoint: []string{"/bin/sh"},
-			Cmd: []string{"-c", fmt.Sprintf(
-				"mc alias set minio %s %s %s && mc mb minio/%s --ignore-existing",
-				endpoint, accessKey, secretKey, bucket,
-			)},
-			Networks:   []string{networkName},
-			WaitingFor: wait.ForExit(),
-		},
-		Started: true,
+		Image:      minioImage,
+		Entrypoint: []string{"/bin/sh"},
+		Cmd: []string{"-c", fmt.Sprintf(
+			"mc alias set minio %s %s %s && mc mb minio/%s --ignore-existing",
+			endpoint, accessKey, secretKey, bucket,
+		)},
+		Networks:   []string{networkName},
+		WaitingFor: wait.ForExit(),
+		Started:    true,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start mc container: %w", err)

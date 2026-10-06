@@ -54,8 +54,8 @@ type sharedPoolComponent struct {
 
 func newSharedPoolComponent(coordinator *app.App) *sharedPoolComponent {
 	return &sharedPoolComponent{
-		noOpComponent: noOpComponent{name: pool.CName},
-		Pool:          extractComponent[pool.Pool](coordinator, pool.CName),
+		name: pool.CName,
+		Pool: extractComponent[pool.Pool](coordinator, pool.CName),
 	}
 }
 
@@ -72,8 +72,8 @@ type sharedServerComponent struct {
 
 func newSharedServerComponent(coordinator *app.App) *sharedServerComponent {
 	return &sharedServerComponent{
-		noOpComponent: noOpComponent{name: server.CName},
-		DRPCServer:    extractComponent[server.DRPCServer](coordinator, server.CName),
+		name:       server.CName,
+		DRPCServer: extractComponent[server.DRPCServer](coordinator, server.CName),
 	}
 }
 
@@ -90,8 +90,8 @@ type sharedPeerServiceComponent struct {
 
 func newSharedPeerServiceComponent(coordinator *app.App) *sharedPeerServiceComponent {
 	return &sharedPeerServiceComponent{
-		noOpComponent: noOpComponent{name: peerservice.CName},
-		PeerService:   extractComponent[peerservice.PeerService](coordinator, peerservice.CName),
+		name:        peerservice.CName,
+		PeerService: extractComponent[peerservice.PeerService](coordinator, peerservice.CName),
 	}
 }
 
@@ -108,7 +108,7 @@ type sharedSecureServiceComponent struct {
 
 func newSharedSecureServiceComponent(coordinator *app.App) *sharedSecureServiceComponent {
 	return &sharedSecureServiceComponent{
-		noOpComponent: noOpComponent{name: secureservice.CName},
+		name:          secureservice.CName,
 		SecureService: extractComponent[secureservice.SecureService](coordinator, secureservice.CName),
 	}
 }
@@ -126,15 +126,15 @@ type sharedTransportComponent struct {
 
 func newSharedYamuxComponent(coordinator *app.App) *sharedTransportComponent {
 	return &sharedTransportComponent{
-		noOpComponent: noOpComponent{name: yamux.CName},
-		Transport:     extractComponent[transport.Transport](coordinator, yamux.CName),
+		name:      yamux.CName,
+		Transport: extractComponent[transport.Transport](coordinator, yamux.CName),
 	}
 }
 
 func newSharedQuicComponent(coordinator *app.App) *sharedTransportComponent {
 	return &sharedTransportComponent{
-		noOpComponent: noOpComponent{name: quic.CName},
-		Transport:     extractComponent[transport.Transport](coordinator, quic.CName),
+		name:      quic.CName,
+		Transport: extractComponent[transport.Transport](coordinator, quic.CName),
 	}
 }
 
@@ -151,8 +151,8 @@ type sharedMetricComponent struct {
 
 func newSharedMetricComponent(coordinator *app.App) *sharedMetricComponent {
 	return &sharedMetricComponent{
-		noOpComponent: noOpComponent{name: metric.CName},
-		Metric:        extractComponent[metric.Metric](coordinator, metric.CName),
+		name:   metric.CName,
+		Metric: extractComponent[metric.Metric](coordinator, metric.CName),
 	}
 }
 
@@ -178,8 +178,8 @@ type sharedACLComponent struct {
 
 func newSharedACLComponent(coordinator *app.App) *sharedACLComponent {
 	return &sharedACLComponent{
-		noOpComponent: noOpComponent{name: acl.CName},
-		AclService:    extractComponent[acl.AclService](coordinator, acl.CName),
+		name:       acl.CName,
+		AclService: extractComponent[acl.AclService](coordinator, acl.CName),
 	}
 }
 
@@ -199,8 +199,8 @@ type sharedNodeConfComponent struct {
 
 func newSharedNodeConfComponent(coordinator *app.App) *sharedNodeConfComponent {
 	return &sharedNodeConfComponent{
-		noOpComponent: noOpComponent{name: nodeconf.CName},
-		Service:       extractComponent[nodeconf.Service](coordinator, nodeconf.CName),
+		name:    nodeconf.CName,
+		Service: extractComponent[nodeconf.Service](coordinator, nodeconf.CName),
 	}
 }
 
@@ -217,8 +217,8 @@ type sharedNodeConfStoreComponent struct {
 
 func newSharedNodeConfStoreComponent(coordinator *app.App) *sharedNodeConfStoreComponent {
 	return &sharedNodeConfStoreComponent{
-		noOpComponent: noOpComponent{name: nodeconf.CNameStore},
-		HistoryStore:  extractComponent[nodeconf.HistoryStore](coordinator, nodeconf.CNameStore),
+		name:         nodeconf.CNameStore,
+		HistoryStore: extractComponent[nodeconf.HistoryStore](coordinator, nodeconf.CNameStore),
 	}
 }
 
@@ -240,8 +240,8 @@ type sharedAccountComponent struct {
 
 func newSharedAccountComponent(coordinator *app.App) *sharedAccountComponent {
 	return &sharedAccountComponent{
-		noOpComponent: noOpComponent{name: accountservice.CName},
-		Service:       extractComponent[accountservice.Service](coordinator, accountservice.CName),
+		name:    accountservice.CName,
+		Service: extractComponent[accountservice.Service](coordinator, accountservice.CName),
 	}
 }
 

@@ -175,14 +175,12 @@ func TestAllInOneContainerShutsDownCleanly(t *testing.T) {
 	container, err := testcontainers.GenericContainer(
 		ctx,
 		testcontainers.GenericContainerRequest{
-			ContainerRequest: testcontainers.ContainerRequest{
-				Image: image,
-				Env: map[string]string{
-					"ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS": "127.0.0.1",
-				},
-				WaitingFor: wait.ForLog(bundleReadyEvent).
-					WithStartupTimeout(7 * time.Minute),
+			Image: image,
+			Env: map[string]string{
+				"ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS": "127.0.0.1",
 			},
+			WaitingFor: wait.ForLog(bundleReadyEvent).
+				WithStartupTimeout(7 * time.Minute),
 			Started: true,
 		},
 	)
@@ -196,8 +194,7 @@ func TestAllInOneContainerShutsDownCleanly(t *testing.T) {
 		_ = container.Terminate(cleanupCtx)
 	})
 
-	stopGracePeriod := 2 * time.Minute
-	require.NoError(t, container.Stop(ctx, &stopGracePeriod))
+	require.NoError(t, container.Stop(ctx, new(2*time.Minute)))
 
 	logs, err := container.Logs(ctx)
 	require.NoError(t, err)

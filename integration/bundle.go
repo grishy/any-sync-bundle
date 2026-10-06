@@ -57,10 +57,7 @@ func StartBundle(ctx context.Context, cfg BundleConfig) (*BundleProcess, error) 
 	}
 
 	// If we're in the integration directory, go up one level
-	projectRoot := wd
-	if strings.HasSuffix(wd, "/integration") {
-		projectRoot = strings.TrimSuffix(wd, "/integration")
-	}
+	projectRoot := strings.TrimSuffix(wd, "/integration")
 
 	// Build binary from project root
 	binaryPath := filepath.Join(projectRoot, "test-bundle")
