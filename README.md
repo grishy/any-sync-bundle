@@ -192,6 +192,10 @@ region, also add `--initial-s3-region`:
 
 **Docker Compose with MinIO:**
 
+The example pins a [PGSTY community MinIO build](https://github.com/pgsty/silo/releases/tag/RELEASE.2026-08-04T00-00-00Z)
+by image digest because the original MinIO images are unavailable. This is a
+community fork, not an official MinIO image; the bundle still uses upstream S3 storage.
+
 ```sh
 docker compose -f compose.s3.yml up -d
 # MinIO console: http://localhost:9001 (minioadmin/minioadmin)

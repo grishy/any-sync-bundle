@@ -8,7 +8,8 @@
 
 services:
   minio:
-    image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # Community MinIO build also used by upstream Compose; official images were removed.
+    image: &minio-image docker.io/pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     container_name: any-sync-bundle-minio
     command: ["server", "/data", "--console-address", ":9001", "--address", ":9000"]
     restart: unless-stopped
@@ -21,14 +22,14 @@ services:
     volumes:
       - ./data/minio:/data
     healthcheck:
-      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/9000' || exit 1"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 5s
       timeout: 10s
       retries: 3
 
   # One-shot container to create buckets on startup
   minio-init:
-    image: docker.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: *minio-image
     container_name: any-sync-bundle-minio-init
     depends_on:
       minio:

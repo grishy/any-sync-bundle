@@ -19,8 +19,9 @@ import (
 const (
 	mongoImage = "mongo:8.0.4"
 	redisImage = "redis/redis-stack-server:7.4.0-v7"
-	minioImage = "minio/minio:RELEASE.2025-09-07T16-13-09Z"
-	mcImage    = "minio/mc:RELEASE.2025-08-13T08-35-41Z"
+	// Official images were removed. Upstream Compose uses this community build;
+	// it includes both minio and mc. Pin the multi-platform manifest for both.
+	minioImage = "docker.io/pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372"
 )
 
 // MongoContainer wraps a MongoDB container with replica set support.
@@ -187,7 +188,7 @@ func (m *MinIOContainer) Terminate(ctx context.Context) error {
 func createMinioBucket(ctx context.Context, networkName, endpoint, accessKey, secretKey, bucket string) error {
 	mc, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:      mcImage,
+			Image:      minioImage,
 			Entrypoint: []string{"/bin/sh"},
 			Cmd: []string{"-c", fmt.Sprintf(
 				"mc alias set minio %s %s %s && mc mb minio/%s --ignore-existing",

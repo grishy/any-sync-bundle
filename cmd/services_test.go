@@ -240,6 +240,51 @@ func TestStartServicesCancelsRootBeforeRollback(t *testing.T) {
 	}
 }
 
+func TestServicesInitializeAllBeforeRunningAndCloseInReverse(t *testing.T) {
+	ctx, cancelRoot := context.WithCancel(t.Context())
+	defer cancelRoot()
+
+	events := []string{}
+	services := []bundleService{
+		{
+			name: "one",
+			app: new(app.App).
+				Register(&lifecycleTestRunnable{name: "one-a", events: &events}).
+				Register(&lifecycleTestRunnable{name: "one-b", events: &events}),
+		},
+		{
+			name: "two",
+			app:  new(app.App).Register(&lifecycleTestRunnable{name: "two", events: &events}),
+		},
+	}
+
+	if err := startServices(ctx, cancelRoot, services, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Cleanup needs its own deadline after the process context is canceled.
+	cancelRoot()
+	shutdownCtx, cancelShutdown := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		servicesShutdownTimeout,
+	)
+	defer cancelShutdown()
+
+	if err := shutdownServices(shutdownCtx, services); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{
+		"init:one-a", "init:one-b", "init:two",
+		"run:one-a", "run:one-b", "run:two",
+		"close:two", "close:one-b", "close:one-a",
+	}
+
+	if !slices.Equal(events, want) {
+		t.Fatalf("unexpected lifecycle: got %v want %v", events, want)
+	}
+}
+
 // The bundle apps depend on earlier apps, so shutdown uses one deadline in
 // reverse order and still attempts every close after a failure.
 func TestShutdownServicesClosesEverythingInReverseUnderOneDeadline(t *testing.T) {
@@ -261,6 +306,7 @@ func TestShutdownServicesClosesEverythingInReverseUnderOneDeadline(t *testing.T)
 	shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), time.Minute)
 	defer cancelShutdown()
 	shutdownDeadline, _ := shutdownCtx.Deadline()
+
 	err := shutdownServices(shutdownCtx, []bundleService{
 		{name: "one", app: new(app.App).Register(first)},
 		{name: "two", app: new(app.App).Register(second)},
@@ -273,10 +319,12 @@ func TestShutdownServicesClosesEverythingInReverseUnderOneDeadline(t *testing.T)
 			t.Fatalf("shutdown error does not contain %q: %v", message, err)
 		}
 	}
+
 	want := []string{"close:second", "close:first"}
 	if !slices.Equal(events, want) {
 		t.Fatalf("unexpected close order: got %v want %v", events, want)
 	}
+
 	if len(closeContexts) != len(want) {
 		t.Fatalf("unexpected context count: got %d want %d", len(closeContexts), len(want))
 	}
@@ -290,6 +338,11 @@ func TestShutdownServicesClosesEverythingInReverseUnderOneDeadline(t *testing.T)
 
 func TestStartServicesInitFailureClosesInitializedComponentsAndReturnsEveryError(t *testing.T) {
 	events := []string{}
+	previous := &lifecycleTestRunnable{
+		name:     "previous",
+		events:   &events,
+		closeErr: errors.New("previous close failed"),
+	}
 	first := &lifecycleTestRunnable{
 		name:     "first",
 		events:   &events,
@@ -305,25 +358,28 @@ func TestStartServicesInitFailureClosesInitializedComponentsAndReturnsEveryError
 	err := startServices(
 		context.Background(),
 		func() {},
-		[]bundleService{{
-			name: "test",
-			app:  new(app.App).Register(first).Register(second),
-		}},
+		[]bundleService{
+			{name: "previous", app: new(app.App).Register(previous)},
+			{name: "test", app: new(app.App).Register(first).Register(second)},
+		},
 		nil,
 	)
 	if err == nil {
 		t.Fatal("expected init and cleanup errors")
 	}
-	for _, message := range []string{"init failed", "first close failed", "second close failed"} {
+	for _, message := range []string{"init failed", "first close failed", "second close failed", "previous close failed"} {
 		if !strings.Contains(err.Error(), message) {
 			t.Fatalf("error does not contain %q: %v", message, err)
 		}
 	}
+
 	want := []string{
+		"init:previous",
 		"init:first",
 		"init:second",
 		"close:second",
 		"close:first",
+		"close:previous",
 	}
 	if !slices.Equal(events, want) {
 		t.Fatalf("unexpected lifecycle: got %v want %v", events, want)

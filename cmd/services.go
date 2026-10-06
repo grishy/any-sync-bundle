@@ -49,10 +49,12 @@ func startServices(
 		if err != nil {
 			rootErr := ctx.Err()
 			cancelRoot()
+
 			shutdownCtx, cancelShutdown := context.WithTimeout(rollbackCtx, servicesShutdownTimeout)
 			partialErr := shutdownRunnables(shutdownCtx, service.name, partial)
 			shutdownErr := shutdownServices(shutdownCtx, initialized)
 			cancelShutdown()
+
 			cleanupErr := errors.Join(partialErr, shutdownErr)
 			return startupResult(rootErr, err, cleanupErr)
 		}
@@ -70,10 +72,12 @@ func startServices(
 		if err != nil {
 			rootErr := ctx.Err()
 			cancelRoot()
+
 			shutdownCtx, cancelShutdown := context.WithTimeout(rollbackCtx, servicesShutdownTimeout)
 			partialErr := shutdownRunnables(shutdownCtx, service.name, partial)
 			shutdownErr := shutdownServices(shutdownCtx, running)
 			cancelShutdown()
+
 			cleanupErr := errors.Join(partialErr, shutdownErr)
 			return startupResult(rootErr, err, cleanupErr)
 		}
@@ -208,7 +212,7 @@ func shutdownRunnables(
 		return nil
 	}
 
-	log.Info("⚡ cleaning up partially started service",
+	log.Info("⚡ cleaning up service components",
 		zap.String("name", serviceName),
 		zap.Int("components", len(runnables)))
 
@@ -243,7 +247,16 @@ func shutdownServices(ctx context.Context, services []bundleService) error {
 	for _, service := range slices.Backward(services) {
 		log.Info("▶ stopping service", zap.String("name", service.name))
 
-		if err := service.app.Close(ctx); err != nil {
+		// Two-phase startup bypasses app.Start, so app.Close has no record of
+		// initialized components. The bundle must own both sides of the lifecycle.
+		var runnables []app.ComponentRunnable
+		service.app.IterateComponents(func(component app.Component) {
+			if runnable, ok := component.(app.ComponentRunnable); ok {
+				runnables = append(runnables, runnable)
+			}
+		})
+
+		if err := shutdownRunnables(ctx, service.name, runnables); err != nil {
 			errs = append(errs,
 				fmt.Errorf("service %s shutdown failed: %w", service.name, err))
 		} else {
