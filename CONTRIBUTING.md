@@ -99,12 +99,12 @@ By submitting a PR, you agree that your contribution is licensed under the repos
    Generate the version from the repository root (bash on macOS):
 
    ```bash
-   VERSION=v1.6.1
+   VERSION=v1.7.0
    ANYTYPE_UNIX_TIMESTAMP=$(awk -F '"' '/Timestamp:/ {print $2}' go.mod)
    ANYTYPE_FORMATTED=$(date -u -r "$ANYTYPE_UNIX_TIMESTAMP" +%Y-%m-%d)
    FINAL_VERSION="$VERSION-$ANYTYPE_FORMATTED"
    echo "$FINAL_VERSION"
-   # v1.6.1-2026-10-05
+   # v1.7.0-2026-10-12
    ```
 
 2. Run the repository checks above, then check release packaging locally:
@@ -131,7 +131,7 @@ are separate operations, not an atomic switch.
 
 `v[bundle-version]-[anytype-compatibility-date]`
 
-- `v1.6.1` – Bundle's semantic version (SemVer)
+- `v1.7.0` – Bundle's semantic version (SemVer)
 - `YYYY-MM-DD` – UTC date of the compatibility timestamp recorded in `go.mod`.
   The [upstream matrix](https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/)
   is consulted during dependency updates, not again during publication.
