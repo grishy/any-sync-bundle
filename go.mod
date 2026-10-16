@@ -1,6 +1,6 @@
 module github.com/grishy/any-sync-bundle
 
-go 1.27.1
+go 1.27.2
 
 tool github.com/matryer/moq
 

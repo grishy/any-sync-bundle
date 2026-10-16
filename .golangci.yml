@@ -12,6 +12,11 @@
 
 version: "2"
 
+run:
+  # Lint the Docker-backed integration suite with the rest of the code.
+  build-tags:
+    - integration
+
 issues:
   # Maximum count of issues with the same text.
   # Set to 0 to disable.
@@ -87,6 +92,7 @@ linters:
     - loggercheck # checks key value pairs for common logger libraries (kitlog,klog,logr,zap)
     - makezero # finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
+    - modernize # suggests simplifications using modern language and library features
     # - mnd # detects magic numbers
     - musttag # enforces field tags in (un)marshaled structs
     - nakedret # finds naked returns in functions greater than a specified function length

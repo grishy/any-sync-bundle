@@ -148,7 +148,7 @@ func (bp *BundleProcess) captureOutput(r io.Reader) {
 	}
 	if err := scanner.Err(); err != nil {
 		bp.mu.Lock()
-		bp.output.WriteString(fmt.Sprintf("output capture error: %v\n", err))
+		fmt.Fprintf(bp.output, "output capture error: %v\n", err)
 		bp.mu.Unlock()
 	}
 }
