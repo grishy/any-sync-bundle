@@ -31,6 +31,7 @@ import (
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
 	"github.com/anyproto/any-sync/nodeconf"
+	"go.uber.org/zap"
 )
 
 const (
@@ -186,9 +187,15 @@ func (bc *Config) convertS3Config() s3store.Config {
 
 	// Read credentials from environment variables.
 	// Must use static credentials because the upstream s3store always sets Profile="default",
-	// which causes the AWS SDK to look for ~/.aws/credentials (missing in containers).
+	// which causes the AWS SDK to look for ~/.aws/credentials (missing in containers):
+	// https://github.com/anyproto/any-sync-filenode/blob/v0.13.2/store/s3store/s3store.go#L49-L80
 	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	if accessKey == "" || secretKey == "" {
+		log.Warn("S3 credentials not set - authentication may fail",
+			zap.Bool("AWS_ACCESS_KEY_ID_set", accessKey != ""),
+			zap.Bool("AWS_SECRET_ACCESS_KEY_set", secretKey != ""))
+	}
 
 	// Use configured region or default to us-east-1 for backwards compatibility.
 	// Region is part of the SigV4 credential scope used for request signing.
@@ -225,8 +232,9 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 		NetworkStorePath:         opts.pathNetworkStoreSync,
 		NetworkUpdateIntervalSec: 0,
 		Space:                    config.Config{GCTTL: defaultSpaceGCTTL, SyncPeriod: defaultSpaceSyncPeriod},
-		// Storage paths: nodestorage uses ONLY AnyStorePath (see nodestorage/storageservice.go:284).
-		// Path is for oldstorage (NOT included). Set to invalid path as fuse - app will fail if ever accessed.
+		// nodestorage reads only AnyStorePath:
+		// https://github.com/anyproto/any-sync-node/blob/v0.13.4/nodestorage/storageservice.go#L138
+		// Path belongs to the omitted oldstorage; an invalid path fails loudly if anything reads it.
 		Storage: nodestorage.Config{
 			Path:         "/dev/null/oldstorage-not-used", // Fuse: fail immediately if accessed
 			AnyStorePath: opts.pathStorageSync,            // Actually used by nodestorage

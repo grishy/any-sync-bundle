@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/anyproto/any-sync/nodeconf"
@@ -23,6 +25,24 @@ func (bc *Config) convertExternalAddrs() []string {
 	}
 
 	return addrs
+}
+
+// WriteClientConfig writes the network config that Anytype clients import.
+// It is regenerated on every start, so it always matches the bundle config.
+func (bc *Config) WriteClientConfig(path string) {
+	yamlData, err := bc.YamlClientConfig()
+	if err != nil {
+		log.Panic("can't generate client config", zap.Error(err))
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		log.Panic("can't create client config directory", zap.Error(err), zap.String("path", path))
+	}
+	// Clients read this file and it holds no secrets, unlike the bundle config.
+	const clientConfigMode = 0o644
+	if err = os.WriteFile(path, yamlData, clientConfigMode); err != nil {
+		log.Panic("can't write client config", zap.Error(err), zap.String("path", path))
+	}
+	log.Info("client configuration written", zap.String("path", path))
 }
 
 func (bc *Config) YamlClientConfig() ([]byte, error) {

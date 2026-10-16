@@ -164,67 +164,58 @@ func TestCreateWriteRejectsInvalidMongoURI(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-func TestValidateS3Config(t *testing.T) {
+func TestS3ConfigValidate(t *testing.T) {
 	tests := []struct {
-		name            string
-		bucket          string
-		endpoint        string
-		withCredentials bool
-		wantErr         error
+		name    string
+		cfg     S3Config
+		wantErr error
 	}{
 		{
-			name:            "valid",
-			bucket:          "my-bucket",
-			endpoint:        "http://minio:9000",
-			withCredentials: true,
+			name: "valid",
+			cfg:  S3Config{Bucket: "my-bucket", Endpoint: "http://minio:9000", Region: "custom-region"},
 		},
 		{
-			name:     "missing bucket",
-			endpoint: "http://minio:9000",
-			wantErr:  ErrS3BucketRequired,
+			name:    "missing bucket",
+			cfg:     S3Config{Endpoint: "http://minio:9000"},
+			wantErr: ErrS3BucketRequired,
 		},
 		{
 			name:    "missing endpoint",
-			bucket:  "my-bucket",
+			cfg:     S3Config{Bucket: "my-bucket"},
 			wantErr: ErrS3EndpointRequired,
-		},
-		{
-			name:     "credentials may come from another AWS provider",
-			bucket:   "my-bucket",
-			endpoint: "https://s3.amazonaws.com",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.withCredentials {
-				t.Setenv("AWS_ACCESS_KEY_ID", "test-key")
-				t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
-			} else {
-				t.Setenv("AWS_ACCESS_KEY_ID", "")
-				t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-			}
-
-			cfg, err := validateS3Config(
-				test.bucket,
-				test.endpoint,
-				"custom-region",
-				true,
-			)
+			err := test.cfg.Validate()
 			if test.wantErr != nil {
-				assert.Nil(t, cfg)
-				assert.ErrorIs(t, err, test.wantErr)
+				require.ErrorIs(t, err, test.wantErr)
 				return
 			}
-
 			require.NoError(t, err)
-			require.NotNil(t, cfg)
-			assert.Equal(t, test.bucket, cfg.Bucket)
-			assert.Equal(t, test.endpoint, cfg.Endpoint)
-			assert.Equal(t, "custom-region", cfg.Region)
-			assert.True(t, cfg.ForcePathStyle)
 		})
 	}
+}
+
+func TestCreateWriteRejectsIncompleteS3(t *testing.T) {
+	options := validCreateOptions(t)
+	options.S3Endpoint = "http://minio:9000"
+
+	assert.Panics(t, func() {
+		CreateWrite(options)
+	})
+}
+
+func TestLoadOrCreateCreatesOnceThenLoads(t *testing.T) {
+	options := validCreateOptions(t)
+
+	created := LoadOrCreate(options)
+	options.MongoURI = "mongodb://other:27017/"
+	loaded := LoadOrCreate(options)
+
+	assert.Equal(t, created.Account, loaded.Account, "a second start must keep the node identity")
+	assert.Equal(t, created.Coordinator.MongoConnect, loaded.Coordinator.MongoConnect)
 }
 
 func TestCreateWriteS3RoundTrip(t *testing.T) {

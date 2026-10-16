@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/url"
 	"os"
@@ -17,9 +18,9 @@ import (
 	"github.com/anyproto/any-sync/util/crypto"
 
 	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
-	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/yaml.v3"
 )
 
@@ -98,34 +99,6 @@ var (
 	ErrS3BucketRequired   = errors.New("S3 bucket name is required (--initial-s3-bucket)")
 	ErrS3EndpointRequired = errors.New("S3 endpoint URL is required (--initial-s3-endpoint)")
 )
-
-// validateS3Config validates S3 configuration and returns the S3Config if valid.
-// It checks that both bucket and endpoint are provided, and warns if credentials are missing.
-// Region is optional and defaults to "us-east-1" at conversion time if not provided.
-func validateS3Config(bucket, endpoint, region string, forcePathStyle bool) (*S3Config, error) {
-	if bucket == "" {
-		return nil, ErrS3BucketRequired
-	}
-	if endpoint == "" {
-		return nil, ErrS3EndpointRequired
-	}
-
-	// Check for credentials and warn if missing
-	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	if accessKey == "" || secretKey == "" {
-		log.Warn("S3 credentials not set - authentication may fail at runtime",
-			zap.Bool("AWS_ACCESS_KEY_ID_set", accessKey != ""),
-			zap.Bool("AWS_SECRET_ACCESS_KEY_set", secretKey != ""))
-	}
-
-	return &S3Config{
-		Bucket:         bucket,
-		Endpoint:       endpoint,
-		Region:         region,
-		ForcePathStyle: forcePathStyle,
-	}, nil
-}
 
 // Validate checks the bundle config before startup.
 func (cfg *Config) Validate() error {
@@ -253,6 +226,24 @@ func validateURI(field string, raw string, allowedSchemes ...string) error {
 	return fmt.Errorf("%s must use one of: %s", field, strings.Join(allowedSchemes, ", "))
 }
 
+// LoadOrCreate loads the bundle config, or creates it from opts on first start.
+// Like Load and CreateWrite, it panics on failure: nothing can start without a
+// config.
+func LoadOrCreate(opts *CreateOptions) *Config {
+	_, err := os.Stat(opts.CfgPath)
+	switch {
+	case err == nil:
+		log.Info("loading existing config", zap.String("path", opts.CfgPath))
+		return Load(opts.CfgPath)
+	case errors.Is(err, fs.ErrNotExist):
+		log.Info("creating new config", zap.String("path", opts.CfgPath))
+		return CreateWrite(opts)
+	default:
+		log.Panic("can't access config file", zap.Error(err), zap.String("path", opts.CfgPath))
+		return nil
+	}
+}
+
 func Load(cfgPath string) *Config {
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
@@ -326,11 +317,12 @@ func CreateWrite(cfg *CreateOptions) *Config {
 	return createdCfg
 }
 
-// newBundleConfig creates a new configuration for any-bundle that contain all info base of which internal services are created
-// Base on https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
-// But docs above are not accurate, so I used also source code as reference...
+// newBundleConfig creates the bundle identity and settings. It follows the
+// upstream network generator, which the configuration docs point to:
+// https://github.com/anyproto/any-sync-tools/blob/e5d018ab5bc6fc80e869e1c8bada6d10fa03852a/any-sync-network/cmd/create.go#L200-L210
+// https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options
 func newBundleConfig(cfg *CreateOptions) *Config {
-	cfgID := bson.NewObjectId().Hex()
+	cfgID := primitive.NewObjectID().Hex()
 
 	netKey, _, err := crypto.GenerateRandomEd25519KeyPair()
 	if err != nil {
@@ -382,18 +374,14 @@ func newBundleConfig(cfg *CreateOptions) *Config {
 		},
 	}
 
-	// Configure S3 storage if S3 flags are provided
+	// Any S3 flag selects S3 storage; CreateWrite validates the result.
 	if cfg.S3Bucket != "" || cfg.S3Endpoint != "" {
-		s3Cfg, s3Err := validateS3Config(cfg.S3Bucket, cfg.S3Endpoint, cfg.S3Region, cfg.S3ForcePathStyle)
-		if s3Err != nil {
-			log.Panic("invalid S3 configuration", zap.Error(s3Err))
+		defaultCfg.FileNode.S3 = &S3Config{
+			Bucket:         cfg.S3Bucket,
+			Endpoint:       cfg.S3Endpoint,
+			Region:         cfg.S3Region,
+			ForcePathStyle: cfg.S3ForcePathStyle,
 		}
-		defaultCfg.FileNode.S3 = s3Cfg
-
-		log.Info("S3 storage configured",
-			zap.String("bucket", cfg.S3Bucket),
-			zap.String("endpoint", cfg.S3Endpoint),
-			zap.String("region", cfg.S3Region))
 	}
 
 	return defaultCfg
@@ -419,9 +407,10 @@ func newAcc(netKey crypto.PrivKey) accountservice.Config {
 		log.Panic("can't encode key to string", zap.Error(err))
 	}
 
-	// Base on docs https://tech.anytype.io/any-sync/configuration?id=common-nodes-configuration-options.
-	// "Signing key of coordinator is private key of the network and sync and file nodes use their peerKey"
-	// Because we create account for bundle, we reuse only logic here of configurator.
+	// "Signing key of coordinator is private key of the network and sync and
+	// file nodes use their peerKey". The bundle is one node, so its account
+	// takes the coordinator's signing key, as the generator does:
+	// https://github.com/anyproto/any-sync-tools/blob/e5d018ab5bc6fc80e869e1c8bada6d10fa03852a/any-sync-network/cmd/create.go#L295
 	privNetKey, err := crypto.EncodeKeyToString(netKey)
 	if err != nil {
 		log.Panic("can't encode network key to string", zap.Error(err))
