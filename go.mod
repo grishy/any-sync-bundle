@@ -5,13 +5,13 @@ go 1.27.2
 tool github.com/matryer/moq
 
 // Any-Sync versions: https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
-// Timestamp: "1791219411"
+// Timestamp: "1791812649"
 require (
-	github.com/anyproto/any-sync v0.13.6
-	github.com/anyproto/any-sync-consensusnode v0.13.1
-	github.com/anyproto/any-sync-coordinator v0.13.1
-	github.com/anyproto/any-sync-filenode v0.13.1
-	github.com/anyproto/any-sync-node v0.13.3
+	github.com/anyproto/any-sync v0.13.8
+	github.com/anyproto/any-sync-consensusnode v0.13.3
+	github.com/anyproto/any-sync-coordinator v0.13.2
+	github.com/anyproto/any-sync-filenode v0.13.2
+	github.com/anyproto/any-sync-node v0.13.4
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/ipfs/go-block-format v0.2.4
 	github.com/ipfs/go-cid v0.6.2

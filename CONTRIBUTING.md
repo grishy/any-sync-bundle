@@ -54,11 +54,15 @@ those services, including lifecycle, configuration, and storage changes.
 
 1. Update the service requirements and the `// Timestamp:` comment in `go.mod`
    to the selected compatibility entry.
-2. Run `go mod tidy` and `go mod verify`. Recalculate `vendorHash` in `flake.nix`
+2. Diff each updated service's `cmd/` Bootstrap and `config/` package between
+   the old and new tags. `lightnode/anynodes.go` copies each Bootstrap
+   component list without the network components the coordinator shares, so
+   mirror additions, removals, and order changes there.
+3. Run `go mod tidy` and `go mod verify`. Recalculate `vendorHash` in `flake.nix`
    for the resulting dependencies; keep the Go toolchain aligned if it changes.
-3. Run every command in **Build and Test** and **With Nix** above. Lint without
+4. Run every command in **Build and Test** and **With Nix** above. Lint without
    `--fix` so verification does not change the reviewed source.
-4. Run the Docker integration suite (required for dependency/lifecycle updates):
+5. Run the Docker integration suite (required for dependency/lifecycle updates):
 
    ```sh
    go test -count=1 -tags=integration -timeout=10m ./integration/...
