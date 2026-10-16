@@ -274,7 +274,7 @@ func TestLightFileNodeStoreGarbageCollection(t *testing.T) {
 		require.NoError(t, store.Delete(ctx, block.Cid()))
 	}
 
-	_, _, err := store.gcOnce()
+	_, _, err := store.gcOnce(t.Context())
 	require.NoError(t, err)
 
 	expected := createTestBlock(t, []byte("after-gc"))

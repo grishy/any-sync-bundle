@@ -20,8 +20,10 @@ import (
 const CName = fileblockstore.CName
 
 const (
-	// GC configuration.
-	defaultGCInterval    = 29 * time.Hour // Prime number to avoid alignment
+	// Value log GC cadence follows the Badger guide: run periodically and repeat
+	// while a pass reclaims a file.
+	// https://github.com/dgraph-io/badger/blob/v4.9.1/docs/quickstart.md#garbage-collection
+	defaultGCInterval    = 5 * time.Minute
 	defaultMaxGCDuration = time.Minute
 	defaultGCThreshold   = 0.5 // Reclaim files with >= 50% garbage
 
@@ -106,18 +108,17 @@ func (s *LightFileNodeStore) Run(ctx context.Context) error {
 	return nil
 }
 
+// Close stops GC before closing the database, so no GC pass runs on a closed
+// database. Close is also called when Run never happened.
 func (s *LightFileNodeStore) Close(_ context.Context) error {
 	if s.gcCancel != nil {
 		s.gcCancel()
+		<-s.gcDone
 	}
 
 	var err error
 	if s.db != nil {
 		err = s.db.Close()
-	}
-
-	if s.gcDone != nil {
-		<-s.gcDone
 	}
 	s.db = nil
 	s.gcCancel = nil
@@ -149,19 +150,20 @@ func (s *LightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan b
 		defer close(res)
 
 		// Upstream S3 store fans out requests across workers. Local Badger access is
-		// already low latency, so we iterate sequentially and surface a single summary log.
+		// already low latency, so we iterate sequentially and log one summary.
 		delivered := 0
+		defer func() {
+			log.Debug("badger get many",
+				zap.Duration("total", time.Since(st)),
+				zap.Int("requested", len(ks)),
+				zap.Int("delivered", delivered),
+				zap.Error(ctx.Err()),
+			)
+		}()
+
 		for _, k := range ks {
-			select {
-			case <-ctx.Done():
-				log.Debug("badger get many",
-					zap.Duration("total", time.Since(st)),
-					zap.Int("requested", len(ks)),
-					zap.Int("delivered", delivered),
-					zap.Error(ctx.Err()),
-				)
+			if ctx.Err() != nil {
 				return
-			default:
 			}
 
 			bl, err := s.loadBlock(k)
@@ -178,21 +180,9 @@ func (s *LightFileNodeStore) GetMany(ctx context.Context, ks []cid.Cid) <-chan b
 			case res <- bl:
 				delivered++
 			case <-ctx.Done():
-				log.Debug("badger get many",
-					zap.Duration("total", time.Since(st)),
-					zap.Int("requested", len(ks)),
-					zap.Int("delivered", delivered),
-					zap.Error(ctx.Err()),
-				)
 				return
 			}
 		}
-
-		log.Debug("badger get many",
-			zap.Duration("total", time.Since(st)),
-			zap.Int("requested", len(ks)),
-			zap.Int("delivered", delivered),
-		)
 	}()
 
 	return res
@@ -376,7 +366,7 @@ func (s *LightFileNodeStore) runGC(ctx context.Context) {
 			log.Info("stopping badger garbage collection routine")
 			return
 		case <-ticker.C:
-			gcCount, duration, err := s.gcOnce()
+			gcCount, duration, err := s.gcOnce(ctx)
 			if err != nil {
 				log.Warn("badger gc failed", zap.Error(err))
 			}
@@ -389,11 +379,11 @@ func (s *LightFileNodeStore) runGC(ctx context.Context) {
 }
 
 // gcOnce performs a single garbage collection iteration and returns the number of value log files reclaimed.
-func (s *LightFileNodeStore) gcOnce() (int, time.Duration, error) {
+func (s *LightFileNodeStore) gcOnce(ctx context.Context) (int, time.Duration, error) {
 	start := time.Now()
 	gcCount := 0
 
-	for time.Since(start) < s.cfg.maxGCDuration {
+	for ctx.Err() == nil && time.Since(start) < s.cfg.maxGCDuration {
 		if err := s.db.RunValueLogGC(s.cfg.gcThreshold); err != nil {
 			if errors.Is(err, badger.ErrNoRewrite) {
 				return gcCount, time.Since(start), nil
@@ -409,4 +399,23 @@ func (s *LightFileNodeStore) gcOnce() (int, time.Duration, error) {
 	}
 
 	return gcCount, time.Since(start), nil
+}
+
+// badgerLogger implements badger.Logger interface.
+type badgerLogger struct{}
+
+func (b badgerLogger) Errorf(s string, i ...any) {
+	log.Error("badger: " + fmt.Sprintf(s, i...))
+}
+
+func (b badgerLogger) Warningf(s string, i ...any) {
+	log.Warn("badger: " + fmt.Sprintf(s, i...))
+}
+
+func (b badgerLogger) Infof(s string, i ...any) {
+	log.Info("badger: " + fmt.Sprintf(s, i...))
+}
+
+func (b badgerLogger) Debugf(s string, i ...any) {
+	log.Debug("badger: " + fmt.Sprintf(s, i...))
 }
