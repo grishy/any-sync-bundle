@@ -57,9 +57,6 @@ func startAllInOneInfra(ctx context.Context, infra *infraSuite) error {
 
 	mongoProc, err := infra.start("mongo", "mongod", mongoArgs...)
 	if err != nil {
-		if isRootInterruption(ctx, err) {
-			return err
-		}
 		return fmt.Errorf("start mongod: %w", err)
 	}
 
@@ -80,18 +77,12 @@ func startAllInOneInfra(ctx context.Context, infra *infraSuite) error {
 
 	redisProc, err := infra.start("redis", "redis-server", redisArgs...)
 	if err != nil {
-		if isRootInterruption(ctx, err) {
-			return err
-		}
 		return fmt.Errorf("start redis-server: %w", err)
 	}
 
 	// Wait for MongoDB TCP ready (or process death)
 	mongoAddr := net.JoinHostPort("127.0.0.1", dockerMongoPort)
 	if err = waitForTCPOrExit(ctx, mongoAddr, 180*time.Second, mongoProc); err != nil {
-		if isRootInterruption(ctx, err) {
-			return err
-		}
 		if isIllegalInstruction(err) {
 			printMongoAVXError()
 			return &MongoAVXError{Cause: err}
@@ -100,18 +91,12 @@ func startAllInOneInfra(ctx context.Context, infra *infraSuite) error {
 	}
 
 	if err = initReplicaSetAction(ctx, defaultMongoReplica, dockerMongoURI); err != nil {
-		if isRootInterruption(ctx, err) {
-			return err
-		}
 		return fmt.Errorf("init replica set: %w", err)
 	}
 
 	// Wait for Redis TCP ready (or process death)
 	redisAddr := net.JoinHostPort("127.0.0.1", dockerRedisPort)
 	if err = waitForTCPOrExit(ctx, redisAddr, 30*time.Second, redisProc); err != nil {
-		if isRootInterruption(ctx, err) {
-			return err
-		}
 		return fmt.Errorf("redis not ready: %w", err)
 	}
 
@@ -155,7 +140,7 @@ type infraSuite struct {
 	rootCtx        context.Context
 	childrenCtx    context.Context
 	cancelChildren context.CancelFunc
-	cancelRoot     context.CancelFunc
+	stopRoot       context.CancelCauseFunc
 	waitDelay      time.Duration
 	mu             sync.Mutex
 	stopping       bool
@@ -164,7 +149,7 @@ type infraSuite struct {
 
 func newInfraSuite(
 	rootCtx context.Context,
-	cancelRoot context.CancelFunc,
+	stopRoot context.CancelCauseFunc,
 	waitDelay time.Duration,
 ) *infraSuite {
 	childrenCtx, cancelChildren := context.WithCancel(context.WithoutCancel(rootCtx))
@@ -172,7 +157,7 @@ func newInfraSuite(
 		rootCtx:        rootCtx,
 		childrenCtx:    childrenCtx,
 		cancelChildren: cancelChildren,
-		cancelRoot:     cancelRoot,
+		stopRoot:       stopRoot,
 		waitDelay:      waitDelay,
 	}
 }
@@ -215,7 +200,7 @@ func (s *infraSuite) start(name, bin string, args ...string) (*infraProcess, err
 		s.mu.Lock()
 		process.waitErr = waitErr
 		if !s.stopping {
-			s.cancelRoot()
+			s.stopRoot(process.unexpectedExit())
 		}
 		close(process.done)
 		s.mu.Unlock()
@@ -370,55 +355,8 @@ func printMongoAVXError() {
 	fmt.Fprint(os.Stderr, msg)
 }
 
-// waitForTCPReady polls the address until a TCP connection succeeds or timeout is reached.
-func waitForTCPReady(parent context.Context, addr string, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(parent, timeout)
-	defer cancel()
-
-	dialer := &net.Dialer{
-		Timeout: 100 * time.Millisecond,
-	}
-
-	attempts := 0
-	startTime := time.Now()
-
-	for {
-		attempts++
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
-		if err == nil {
-			_ = conn.Close()
-			elapsed := time.Since(startTime)
-			log.Info("TCP listener ready",
-				zap.String("addr", addr),
-				zap.Int("attempts", attempts),
-				zap.Duration("elapsed", elapsed))
-			return nil
-		}
-
-		if attempts%5 == 0 {
-			log.Debug("waiting for TCP listener",
-				zap.String("addr", addr),
-				zap.Int("attempts", attempts),
-				zap.Duration("elapsed", time.Since(startTime)))
-		}
-
-		select {
-		case <-ctx.Done():
-			waitErr := ctx.Err()
-			if isRootInterruption(parent, waitErr) {
-				return parent.Err()
-			}
-			return fmt.Errorf("TCP listener %s not ready (limit: %v, attempts: %d): %w",
-				addr, timeout, attempts, waitErr)
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-}
-
-// waitForTCPOrExit polls the address until TCP connects, process exits, or timeout.
-// Returns nil if TCP is ready.
-// Returns process exit error if process dies.
-// Returns timeout error if deadline reached.
+// waitForTCPOrExit polls addr until it accepts a TCP connection. It fails when
+// the process exits first or timeout passes.
 func waitForTCPOrExit(
 	parent context.Context,
 	addr string,
@@ -428,65 +366,24 @@ func waitForTCPOrExit(
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
-	dialer := &net.Dialer{
-		Timeout: 100 * time.Millisecond,
-	}
-
-	attempts := 0
-	startTime := time.Now()
+	dialer := net.Dialer{Timeout: 100 * time.Millisecond}
+	retry := time.NewTicker(100 * time.Millisecond)
+	defer retry.Stop()
+	start := time.Now()
 
 	for {
-		attempts++
-
-		// Check if process died
-		select {
-		case <-process.done:
-			return process.unexpectedExit()
-		default:
-		}
-
-		// Try TCP connect
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
-		if err == nil {
+		if conn, err := dialer.DialContext(ctx, "tcp", addr); err == nil {
 			_ = conn.Close()
-			log.Info("TCP listener ready",
-				zap.String("addr", addr),
-				zap.Int("attempts", attempts),
-				zap.Duration("elapsed", time.Since(startTime)))
+			log.Info("TCP listener ready", zap.String("addr", addr), zap.Duration("elapsed", time.Since(start)))
 			return nil
 		}
 
-		// Check for timeout
-		select {
-		case <-ctx.Done():
-			waitErr := ctx.Err()
-			if isRootInterruption(parent, waitErr) {
-				return parent.Err()
-			}
-			return fmt.Errorf("TCP listener %s not ready (limit: %v, attempts: %d): %w",
-				addr, timeout, attempts, waitErr)
-		default:
-		}
-
-		if attempts%5 == 0 {
-			log.Debug("waiting for TCP listener",
-				zap.String("addr", addr),
-				zap.Int("attempts", attempts),
-				zap.Duration("elapsed", time.Since(startTime)))
-		}
-
-		// Wait before retry, watching for process exit
 		select {
 		case <-process.done:
 			return process.unexpectedExit()
 		case <-ctx.Done():
-			waitErr := ctx.Err()
-			if isRootInterruption(parent, waitErr) {
-				return parent.Err()
-			}
-			return fmt.Errorf("TCP listener %s not ready (limit: %v, attempts: %d): %w",
-				addr, timeout, attempts, waitErr)
-		case <-time.After(100 * time.Millisecond):
+			return fmt.Errorf("TCP listener %s not ready within %v: %w", addr, timeout, ctx.Err())
+		case <-retry.C:
 		}
 	}
 }

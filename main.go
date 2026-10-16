@@ -12,26 +12,25 @@ import (
 )
 
 func main() {
-	ctx, cancelRoot := signal.NotifyContext(
-		context.Background(),
+	// The root context is the process lifetime. A failure stops it with its
+	// error as the cause; a signal stops it with a cause matching context.Canceled.
+	rootCtx, stopRoot := context.WithCancelCause(context.Background())
+	ctx, stopSignals := signal.NotifyContext(
+		rootCtx,
 		// Match Kubernetes' cross-platform termination signal set.
 		syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT,
 	)
-	defer cancelRoot()
-
-	cliRoot := cmd.Root(ctx, cancelRoot)
+	defer stopSignals()
 
 	go func() {
 		<-ctx.Done()
 		time.Sleep(cmd.ShutdownTimeout)
-		fmt.Println("\nForced exit by timeout")
+		fmt.Fprintln(os.Stderr, "\nForced exit by timeout")
 		os.Exit(1)
 	}()
 
-	if err := cliRoot.Run(os.Args); err != nil {
-		cancelRoot()
-		fmt.Println("\nError:")
-		fmt.Printf(" > %+v\n", err)
+	if err := cmd.Root(ctx, stopRoot).Run(os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "\nError:\n > %+v\n", err)
 		os.Exit(1) //nolint:gocritic // need to exit with error code
 	}
 }

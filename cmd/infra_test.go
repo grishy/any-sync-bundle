@@ -146,29 +146,19 @@ func TestWaitForTCPOrExitStopsOnParentCancellation(t *testing.T) {
 
 	process := &infraProcess{done: make(chan struct{})}
 	err := waitForTCPOrExit(ctx, "127.0.0.1:59999", time.Minute, process)
-	if !isRootInterruption(ctx, err) {
-		t.Fatalf("expected exact parent cancellation, got %v", err)
-	}
-}
-
-func TestWaitForTCPReadyStopsOnParentCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	err := waitForTCPReady(ctx, "127.0.0.1:59999", time.Minute)
-	if !isRootInterruption(ctx, err) {
-		t.Fatalf("expected exact parent cancellation, got %v", err)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected parent cancellation, got %v", err)
 	}
 }
 
 func TestStartAllInOneInfraStopsBeforeAcquiringResources(t *testing.T) {
-	ctx, cancelRoot := context.WithCancel(t.Context())
-	cancelRoot()
-	infra := newInfraSuite(ctx, cancelRoot, time.Second)
+	ctx, stopRoot := context.WithCancelCause(t.Context())
+	stopRoot(nil)
+	infra := newInfraSuite(ctx, stopRoot, time.Second)
 
 	err := startAllInOneInfra(ctx, infra)
-	if !isRootInterruption(ctx, err) {
-		t.Fatalf("expected exact root cancellation, got %v", err)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected root cancellation, got %v", err)
 	}
 }
 

@@ -50,7 +50,7 @@ const (
 var log = logger.NewNamed("cli")
 
 // Root returns the main CLI application with all commands and flags configured.
-func Root(ctx context.Context, cancelRoot context.CancelFunc) *cli.App {
+func Root(ctx context.Context, stopRoot context.CancelCauseFunc) *cli.App {
 	cli.VersionPrinter = versionPrinter
 
 	// any-sync package, used in network communication but just for info.
@@ -72,8 +72,8 @@ func Root(ctx context.Context, cancelRoot context.CancelFunc) *cli.App {
 		Flags:  buildGlobalFlags(),
 		Before: setupLogger,
 		Commands: []*cli.Command{
-			cmdStartAllInOne(ctx, cancelRoot),
-			cmdStartBundle(ctx, cancelRoot),
+			cmdStartAllInOne(ctx, stopRoot),
+			cmdStartBundle(ctx, stopRoot),
 		},
 	}
 }

@@ -57,7 +57,8 @@ those services, including lifecycle, configuration, and storage changes.
 2. Diff each updated service's `cmd/` Bootstrap and `config/` package between
    the old and new tags. `lightnode/anynodes.go` copies each Bootstrap
    component list without the network components the coordinator shares, so
-   mirror additions, removals, and order changes there.
+   mirror additions, removals, and order changes there. Update the
+   version-pinned upstream links in code comments to the new tags.
 3. Run `go mod tidy` and `go mod verify`. Recalculate `vendorHash` in `flake.nix`
    for the resulting dependencies; keep the Go toolchain aligned if it changes.
 4. Run every command in **Build and Test** and **With Nix** above. Lint without

@@ -3,16 +3,9 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/http"
-	"net/http/pprof"
 	"os"
-	"path/filepath"
-	"runtime/debug"
-	"strings"
 	"time"
 
-	"github.com/anyproto/any-sync/app/logger"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 
@@ -41,7 +34,7 @@ const (
 	bundleShutdownCompleteEvent = "bundle_shutdown_complete"
 )
 
-func cmdStartAllInOne(ctx context.Context, cancelRoot context.CancelFunc) *cli.Command {
+func cmdStartAllInOne(ctx context.Context, stopRoot context.CancelCauseFunc) *cli.Command {
 	return &cli.Command{
 		Name:  "start-all-in-one",
 		Usage: "Start bundle together with embedded MongoDB and Redis",
@@ -50,41 +43,27 @@ func cmdStartAllInOne(ctx context.Context, cancelRoot context.CancelFunc) *cli.C
 			if err := assertContainerRuntime(); err != nil {
 				return err
 			}
-
 			printWelcomeMsg()
-
-			bundleCfg, err := prepareBundleConfig(c)
-			if err != nil {
-				return err
-			}
-
+			bundleCfg := loadBundleConfig(c)
 			applyAllInOneDefaults(bundleCfg)
 			startPprofServer(ctx, c)
 
-			infra := newInfraSuite(ctx, cancelRoot, infraProcessWaitDelay)
-
-			startErr := startAllInOneInfra(ctx, infra)
-			var bundleErr error
-			if startErr != nil {
-				rootInterrupted := isRootInterruption(ctx, startErr)
-				cancelRoot()
-				if rootInterrupted {
-					startErr = nil
-				}
-			} else {
-				bundleErr = runBundleServices(ctx, cancelRoot, bundleCfg)
+			infra := newInfraSuite(ctx, stopRoot, infraProcessWaitDelay)
+			err := startAllInOneInfra(ctx, infra)
+			switch {
+			case err == nil:
+				err = runBundleServices(ctx, stopRoot, bundleCfg)
+			case stoppedByOperator(ctx):
+				log.Info("startup interrupted", zap.Error(err))
+				err = nil
+			default:
+				stopRoot(err)
 			}
 
-			shutdownCtx, cancelShutdown := context.WithTimeout(
-				context.WithoutCancel(ctx),
-				infraShutdownTimeout,
-			)
-			infraErr := infra.stop(shutdownCtx)
-			cancelShutdown()
-
-			resultErr := errors.Join(startErr, bundleErr, infraErr)
-			if resultErr != nil {
-				return resultErr
+			shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(ctx), infraShutdownTimeout)
+			defer cancelShutdown()
+			if err = errors.Join(err, infra.stop(shutdownCtx)); err != nil {
+				return err
 			}
 			reportShutdownComplete()
 			return nil
@@ -92,23 +71,17 @@ func cmdStartAllInOne(ctx context.Context, cancelRoot context.CancelFunc) *cli.C
 	}
 }
 
-func cmdStartBundle(ctx context.Context, cancelRoot context.CancelFunc) *cli.Command {
+func cmdStartBundle(ctx context.Context, stopRoot context.CancelCauseFunc) *cli.Command {
 	return &cli.Command{
 		Name:  "start-bundle",
 		Usage: "Start bundle services and use external MongoDB/Redis",
 		Flags: buildStartFlags(),
 		Action: func(c *cli.Context) error {
 			printWelcomeMsg()
-
-			bundleCfg, err := prepareBundleConfig(c)
-			if err != nil {
-				return err
-			}
-
+			bundleCfg := loadBundleConfig(c)
 			startPprofServer(ctx, c)
 
-			err = runBundleServices(ctx, cancelRoot, bundleCfg)
-			if err != nil {
+			if err := runBundleServices(ctx, stopRoot, bundleCfg); err != nil {
 				return err
 			}
 			reportShutdownComplete()
@@ -117,77 +90,16 @@ func cmdStartBundle(ctx context.Context, cancelRoot context.CancelFunc) *cli.Com
 	}
 }
 
-func runBundleServices(
-	ctx context.Context,
-	cancelRoot context.CancelFunc,
-	bundleCfg *config.Config,
-) error {
+func runBundleServices(ctx context.Context, stopRoot context.CancelCauseFunc, bundleCfg *config.Config) error {
 	printConfigurationInfo(bundleCfg)
-
-	nodeCfgs := bundleCfg.NodeConfigs()
-	bundle := lightnode.NewBundle(nodeCfgs)
-
-	services := []bundleService{
-		{name: "coordinator", app: bundle.Coordinator},
-		{name: "consensus", app: bundle.Consensus},
-		{name: "filenode", app: bundle.FileNode},
-		{name: "sync", app: bundle.Sync},
-	}
-
-	if err := startServices(ctx, cancelRoot, services, bundleCfg); err != nil {
-		if isRootInterruption(ctx, err) {
-			return nil
-		}
-		return err
-	}
-
-	select {
-	case <-ctx.Done():
-	default:
-		emitBundleEvent(bundleReadyEvent)
-		printStartupMsg()
-		<-ctx.Done()
-	}
-
-	shutdownCtx, cancelShutdown := context.WithTimeout(
-		context.WithoutCancel(ctx),
-		servicesShutdownTimeout,
-	)
-	shutdownErr := shutdownServices(shutdownCtx, services)
-	cancelShutdown()
-	return shutdownErr
+	return runServices(ctx, stopRoot, lightnode.NewBundle(bundleCfg.NodeConfigs()))
 }
 
-// A wrapped or joined interruption may contain another failure, so only the
-// exact root error represents an operator-requested stop.
-func isRootInterruption(ctx context.Context, err error) bool {
-	rootErr := ctx.Err()
-	return rootErr != nil && err == rootErr //nolint:errorlint // Error traversal would weaken the invariant.
-}
-
-func prepareBundleConfig(c *cli.Context) (*config.Config, error) {
-	bundleCfg := loadOrCreateConfig(c, log)
-	clientCfgPath := c.String(flagStartClientConfigPath)
-
-	if err := writeClientConfig(bundleCfg, clientCfgPath); err != nil {
-		return nil, err
-	}
-
-	return bundleCfg, nil
-}
-
-func loadOrCreateConfig(c *cli.Context, log logger.CtxLogger) *config.Config {
-	cfgPath := c.String(flagStartBundleConfigPath)
-	log.Info("loading config")
-
-	if _, err := os.Stat(cfgPath); err == nil {
-		log.Info("loaded existing config")
-		return config.Load(cfgPath)
-	}
-
-	log.Info("creating new config")
-	return config.CreateWrite(&config.CreateOptions{
-		CfgPath:       cfgPath,
+// loadBundleConfig loads the bundle config, creating it from the start flags on
+// first start, and regenerates the client config on every start.
+func loadBundleConfig(c *cli.Context) *config.Config {
+	bundleCfg := config.LoadOrCreate(&config.CreateOptions{
+		CfgPath:       c.String(flagStartBundleConfigPath),
 		StorePath:     c.String(flagStartStoragePath),
 		MongoURI:      c.String(flagStartMongoURI),
 		RedisURI:      c.String(flagStartRedisURI),
@@ -202,107 +114,8 @@ func loadOrCreateConfig(c *cli.Context, log logger.CtxLogger) *config.Config {
 		// Filenode configuration
 		FilenodeDefaultLimit: c.Uint64(flagStartFilenodeDefaultLimit),
 	})
-}
-
-func writeClientConfig(cfg *config.Config, path string) error {
-	const clientConfigMode = 0o644
-
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return fmt.Errorf("failed to create client config directory: %w", err)
-	}
-
-	yamlData, err := cfg.YamlClientConfig()
-	if err != nil {
-		return fmt.Errorf("failed to generate client config: %w", err)
-	}
-
-	if err = os.WriteFile(path, yamlData, clientConfigMode); err != nil {
-		return fmt.Errorf("failed to write client config: %w", err)
-	}
-
-	log.Info("client configuration written", zap.String("path", path))
-	return nil
-}
-
-func emitBundleEvent(event string, fields ...zap.Field) {
-	fields = append(fields, zap.String("event", event))
-	log.Info("bundle lifecycle event", fields...)
-}
-
-func printWelcomeMsg() {
-	fmt.Printf(`
-┌───────────────────────────────────────────────────────────────────┐
-
-                 Welcome to the AnySync Bundle!
-           https://github.com/grishy/any-sync-bundle
-
-    Version: %s
-    Built:   %s
-    Commit:  %s
-
-`, version, commit, date)
-
-	fmt.Println(" Based on these components:")
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		log.Panic("failed to read build info")
-		return
-	}
-
-	for _, mod := range info.Deps {
-		if strings.HasPrefix(mod.Path, "github.com/anyproto/any-sync") {
-			fmt.Printf(" ‣ %s (%s)\n", mod.Path, mod.Version)
-		}
-	}
-	fmt.Print(`
-└───────────────────────────────────────────────────────────────────┘
-`)
-}
-
-func printStartupMsg() {
-	fmt.Printf(`
-┌───────────────────────────────────────────────────────────────────┐
-
-                      AnySync Bundle is ready!
-                      All services are running.
-                   Press Ctrl+C to stop services.
-
-└───────────────────────────────────────────────────────────────────┘
-`)
-}
-
-func reportShutdownComplete() {
-	emitBundleEvent(bundleShutdownCompleteEvent)
-	fmt.Printf(`
-┌───────────────────────────────────────────────────────────────────┐
-
-                 AnySync Bundle shutdown complete!
-                     All services are stopped.
-
-└───────────────────────────────────────────────────────────────────┘
-`)
-	log.Info("→ Goodbye!")
-}
-
-func printConfigurationInfo(cfg *config.Config) {
-	log.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	log.Info("Configuration Summary")
-	log.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	log.Info("→ Network Configuration",
-		zap.String("tcp_listen", cfg.Network.ListenTCPAddr),
-		zap.String("udp_listen", cfg.Network.ListenUDPAddr))
-	log.Info("→ MongoDB Configuration",
-		zap.String("coordinator_uri", cfg.Coordinator.MongoConnect),
-		zap.String("coordinator_db", cfg.Coordinator.MongoDatabase),
-		zap.String("consensus_uri", cfg.Consensus.MongoConnect),
-		zap.String("consensus_db", cfg.Consensus.MongoDatabase))
-	log.Info("→ Redis Configuration",
-		zap.String("filenode_uri", cfg.FileNode.RedisConnect))
-	log.Info("→ External Addresses",
-		zap.Strings("addresses", cfg.ExternalAddr))
-	log.Info("→ Node Identity",
-		zap.String("peer_id", cfg.Account.PeerId))
-	log.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	bundleCfg.WriteClientConfig(c.String(flagStartClientConfigPath))
+	return bundleCfg
 }
 
 func assertContainerRuntime() error {
@@ -317,49 +130,4 @@ func assertContainerRuntime() error {
 	return errors.New(
 		"start-all-in-one is only supported inside the official container image; please run the all-in-one container or use start-bundle with external MongoDB/Redis",
 	)
-}
-
-func startPprofServer(ctx context.Context, c *cli.Context) {
-	if !c.Bool(flagPprof) {
-		return
-	}
-
-	addr := c.String(flagPprofAddr)
-	log.Info("🔍 starting pprof HTTP server",
-		zap.String("addr", addr),
-		zap.String("url", "http://"+addr+"/debug/pprof/"))
-
-	// A private mux avoids exposing pprof through the process-wide default mux.
-	mux := http.NewServeMux()
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("pprof server failed", zap.Error(err))
-		}
-	}()
-
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancelShutdown()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Warn("pprof server shutdown failed", zap.Error(err))
-		}
-	}()
-
-	log.Info("✓ pprof server started - use 'go tool pprof' to analyze",
-		zap.String("cpu_profile", "go tool pprof http://"+addr+"/debug/pprof/profile?seconds=30"),
-		zap.String("heap_profile", "go tool pprof http://"+addr+"/debug/pprof/heap"),
-		zap.String("goroutine_profile", "go tool pprof http://"+addr+"/debug/pprof/goroutine"))
 }

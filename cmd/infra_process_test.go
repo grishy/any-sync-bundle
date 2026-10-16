@@ -93,11 +93,11 @@ func TestInfraProcessHelper(t *testing.T) {
 func newInfraTestSuite(
 	t *testing.T,
 	waitDelay time.Duration,
-) (*infraSuite, context.CancelFunc) {
+) (*infraSuite, context.CancelCauseFunc) {
 	t.Helper()
-	rootCtx, cancelRoot := context.WithCancel(t.Context())
-	t.Cleanup(cancelRoot)
-	return newInfraSuite(rootCtx, cancelRoot, waitDelay), cancelRoot
+	rootCtx, stopRoot := context.WithCancelCause(t.Context())
+	t.Cleanup(func() { stopRoot(nil) })
+	return newInfraSuite(rootCtx, stopRoot, waitDelay), stopRoot
 }
 
 func startInfraTestProcess(
@@ -172,12 +172,12 @@ func TestStartInfraTestProcessCleansUpAbandonedProcess(t *testing.T) {
 
 // Start and running supervision.
 func TestInfraSuiteDoesNotStartAfterRootCancellation(t *testing.T) {
-	suite, cancelRoot := newInfraTestSuite(t, time.Second)
-	cancelRoot()
+	suite, stopRoot := newInfraTestSuite(t, time.Second)
+	stopRoot(nil)
 
 	_, err := suite.start("redis", os.Args[0], "-test.run=^TestInfraProcessHelper$")
-	if !isRootInterruption(suite.rootCtx, err) {
-		t.Fatalf("expected exact root cancellation, got %v", err)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected root cancellation, got %v", err)
 	}
 }
 
@@ -190,6 +190,9 @@ func TestInfraSuiteCancelsRootAndReportsUnexpectedExit(t *testing.T) {
 	case <-suite.rootCtx.Done():
 	case <-time.After(5 * time.Second):
 		t.Fatal("unexpected exit did not cancel the root context")
+	}
+	if cause := context.Cause(suite.rootCtx); !strings.Contains(cause.Error(), "redis exited unexpectedly") {
+		t.Fatalf("root context cause does not name the exit: %v", cause)
 	}
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
@@ -204,7 +207,7 @@ func TestInfraSuiteCancelsRootAndReportsUnexpectedExit(t *testing.T) {
 // that exits in that interval is still unexpected and must make the final
 // result fail when ownership is handed to stop.
 func TestInfraSuiteStopReportsProcessThatExitedBeforeHandoff(t *testing.T) {
-	suite, cancelRoot := newInfraTestSuite(t, time.Second)
+	suite, stopRoot := newInfraTestSuite(t, time.Second)
 	process := startInfraTestProcess(t, suite, "redis", "exit", "")
 
 	select {
@@ -212,7 +215,7 @@ func TestInfraSuiteStopReportsProcessThatExitedBeforeHandoff(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("process did not exit")
 	}
-	cancelRoot()
+	stopRoot(nil)
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancelShutdown()
@@ -230,10 +233,10 @@ func TestInfraSuiteStopReportsProcessThatExitedBeforeHandoff(t *testing.T) {
 // Root cancellation hands ownership to stop before child cancellation, so a
 // graceful SIGTERM exit is expected and Wait must complete before stop returns.
 func TestInfraSuiteStopGracefullyReapsProcess(t *testing.T) {
-	suite, cancelRoot := newInfraTestSuite(t, time.Second)
+	suite, stopRoot := newInfraTestSuite(t, time.Second)
 	readyPath := filepath.Join(t.TempDir(), "ready")
 	process := startInfraTestProcess(t, suite, "mongo", "graceful", readyPath)
-	cancelRoot()
+	stopRoot(nil)
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancelShutdown()
@@ -252,7 +255,7 @@ func TestInfraSuiteStopGracefullyReapsProcess(t *testing.T) {
 // that signals one child and immediately waits for it deadlocks this test and
 // is forced to kill the first child.
 func TestInfraSuiteStopSignalsEveryProcessBeforeWaiting(t *testing.T) {
-	suite, cancelRoot := newInfraTestSuite(t, 200*time.Millisecond)
+	suite, stopRoot := newInfraTestSuite(t, 200*time.Millisecond)
 	dir := t.TempDir()
 	mongoReady := filepath.Join(dir, "mongo-ready")
 	redisReady := filepath.Join(dir, "redis-ready")
@@ -261,7 +264,7 @@ func TestInfraSuiteStopSignalsEveryProcessBeforeWaiting(t *testing.T) {
 
 	startInfraTestProcess(t, suite, "mongo", "graceful", mongoReady, mongoSignal, redisSignal)
 	startInfraTestProcess(t, suite, "redis", "graceful", redisReady, redisSignal, mongoSignal)
-	cancelRoot()
+	stopRoot(nil)
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancelShutdown()
@@ -273,10 +276,10 @@ func TestInfraSuiteStopSignalsEveryProcessBeforeWaiting(t *testing.T) {
 }
 
 func TestInfraSuiteStopReportsNonZeroGracefulExit(t *testing.T) {
-	suite, cancelRoot := newInfraTestSuite(t, time.Second)
+	suite, stopRoot := newInfraTestSuite(t, time.Second)
 	readyPath := filepath.Join(t.TempDir(), "ready")
 	startInfraTestProcess(t, suite, "redis", "nonzero", readyPath)
-	cancelRoot()
+	stopRoot(nil)
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancelShutdown()
@@ -295,10 +298,10 @@ func TestInfraSuiteStopReportsNonZeroGracefulExit(t *testing.T) {
 // Forced shutdown.
 
 func TestInfraSuiteStopKillsAndReapsSurvivor(t *testing.T) {
-	suite, cancelRoot := newInfraTestSuite(t, 50*time.Millisecond)
+	suite, stopRoot := newInfraTestSuite(t, 50*time.Millisecond)
 	readyPath := filepath.Join(t.TempDir(), "ready")
 	process := startInfraTestProcess(t, suite, "mongo", "stubborn", readyPath)
-	cancelRoot()
+	stopRoot(nil)
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancelShutdown()
@@ -326,10 +329,10 @@ func TestInfraSuiteStopKillsAndReapsSurvivor(t *testing.T) {
 // A caller deadline may be shorter than Cmd.WaitDelay. Stop must force the
 // child and wait for its sole waiter instead of returning an owned zombie.
 func TestInfraSuiteStopReapsProcessAfterCallerDeadline(t *testing.T) {
-	suite, cancelRoot := newInfraTestSuite(t, 200*time.Millisecond)
+	suite, stopRoot := newInfraTestSuite(t, 200*time.Millisecond)
 	readyPath := filepath.Join(t.TempDir(), "ready")
 	process := startInfraTestProcess(t, suite, "mongo", "stubborn", readyPath)
-	cancelRoot()
+	stopRoot(nil)
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancelShutdown()

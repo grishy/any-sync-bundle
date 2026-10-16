@@ -30,15 +30,19 @@ Configured S3 storage uses upstream `s3store`; local storage uses BadgerDB.
 ## Runtime invariants
 
 - All services share the coordinator's PeerID, network stack, and DRPC mux on
-  TCP 33010 and QUIC/UDP 33020.
-- Service order is coordinator, consensus, filenode, then sync. Initialize every
-  application before running any application so the network cannot read the
-  shared DRPC mux while handlers are still being registered. Shut down in
+  TCP 33010 and QUIC/UDP 33020. Consensus, filenode, and sync are
+  `app.ChildApp`s of the coordinator: they inherit its network components and
+  register only their own, following each upstream `cmd` Bootstrap.
+- Services start with upstream `app.Start` in order: coordinator, consensus,
+  filenode, then sync. The coordinator only initializes the transports; the
+  bundle opens them as listeners after every service runs and closes them
+  before any service closes, so no request reaches a service, or reads the DRPC
+  mux, before every service is running. Services close with `app.Close` in
   reverse order.
-- The root context represents process lifetime. A process signal, startup
-  failure, service run failure, or unexpected embedded-process exit cancels it.
-  Preserve independent startup, runtime, and cleanup errors; an operator stop is
-  successful only when cleanup adds no failure.
+- The root context represents process lifetime. A signal stops it with a cause
+  matching `context.Canceled`; a startup failure or unexpected embedded-process
+  exit stops it with that error as the cause. An operator stop is successful
+  only when shutdown adds no failure.
 - All-in-one mode owns MongoDB and Redis for their full lifetime. An unexpected
   exit fails the bundle. Intentional shutdown sends SIGTERM to every child
   before waiting, then forces and reaps deadline survivors.
