@@ -27,6 +27,7 @@ import (
 	"github.com/anyproto/any-sync/commonspace/config"
 	"github.com/anyproto/any-sync/metric"
 	"github.com/anyproto/any-sync/net/rpc"
+	"github.com/anyproto/any-sync/net/rpc/authorizer"
 	"github.com/anyproto/any-sync/net/rpc/limiter"
 	"github.com/anyproto/any-sync/net/transport/quic"
 	"github.com/anyproto/any-sync/net/transport/yamux"
@@ -221,6 +222,29 @@ func (bc *Config) convertS3Config() s3store.Config {
 }
 
 func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
+
+	d := bc.defualtSyncConfig(opts)
+
+	cfg := bc.SyncNode
+
+	cfg.Drpc = d.Drpc
+	cfg.Network = d.Network
+	cfg.NetworkStorePath = d.NetworkStorePath
+	cfg.NetworkUpdateIntervalSec = d.NetworkUpdateIntervalSec
+	cfg.Space = d.Space
+	cfg.Storage = d.Storage
+
+	cfg.Metric = d.Metric
+	cfg.Log = d.Log
+
+	cfg.NodeSync = d.NodeSync
+	cfg.Yamux = d.Yamux
+	cfg.Quic = d.Quic
+
+	return &cfg
+}
+
+func (bc *Config) defualtSyncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 	return &syncconfig.Config{
 		// APIServer omitted - disabled by default.
 		Drpc: rpc.Config{
@@ -246,11 +270,13 @@ func (bc *Config) syncConfig(opts *nodeConfigOpts) *syncconfig.Config {
 			PeriodicSyncHours: defaultPeriodicSyncHours,
 			HotSync:           hotsync.Config{},
 		},
-		Yamux:   bc.yamuxConfig(),
-		Quic:    bc.quicConfig(),
-		Limiter: limiter.Config{},
-		S3Store: archivestore.Config{Enabled: false}, // Disabled by default
-		Archive: archive.Config{Enabled: false},      // Disabled by default
+		Yamux: bc.yamuxConfig(),
+		Quic:  bc.quicConfig(),
+
+		Limiter:    limiter.Config{},
+		Authorizer: authorizer.Config{Enabled: false},
+		S3Store:    archivestore.Config{Enabled: false}, // Disabled by default
+		Archive:    archive.Config{Enabled: false},      // Disabled by default
 	}
 }
 
