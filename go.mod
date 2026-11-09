@@ -5,7 +5,7 @@ go 1.27.2
 tool github.com/matryer/moq
 
 // Any-Sync versions: https://puppetdoc.anytype.io/api/v1/prod-any-sync-compatible-versions/
-// Timestamp: "1791812649"
+// Timestamp: "1793905394"
 require (
 	github.com/anyproto/any-sync v0.13.8
 	github.com/anyproto/any-sync-consensusnode v0.13.3
