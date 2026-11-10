@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	syncconfig "github.com/anyproto/any-sync-node/config"
 	"github.com/anyproto/any-sync/accountservice"
 	"github.com/anyproto/any-sync/app"
 	"github.com/anyproto/any-sync/app/logger"
@@ -53,6 +54,7 @@ type Config struct {
 	Coordinator   CoordinatorConfig     `yaml:"coordinator"`
 	Consensus     ConsensusConfig       `yaml:"consensus"`
 	FileNode      FileNodeConfig        `yaml:"filenode"`
+	SyncNode      syncconfig.Config     `yaml:"syncnode"`
 }
 
 type NetworkConfig struct {

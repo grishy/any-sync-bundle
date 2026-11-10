@@ -169,3 +169,7 @@ require (
 	modernc.org/sqlite v1.38.0 // indirect
 	storj.io/drpc v1.0.0 // indirect
 )
+
+replace github.com/anyproto/any-sync => ../any-sync
+
+replace github.com/anyproto/any-sync-node => ../any-sync-node
